@@ -1,0 +1,1 @@
+num_iter:100	wdec_factor:0.95	inv_edge:0	inv_dist:0.0	num_target_atoms:100000	mov_dist:3.0	lbfgs:0	sorter:false	shuffle:false	backbone_cb_only:false	accept_lb:0.3	accept_ub:0.5	steps_bound_check:200	refine_loop_threshold:500000	use_template:false	refine_retry:6
