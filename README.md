@@ -21,20 +21,17 @@ cargo run --release --  -refinement -toph19 "./resources/toppar_c36_jul18/toppar
 
 ## Energy function or terms used in this software
 > solvation_parameters.dat
+Lazaridis, Themis, and Martin Karplus. "Effective energy function for proteins in solution." Proteins: Structure, Function, and Bioinformatics 35.2 (1999): 133-152.
 
-PROTEINS: Structure, Function, and Genetics 35:133?152 (1999)
-Effective Energy Function for Proteins in Solution
-Themis Lazaridis1 and Martin Karplus
 
 > opt_nov15_lj_param.dat
 > opt_nov15_partial_charge.dat
+Park, Hahnbeom, et al. "Simultaneous optimization of biomolecular energy functions on features from small molecules and macromolecules." Journal of chemical theory and computation 12.12 (2016): 6201-6212.
 
-Park, Hahnbeom, Philip Bradley, Per Greisen, Yuan Liu, Vikram Khipple Mulligan, David E. Kim, David Baker, and Frank DiMaio. “Simultaneous Optimization of Biomolecular Energy Functions on Features from Small Molecules and Macromolecules.” Journal of Chemical Theory and Computation 12, no. 12 (December 13, 2016): 6201–12. https://doi.org/10.1021/acs.jctc.6b00819.
 
 > CHARMM
+Brooks, Bernard R., et al. "CHARMM: a program for macromolecular energy, minimization, and dynamics calculations." Journal of computational chemistry 4.2 (1983): 187-217.
 
-Brooks, B. R. et al. CHARMM: a program for macromolecular energy, minimization, and dynamics calculations. Journal of computational chemistry 4, 187-217 (1983).
 
 > EvoEF2
-
-Huang, X., Pearce, R. & Zhang, Y. EvoEF2: accurate and fast energy function for computational protein design. Bioinformatics 36, 1135-1142, doi:10.1093/bioinformatics/btz740 (2020).
+Huang, Xiaoqiang, Robin Pearce, and Yang Zhang. "EvoEF2: accurate and fast energy function for computational protein design." Bioinformatics 36.4 (2020): 1135-1142.
