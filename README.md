@@ -21,17 +21,21 @@ cargo run --release --  -refinement -toph19 "./resources/toppar_c36_jul18/toppar
 
 ## Energy function or terms used in this software
 > solvation_parameters.dat
+
 Lazaridis, Themis, and Martin Karplus. "Effective energy function for proteins in solution." Proteins: Structure, Function, and Bioinformatics 35.2 (1999): 133-152.
 
 
 > opt_nov15_lj_param.dat
 > opt_nov15_partial_charge.dat
+
 Park, Hahnbeom, et al. "Simultaneous optimization of biomolecular energy functions on features from small molecules and macromolecules." Journal of chemical theory and computation 12.12 (2016): 6201-6212.
 
 
 > CHARMM
+
 Brooks, Bernard R., et al. "CHARMM: a program for macromolecular energy, minimization, and dynamics calculations." Journal of computational chemistry 4.2 (1983): 187-217.
 
 
 > EvoEF2
+
 Huang, Xiaoqiang, Robin Pearce, and Yang Zhang. "EvoEF2: accurate and fast energy function for computational protein design." Bioinformatics 36.4 (2020): 1135-1142.
