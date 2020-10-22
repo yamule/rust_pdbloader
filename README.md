@@ -1,7 +1,7 @@
 ## rust_pdbloader
-A bunch of Rust snippet to play with pdb. 
+A bunch of Rust snippet to play with data in PDB (https://www.rcsb.org/). 
 
-This commit was created as a pointer to the state used in CASP14.
+These commits were created as a pointer to the state used in CASP14.
 A large update is planned.
 
 ## Requirement
