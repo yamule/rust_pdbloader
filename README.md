@@ -7,7 +7,7 @@ A large update is planned.
 ## Requirement
 Rust https://www.rust-lang.org/
 
-## Usage (Template Based Modelling)
+## Usage (Template Based Modeling)
 ``` bash
 git clone https://github.com/yamule/rust_pdbloader.git
 cd rust_pdbloader
