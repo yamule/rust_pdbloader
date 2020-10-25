@@ -84,52 +84,70 @@ fn main__(){
     
 }
 
+//Todo ファイルがない場合のエラーメッセージにパス表示
+//
 
 fn main(){
         //コマンド例
     //cargo run --release -- -sequence_clustering -in D:/dummy/vbox_share/casp_decoys/get_ref_structure/casp_fas_test.fas -identity 0.95 -coverage_short 0.95 -kmer_filt 2 -fmt_blastclust
     
-    let argss: Vec<String> = env::args().collect();
+    let mut argss: Vec<String> = env::args().collect();
+    let _exe:String = argss.remove(0);
+    let subcommand:String = argss.remove(0);
     //let argss:Vec<String> = "test test".split_whitespace().into_iter().map(|m|m.to_string()).collect();
     let args:HashMap<String,String> = arg_to_hash(&argss);
-    if args.contains_key("-sequence_alignment"){
-        main_seq_align(args);
-        return;
-    }else if args.contains_key("-sequence_clustering"){
-        main_sequence_clustering(args);
-        return;
-    }else if args.contains_key("-structural_alignment"){
-        main_str_align(args);
-        return;
-    }else if args.contains_key("-comparative_domain_split"){
-        main_comparative_domain_split(args);
-        return;
-    }else if args.contains_key("-phi_psi_angle"){
-        calc_phi_psi(args);
-        return;
-    }else if args.contains_key("-prepare_structure"){
-        main_prepare_structure(args);
-        return;
-    }else if args.contains_key("-residue_mapping"){
-        residue_mapping(args);
-        return;
-    }else if args.contains_key("-refinement"){
-        refinement(args);
-        return;
-    }else if args.contains_key("-merge_structures"){
-        merge_structures(args);
-        return;
-    }else if args.contains_key("-calc_energy"){
-        calc_energies(args);
-        return;
-    }else if args.contains_key("-make_homo_multimer"){
-        make_homo_multimer(args);
-        return;
-    }else if args.contains_key("-docking"){
-        docking(args);
-        return;
-    }else{
-        panic!("not supported command. {:?}",argss);
+    match subcommand.as_str(){
+        "sequence_alignment" => {
+            main_seq_align(args);
+            return;
+        },
+        "sequence_clustering"=>{
+            main_sequence_clustering(args);
+            return;
+        },
+        "structural_alignment"=>{
+            main_str_align(args);
+            return;
+        },
+        "comparative_domain_split"=>{
+            main_comparative_domain_split(args);
+            return;
+        },
+        "phi_psi_angle"=>{
+            calc_phi_psi(args);
+            return;
+        },
+        "prepare_structure"=>{
+            main_prepare_structure(args);
+            return;
+        },
+        "residue_mapping"=>{
+            residue_mapping(args);
+            return;
+        },
+        "refinement"=>{
+            refinement(args);
+            return;
+        },
+        "merge_structures"=>{
+            merge_structures(args);
+            return;
+        },
+        "calc_energy"=>{
+            calc_energies(args);
+            return;
+        },
+        "make_homo_multimer"=>{
+            make_homo_multimer(args);
+            return;
+        },
+        "docking"=>{
+            docking(args);
+            return;
+        },
+        _=>{
+            panic!("not supported command. {:?}",subcommand);
+        }
     }
 }
 fn residue_mapping(args:HashMap<String,String>) {
@@ -304,7 +322,6 @@ fn merge_structures(args:HashMap<String,String>) {
 }
 fn refinement(args:HashMap<String,String>) {
     let checker:HashSet<String> = vec![
-    "-refinement",
     "-toph19",
     "-param19",
     "-resource",
@@ -648,7 +665,6 @@ fn main_sequence_clustering(args:HashMap<String,String>) {
         ,"-coverage_short"
         ,"-kmer_filt"
         ,"-fmt_blastclust"
-        ,"-sequence_clustering"
         ,"-out_fasta"
     ].iter().map(|m|m.to_string()).collect();
 
@@ -1008,8 +1024,7 @@ fn main_prepare_structure(args:HashMap<String,String>) {
     }
 
     let options_expected:HashSet<String>=vec![
-        "-prepare_structure"
-        ,"-in"
+        "-in"
         ,"-out"
         ,"-resource_dir"
         ,"-random"
