@@ -3,6 +3,8 @@ A bunch of Rust snippet to play with data in PDB (https://www.rcsb.org/).
 
 These commits were created as a pointer to the state used in CASP14.
 A large update is planned.
+This software has its own matrix calculation module. It is HIGHLY DISCOURAGED and I completely agree with it.
+
 
 ## Requirement
 Rust https://www.rust-lang.org/
