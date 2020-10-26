@@ -84,8 +84,10 @@ fn main__(){
     
 }
 
-//Todo ファイルがない場合のエラーメッセージにパス表示
-//
+//Todo
+//ファイルがない場合のエラーメッセージにパス表示
+//CB bind
+//secstr の helix ちゃんとする
 
 fn main(){
         //コマンド例
@@ -161,14 +163,17 @@ fn residue_mapping(args:HashMap<String,String>) {
 
 }
 fn calc_energies(args:HashMap<String,String>) {
-    let toph19:&str = args.get("-toph19").unwrap_or_else(|| panic!("Please specify charmm19 toph19.inp file with -toph19."));
-    let param19:&str = args.get("-param19").unwrap_or_else(|| panic!("Please specify charmm19 param19.inp file with -param19."));
+
     let evoef2resource:&str = args.get("-resource").unwrap_or_else(|| panic!("Please specify resource dir with -resource"));
+    
+    let toph19:String = evoef2resource.to_string()+"/toppar_c36_jul18/toppar/toph19.inp";
+    let param19:String = evoef2resource.to_string()+"/toppar_c36_jul18/toppar/param19.inp";
+    
     let angle:&str = args.get("-angle").unwrap_or_else(|| panic!("Please specify backbone torsion angle file with -angle"));
     template_based_modelling::calc_energies(
     args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in."))
-    ,toph19
-    ,param19
+    ,toph19.as_ref()
+    ,param19.as_ref()
     ,evoef2resource
     ,angle
     , match args.get("-cb_dist"){Some(x) => {x},_=>{""}}
@@ -275,9 +280,11 @@ fn load_template_list(templatefile:&str)->Vec<(String,String,String)>{
 }
 
 fn merge_structures(args:HashMap<String,String>) {
-    let toph19:&str = args.get("-toph19").unwrap_or_else(|| panic!("Please specify charmm19 toph19.inp file with -toph19."));
-    let param19:&str = args.get("-param19").unwrap_or_else(|| panic!("Please specify charmm19 param19.inp file with -param19."));
     let evoef2resource:&str = args.get("-resource").unwrap_or_else(|| panic!("Please specify resource dir with -resource"));
+    
+    let toph19:String = evoef2resource.to_string()+"/toppar_c36_jul18/toppar/toph19.inp";
+    let param19:String = evoef2resource.to_string()+"/toppar_c36_jul18/toppar/param19.inp";
+    
     let angle:&str = args.get("-angle").unwrap_or_else(|| panic!("Please specify backbone torsion angle file with -angle"));
 
     let base_:PDBEntry = load_pdb(args.get("-base").unwrap_or_else(|| panic!("Please specify input file with -in.")));
@@ -308,8 +315,8 @@ fn merge_structures(args:HashMap<String,String>) {
     &base
     ,&sample
     ,&chain_name
-    ,toph19
-    ,param19
+    ,toph19.as_ref()
+    ,param19.as_ref()
     ,evoef2resource
     ,angle
     , match args.get("-cb_dist"){Some(x) => {x},_=>{""}}
@@ -322,8 +329,6 @@ fn merge_structures(args:HashMap<String,String>) {
 }
 fn refinement(args:HashMap<String,String>) {
     let checker:HashSet<String> = vec![
-    "-toph19",
-    "-param19",
     "-resource",
     "-angle",
     "-build_missing_param1",
@@ -354,9 +359,11 @@ fn refinement(args:HashMap<String,String>) {
         }
     }
 
-    let toph19:&str = args.get("-toph19").unwrap_or_else(|| panic!("Please specify charmm19 toph19.inp file with -toph19."));
-    let param19:&str = args.get("-param19").unwrap_or_else(|| panic!("Please specify charmm19 param19.inp file with -param19."));
     let evoef2resource:&str = args.get("-resource").unwrap_or_else(|| panic!("Please specify resource dir with -resource"));
+    
+    let toph19:String = evoef2resource.to_string()+"/toppar_c36_jul18/toppar/toph19.inp";
+    let param19:String = evoef2resource.to_string()+"/toppar_c36_jul18/toppar/param19.inp";
+    
     let angle:&str = args.get("-angle").unwrap_or_else(|| panic!("Please specify backbone torsion angle file with -angle"));
     
     let param1:String = args.get("-build_missing_param1").unwrap_or(&"".to_string()).to_string();
@@ -392,8 +399,8 @@ fn refinement(args:HashMap<String,String>) {
     ,match args.get("-flag"){Some(x) => {Some(x.to_string())},_=>{None}}
     ,match args.get("-group"){Some(x) => {Some(x.to_string())},_=>{None}}
     ,args.get("-num_incremental_build").unwrap_or(&("0".to_owned())).parse::<usize>().unwrap()
-    ,toph19
-    ,param19
+    ,toph19.as_ref()
+    ,param19.as_ref()
     ,evoef2resource
     ,angle
     , match args.get("-cb_dist"){Some(x) => {x},_=>{""}}
@@ -424,9 +431,11 @@ fn refinement(args:HashMap<String,String>) {
     
 
 fn docking(args:HashMap<String,String>) {
-    let toph19:&str = args.get("-toph19").unwrap_or_else(|| panic!("Please specify charmm19 toph19.inp file with -toph19."));
-    let param19:&str = args.get("-param19").unwrap_or_else(|| panic!("Please specify charmm19 param19.inp file with -param19."));
     let evoef2resource:&str = args.get("-resource").unwrap_or_else(|| panic!("Please specify resource dir with -resource"));
+    
+    let toph19:String = evoef2resource.to_string()+"/toppar_c36_jul18/toppar/toph19.inp";
+    let param19:String = evoef2resource.to_string()+"/toppar_c36_jul18/toppar/param19.inp";
+    
     let angle:&str = args.get("-angle").unwrap_or_else(|| panic!("Please specify backbone torsion angle file with -angle"));
     let mut pdbb:PDBEntry = load_pdb(args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")));
     for cc in pdbb.chains.iter_mut(){
@@ -437,8 +446,8 @@ fn docking(args:HashMap<String,String>) {
     let ppenergyset:pp_energy::PPEnergySet =template_based_modelling::docking(
     pdbb
     ,match args.get("-group"){Some(x) => {Some(x.to_string())},_=>{None}}
-    ,toph19
-    ,param19
+    ,toph19.as_ref()
+    ,param19.as_ref()
     ,evoef2resource
     ,angle
     , match args.get("-cb_dist"){Some(x) => {x},_=>{""}}
@@ -1043,7 +1052,12 @@ fn main_prepare_structure(args:HashMap<String,String>) {
     let infilename:&str = args.get("-in").unwrap_or_else(|| panic!("-in was not found."));
     let resource_dir:&str = args.get("-resource_dir").unwrap_or_else(|| panic!("-resource_dir was not found."));
     let mut pdbb:PDBEntry = load_pdb(infilename);
-    let parr = charmm_param::CHARMMParam::load_chamm19((resource_dir.to_string()+"\\toph19.inp").as_str(),(resource_dir.to_string()+"\\param19.inp").as_str());
+    
+    let toph19:String = resource_dir.to_string()+"/toppar_c36_jul18/toppar/toph19.inp";
+    let param19:String = resource_dir.to_string()+"/toppar_c36_jul18/toppar/param19.inp";
+
+    let parr = charmm_param::CHARMMParam::load_chamm19(toph19.as_str()
+    ,param19.as_str());
     let random_movement:f64 = args.get("-random").unwrap_or(&("0.0".to_string())).parse::<f64>().unwrap_or_else(|_| panic!("can not parse {:?}",args.get("-random")));
     let outfilename = args.get("-out").unwrap_or_else(|| panic!("-out was not found."));
     
@@ -1077,86 +1091,4 @@ fn main_prepare_structure(args:HashMap<String,String>) {
     }
     
     write_to_file(outfilename,lines_all);
-}
-
-fn _main_evoef() {
-    let mut pdbb:PDBEntry = load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/6iws_model1_noh.pdb");
-    let parr = charmm_param::CHARMMParam::load_chamm19((debug_env::CHARMM_DIR.to_string()+"\\toph19.inp").as_str(),(debug_env::CHARMM_DIR.to_string()+"\\param19.inp").as_str());
-    let outfilename = "test/evoef_hadded.pdb";
-    let _rpp:rosetta_param::RosettaParamMapper  = rosetta_param::RosettaParamMapper::construct(debug_env::ROSETTA_DIR);
-
-    let mut ca_atoms_pos:Vec<(usize,(f64,f64,f64))> = vec![];
-    
-    charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.chains[0].residues);
-
-    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&vec![pdbb.chains.remove(0)],&parr,true);
-
-    let mut ca_md:Vec<&charmm_based_energy::MDAtom> = vec![];
-    for (_rii,aa) in md_envset.atoms.iter().enumerate(){
-        if aa.atom_name == "CA"{
-        //後のステップでCA が全ての AA について 1 つずつ存在し、Residue 順に Vector に加えられているとみなしている。
-            ca_md.push(aa);
-            
-        }
-    }
-
-    for (_rii,rr) in pdbb.chains[0].residues.iter().enumerate(){
-        if rr.residue_name == "HOH"{
-            continue;
-        }
-
-        //CA が全ての AA について 1 つずつ存在し、Residue 順に Vector に加えられているとみなしている。
-        //名前だけチェック。ずれていたら panic する。その場合もっと保証できる方法に変更。
-        //CA distance の時のマップに必要
-        assert_eq!(ca_md[_rii].residue_name,rr.residue_name);
-        for (_aii,aa) in rr.iter_atoms().enumerate(){
-            if aa.atom_code == "CA"{
-                ca_atoms_pos.push((_rii,(aa.get_x(),aa.get_y(),aa.get_z())));
-            }
-        }
-    }
-
-
-    let mut ref_dist:Vec<Vec<f64>> = vec![vec![-1.0;ca_atoms_pos.len()];ca_atoms_pos.len()];
-    let mut rgen:StdRng =  SeedableRng::seed_from_u64(100);
-    let alen:usize = ca_atoms_pos.len();
-    let mut ca_indices:Vec<usize> = vec![];
-    for ii in 0..alen{
-        ca_indices.push(ca_atoms_pos[ii].0);
-        for jj in 0..alen{
-            let ddist = process_3d::distance(&ca_atoms_pos[ii].1,&ca_atoms_pos[jj].1);
-            if  ddist < 12.0{
-                ref_dist[ii][jj] = ddist;
-            }
-        }
-    }
-
-    let num_atoms = md_envset.atoms.len();
-    println!("Params were loaded.");
-    for ii in 0..num_atoms{
-        if md_envset.atoms[ii].unplaced{
-            md_envset.atoms[ii].x += rgen.gen_range(-0.5,0.5);
-            md_envset.atoms[ii].y += rgen.gen_range(-0.5,0.5);
-            md_envset.atoms[ii].z += rgen.gen_range(-0.5,0.5);
-        }
-    }
-    charmm_based_energy::estimate_positions_unplaced(&mut md_envset,&md_varset);
-    //mcprocess_md::mc_iter_array(&mut md_envset,&ref_dist,&ca_indices,50,Some(123),num_atoms);
-    let mut lines:Vec<String> = vec![];
-    for aa in md_envset.atoms.iter(){
-        let (chainid,(resname,resnum,inscode),att) = aa.to_pdbatom();
-        lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&inscode));
-    }
-    write_to_file(outfilename,lines);
-    let mut evoenv:evoef2_energy::EvoEF2Env = evoef2_energy::EvoEF2Env::new(md_envset,md_varset,debug_env::RESOURCE_DIR,false);
-    let mut atom_ene:Vec<f64> = vec![0.0;evoenv.md_envset.atoms.len()];
-    evoenv.md_envset.update_distance();
-    println!("vdw: {:?}",evoef2_energy::calcEvdw(&evoenv,&mut atom_ene,&(vec![1.0_f64;4])));
-    println!("elec: {}",evoef2_energy::calcEelec(&evoenv,&mut atom_ene,1.0));
-    println!("hb: {:?}",evoef2_energy::calcEhb(&evoenv,&mut atom_ene,&(vec![1.0_f64;9])));
-    println!("desolv: {:?}",evoef2_energy::calcEdesolv(&evoenv,&mut atom_ene,1.0,1.0));
-    println!("disulfide: {}",evoef2_energy::calcEss(&evoenv,&mut atom_ene,1.0));
-    let mut atom_level_energy:Vec<f64> = vec![0.0;evoenv.md_envset.atoms.len()];
-    let mres = charmm_based_energy::calc_energy(&mut evoenv.md_envset,&mut evoenv.charmm_vars,&mut atom_level_energy);
-    println!("{:?}",mres);
 }
