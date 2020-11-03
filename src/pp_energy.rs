@@ -5,7 +5,7 @@ use super::geometry::Vector3D;
 use std::io::{BufReader,BufRead};
 use std::fs::File;
 
-use std::collections::HashMap;
+use std::collections::{HashMap,HashSet};
 #[allow(unused_imports)]
 use super::pdbdata;
 #[allow(unused_imports)]
@@ -90,7 +90,7 @@ impl EnergyFunction for AtomContactEnergy{
 }
 
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct PPEnergyWeight{
     pub charmm_bond:f64,
     pub charmm_angle:f64,
@@ -165,18 +165,55 @@ impl PPEnergyWeight{
 
     pub fn load(filename:&str)->PPEnergyWeight{
         let mut ret:PPEnergyWeight = PPEnergyWeight::new();
-        let file = File::open(filename).unwrap_or_else(|e|{panic!("Cannot find {}! {} ",filename,e)});
+        let file = File::open(filename).unwrap_or_else(|e|{panic!("Cannot find {}! {:?} ",filename,e)});
         let reader = BufReader::new(file);
         let mut lab_value:HashMap<String,String> = HashMap::new();
-        for (_lcount,line) in reader.lines().enumerate() {
-            let ptt:Vec<String> = line.unwrap().split_whitespace().map(|m|m.to_string()).collect();
+        
+        let checker:HashSet<String> = 
+        vec!["charmm_bond",
+        "charmm_angle",
+        "charmm_ub",
+        "charmm_dihed",
+        "charmm_impr",
+        "charmm_lj",
+        "charmm_electro",
+
+        "dihed_weight_charmm",
+        "backbone_energy_omega",
+        "backbone_energy_phi_psi",
+        "atom_distance_energy",
+        "atom_binned_distance_energy",
+        "atom_contact_energy",
+
+        "evoef2_vdw",
+        "evoef2_elec",
+        "evoef2_hb",
+        "evoef2_desolv_polar",
+        "evoef2_desolv_nonpolar",
+        "evoef2_ss"
+        ].into_iter().map(|m|m.to_owned()).collect(); 
+        for (_lcount,line_) in reader.lines().enumerate() {
+            
+            let line =  (*REGEX_TAILBLANK.replace_all(&(line_.unwrap()), "")).to_string();
+            let ptt:Vec<String> = line.split_whitespace().map(|m|m.to_string()).collect();
+            if ptt.len() == 0{
+                continue;
+            }
             if start_with(&ptt[0],"#"){
                 continue;
             }
-            if ptt.len() > 2{
-                eprintln!("Only 2 columns are used. {:?}",ptt[2..]);
+            if  ptt.len() == 1 && ptt[0].len() == 0{
             }
-            lab_value.insert(ptt[0],ptt[1]);
+            if  ptt.len() < 2{
+                eprintln!("{} was ignored.",&ptt[0]);
+            }
+            if !checker.contains(&ptt[0]){
+                panic!("{} was not found in the dict!",&ptt[0]);
+            }
+            if ptt.len() > 2{
+                eprintln!("Only 2 columns are used. {:?}",&ptt[2..]);
+            }
+            lab_value.insert(ptt[0].clone(),ptt[1].clone());
         }
         ret.charmm_bond = lab_value.get("charmm_bond").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
         ret.charmm_angle = lab_value.get("charmm_angle").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
@@ -194,12 +231,19 @@ impl PPEnergyWeight{
         ret.atom_contact_energy = lab_value.get("atom_contact_energy").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
 
         ret.evoef2_vdw = lab_value.get("evoef2_vdw").unwrap_or(&("1.0,1.0,1.0,1.0".to_owned())).split(",").map(|m|m.parse::<f64>().unwrap()).collect();
+        if ret.evoef2_vdw.len() != 4{
+            panic!("evoef2_vdw must have 4 elements. {:?}",ret.evoef2_vdw);
+        }
         ret.evoef2_elec = lab_value.get("evoef2_elec").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
         ret.evoef2_hb = lab_value.get("evoef2_hb").unwrap_or(&("1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0".to_owned())).split(",").map(|m|m.parse::<f64>().unwrap()).collect();
+        
+        if ret.evoef2_hb.len() != 9{
+            panic!("evoef2_hb must have 9 elements. {:?}",ret.evoef2_vdw);
+        }
         ret.evoef2_desolv_polar = lab_value.get("evoef2_desolv_polar").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
         ret.evoef2_desolv_nonpolar = lab_value.get("evoef2_desolv_nonpolar").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
         ret.evoef2_ss = lab_value.get("evoef2_ss").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
-        
+
         return ret;
     }
 }
@@ -715,3 +759,8 @@ pub fn drmsd_array_sparse(envv:&mut charmm_based_energy::CharmmEnv
     }
 }
 
+#[test]
+fn energy_load_test(){
+    let enn = PPEnergyWeight::load("example_files/energy_weight.dat");
+    println!("{:?}",enn);
+}

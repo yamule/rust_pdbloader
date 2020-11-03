@@ -1,0 +1,23 @@
+charmm_bond	1.0
+charmm_angle	1.0
+charmm_ub	1.0
+charmm_dihed	1.0
+charmm_impr	1.0
+charmm_lj	0.0
+charmm_electro	0.0
+
+backbone_energy_omega	1.0
+backbone_energy_phi_psi	1.0
+atom_distance_energy	1.0
+atom_binned_distance_energy	1.0
+atom_contact_energy	1.0
+
+#VDW_INTER_ATT,VDW_INTRA_ATT,VDW_INTER_REP,VDW_INTRA_REP
+evoef2_vdw	1.0,1.0,1.0,1.0
+evoef2_elec	1.0
+
+#HB_BB_DIST,HB_BB_THETA,HB_BB_PHI,HB_SB_DIST,HB_SB_THETA,HB_SB_PHI,HB_SS_DIST,HB_SS_THETA,HB_SS_PHI
+evoef2_hb	1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+evoef2_desolv_polar	1.0
+evoef2_desolv_nonpolar	1.0
+evoef2_ss	1.0
