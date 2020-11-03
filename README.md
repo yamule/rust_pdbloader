@@ -26,7 +26,6 @@ cd rust_pdbloader
 cargo run --release --  ss_assign -in "example_files/1EFH_A.pdb"
 ```
 
-
 ## Usage (Structural Alignment)
 ``` bash
 git clone https://github.com/yamule/rust_pdbloader.git

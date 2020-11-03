@@ -2,6 +2,10 @@ extern crate rand;
 use super::charmm_based_energy;
 use super::geometry::Vector3D;
 
+use std::io::{BufReader,BufRead};
+use std::fs::File;
+
+use std::collections::HashMap;
 #[allow(unused_imports)]
 use super::pdbdata;
 #[allow(unused_imports)]
@@ -18,6 +22,8 @@ use super::side_chain_sample;
 use super::chain_builder;
 #[allow(unused_imports)]
 use super::sequence_alignment;
+#[allow(unused_imports)]
+use super::misc_util::*;
 
 use super::peptide_backbone_dihedral_energy;
 use super::distance_energy;
@@ -155,6 +161,46 @@ impl PPEnergyWeight{
             evoef2_desolv_nonpolar:1.0,
             evoef2_ss:1.0,
         };
+    }
+
+    pub fn load(filename:&str)->PPEnergyWeight{
+        let mut ret:PPEnergyWeight = PPEnergyWeight::new();
+        let file = File::open(filename).unwrap_or_else(|e|{panic!("Cannot find {}! {} ",filename,e)});
+        let reader = BufReader::new(file);
+        let mut lab_value:HashMap<String,String> = HashMap::new();
+        for (_lcount,line) in reader.lines().enumerate() {
+            let ptt:Vec<String> = line.unwrap().split_whitespace().map(|m|m.to_string()).collect();
+            if start_with(&ptt[0],"#"){
+                continue;
+            }
+            if ptt.len() > 2{
+                eprintln!("Only 2 columns are used. {:?}",ptt[2..]);
+            }
+            lab_value.insert(ptt[0],ptt[1]);
+        }
+        ret.charmm_bond = lab_value.get("charmm_bond").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.charmm_angle = lab_value.get("charmm_angle").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.charmm_ub = lab_value.get("charmm_ub").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.charmm_dihed = lab_value.get("charmm_dihed").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.charmm_impr = lab_value.get("charmm_impr").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.charmm_lj = lab_value.get("charmm_lj").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.charmm_electro = lab_value.get("charmm_electro").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+
+        ret.dihed_weight_charmm = vec![];
+        ret.backbone_energy_omega = lab_value.get("backbone_energy_omega").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.backbone_energy_phi_psi = lab_value.get("backbone_energy_phi_psi").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.atom_distance_energy = lab_value.get("atom_distance_energy").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.atom_binned_distance_energy = lab_value.get("atom_binned_distance_energy").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.atom_contact_energy = lab_value.get("atom_contact_energy").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+
+        ret.evoef2_vdw = lab_value.get("evoef2_vdw").unwrap_or(&("1.0,1.0,1.0,1.0".to_owned())).split(",").map(|m|m.parse::<f64>().unwrap()).collect();
+        ret.evoef2_elec = lab_value.get("evoef2_elec").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.evoef2_hb = lab_value.get("evoef2_hb").unwrap_or(&("1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0".to_owned())).split(",").map(|m|m.parse::<f64>().unwrap()).collect();
+        ret.evoef2_desolv_polar = lab_value.get("evoef2_desolv_polar").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.evoef2_desolv_nonpolar = lab_value.get("evoef2_desolv_nonpolar").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        ret.evoef2_ss = lab_value.get("evoef2_ss").unwrap_or(&("1.0".to_owned())).parse::<f64>().unwrap();
+        
+        return ret;
     }
 }
 impl PPEnergySet{
