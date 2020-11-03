@@ -2,8 +2,10 @@
 A bunch of Rust snippet to play with data in PDB (https://www.rcsb.org/). 
 
 These commits were created as a pointer to the state used in CASP14.
+
 A large update is planned.
-This software has its own matrix calculation module. It is HIGHLY DISCOURAGED and I completely agree with it.
+
+Note: This software has its own matrix calculation module. It (coding original module for matrix calculation) is HIGHLY DISCOURAGED. I recommend you to prepare other software for validating this software's output.
 
 
 ## Requirement
@@ -15,6 +17,13 @@ git clone https://github.com/yamule/rust_pdbloader.git
 cd rust_pdbloader
 cargo run --release --  residue_mapping -sidechains "./resources/pepbuilderj/resources/sampledresidues/" -backbones "./resources/pepbuilderj/resources/sampledresidues/" -in "./example_files/T1094.1IW7_C.fas" -out "./example_files/results/T1094.1IW7_C.fas.mapped.pdb"
 cargo run --release --  refinement -resource "./resources/" -angle "./resources/angle_distribution_energy.dat" -steps_checkpoint 1 -out "./example_files/results/T1094.1IW7_C.fas.refined1.pdb" -param_file "example_files/param_refine.txt"  -in "./example_files/results/T1094.1IW7_C.fas.mapped.pdb"  -flag "./example_files/results/T1094.1IW7_C.fas.mapped.pdb.flag" -build_missing_param1 "./example_files/param_build_missing.txt"  -build_missing_param2 "./example_files/param_build_missing2.txt"  -num_structurs_step1 5 -num_structurs_step2 1
+```
+
+## Usage (Secondary Structure Assignment)
+``` bash
+git clone https://github.com/yamule/rust_pdbloader.git
+cd rust_pdbloader
+cargo run --release --  ss_assign -in "example_files/1EFH_A.pdb"
 ```
 
 ## Energy functions or terms used in this software

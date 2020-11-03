@@ -19,6 +19,7 @@ use rust_pdbloader::structural_alignment;
 use rust_pdbloader::mcprocess_md;
 use rust_pdbloader::rosetta_param;
 use rust_pdbloader::evoef2_energy;
+use rust_pdbloader::secondary_structure_assignment;
 use rust_pdbloader::sequence_alignment;
 use rust_pdbloader::max_hit_clust;
 use rust_pdbloader::matrix_process;
@@ -87,7 +88,6 @@ fn main__(){
 //Todo
 //ファイルがない場合のエラーメッセージにパス表示
 //CB bind
-//secstr の helix ちゃんとする
 
 fn main(){
         //コマンド例
@@ -143,6 +143,10 @@ fn main(){
             make_homo_multimer(args);
             return;
         },
+        "ss_assign"=>{
+            ss_assign(args);
+            return;
+        },
         "docking"=>{
             docking(args);
             return;
@@ -152,6 +156,7 @@ fn main(){
         }
     }
 }
+
 fn residue_mapping(args:HashMap<String,String>) {
     let infiles:Vec<String> = args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")).split(",").into_iter().map(|m| m.to_string()).collect();
     template_based_modelling::try_mapping(
@@ -162,6 +167,43 @@ fn residue_mapping(args:HashMap<String,String>) {
     ,args.get("-out").unwrap_or_else(|| panic!("Please specify  -out for output file.")));
 
 }
+
+
+fn ss_assign(args:HashMap<String,String>) {
+    let checker:HashSet<String> = vec![
+    "-in",
+    "-hbond_threshold"
+    ].into_iter().map(|m|m.to_owned()).collect();    
+
+    for (kk,_vv) in args.iter(){
+        if !checker.contains(kk){
+            panic!("{} was not found in dict.",kk);
+        }
+    }
+    let infile:String = args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")).to_string();
+    let pdb = load_pdb(&infile);
+    //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6iws_model1.pdb").as_str());
+    
+    for cc in pdb.chains.iter(){
+        let mut ress:Vec<Vec<&PDBResidue>> = vec![];
+        let mut rss:Vec<&PDBResidue> = vec![];
+        for rr in cc.residues.iter(){
+            if !rr.get_atom_at(0).is_ligand{
+                rss.push(rr);
+            }
+        }
+        ress.push(rss);
+        //関数には複数 Chain を渡せるが、現在 Chain はひとつずつしか処理しない
+        let res = secondary_structure_assignment::assing_secstr(&ress,
+            args.get("-hbond_threshold").unwrap_or(&("3.0".to_owned())).parse::<f64>().unwrap()
+        );
+        println!(">{}",cc.chain_name);
+        for rr in res.iter(){
+            println!("{}",rr.0);
+        }
+    }
+}
+
 fn calc_energies(args:HashMap<String,String>) {
 
     let evoef2resource:&str = args.get("-resource").unwrap_or_else(|| panic!("Please specify resource dir with -resource"));

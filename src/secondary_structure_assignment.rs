@@ -39,6 +39,7 @@ impl BackboneAtoms{
 //Threshold は 3.0 くらいかな
 pub fn assing_secstr(chains:&Vec<Vec<&PDBResidue>>,hbond_threshold:f64)->Vec<(String,Vec<Vec<usize>>)>{
     let mut ret:Vec<(String,Vec<Vec<usize>>)> = vec![];
+    let region_length_threshold:usize = 3;//アサインされる最小の長さ
     //O と H は再構築する
     let estimate_oh =|a1:&dyn Vector3D,a2:&dyn Vector3D,a3:&dyn Vector3D,len:f64|->Point3D{
         let mut p1 = Point3D::new(
@@ -150,86 +151,43 @@ pub fn assing_secstr(chains:&Vec<Vec<&PDBResidue>>,hbond_threshold:f64)->Vec<(St
         }
 
 
-        let mut prev_hit:HashSet<(i64,i64)> = HashSet::new();
-        let mut helices:Vec<Vec<usize>> = vec![];
-
-        let region_length_threshold:usize = 3;
-
-        for rk in 1..rlen{//some helix
-            let r1:usize = rlen-rk;
-            let mut current_hit:HashSet<(i64,i64)> = HashSet::new();
-            for vv in donn_acc[r1].iter(){
-                let mut vreg:HashSet<usize> = HashSet::new();
-                vreg.insert(r1);
-                let mut vreg_rev:HashSet<usize> = HashSet::new();
-                vreg_rev.insert(*vv);
-
-                for s in 1..(r1+1){//自分より N 側の残基を調べて水素結合があるか見る
-                    let ps = *vv as i64 -s as i64;//s 残基離れたところにあるペアの acceptor candidate 
-                    if ps > -1  && ps < rlen as i64{
-                        let r2:usize = r1-s;
-                        let mut bflag:bool = false;
-                        if donn_acc[r2].contains(&(ps as usize)){//s 残基離れたところにあるペアの donor candidate
-                            bflag = true;//s 残基離れた残基が Donor Acceptor ペアを作る
-                        }
-                        if bflag{
-                            let mut conn:bool = false;
-                            for pp in prev_hit.iter(){
-                                if (r2 as i64 - pp.0) == (ps as i64 - pp.1){
-                                    conn = true;
-                                }
-                            }
-                            if s == 1{
-                                current_hit.insert((r1 as i64, *vv as i64));
-                            }
-                            if conn{
-                                break;
-                            }
-                            vreg.insert(r2);
-                            vreg_rev.insert(ps as usize);
-                        }else{
-                            break;
-                        }
-                    }
+        let mut helix_a:Vec<Vec<usize>> = vec![];
+        let mut helix_3:Vec<Vec<usize>> = vec![];
+        let mut helix_p:Vec<Vec<usize>> = vec![];
+        for xskip in vec![3,4,5]{
+            let mut counted:HashSet<usize> = HashSet::new();
+            for r1 in 0..(rlen-1){
+                if counted.contains(&r1){
+                    continue;
                 }
-
-                let mut connected:bool = false;
-                for vv in vreg_rev.iter(){
-                    if vreg.contains(vv){
-                        connected = true;
+                if !acc_donn[r1].contains(&(r1+xskip)){
+                    continue;
+                }
+                let mut hend:usize = r1;
+                for r2 in (r1+1)..rlen{
+                    counted.insert(r2);
+                    if !acc_donn[r2].contains(&(r2+xskip)){
+                        hend = r2-1;
                         break;
                     }
-                    if *vv > 0{
-                        if vreg.contains(&(*vv-1)){
-                            connected = true;
-                            break;
-                        }
+                    hend = r2;
+                }
+                if hend-r1+1 >= region_length_threshold{
+                    let mut vt:Vec<usize> = vec![];
+                    for ii in (r1+1)..=(hend+xskip-1){
+                        vt.push(ii);
                     }
-                    if vreg.contains(&(*vv+1)){
-                        connected = true;
-                        break;
+                    if xskip == 4{
+                        helix_a.push(vt);
+                    }else if xskip == 3{
+                        helix_3.push(vt);
+                    }else if xskip == 5{
+                        helix_p.push(vt);
                     }
-                }
-                if connected{
-                    for vv in vreg_rev.iter(){
-                        vreg.insert(*vv);
-                    }   
-                }
-                if vreg.len() >= region_length_threshold{
-                    let mut  vr:Vec<usize> = vreg.into_iter().collect();
-                    vr.sort();
-                    helices.push(vr);
-                }
-                if !connected && vreg_rev.len() >= region_length_threshold{
-                    let mut  vr:Vec<usize> = vreg_rev.into_iter().collect();
-                    vr.sort();
-                    helices.push(vr);
                 }
             }
-            prev_hit = current_hit;
         }
-
-
+        
         let mut beta_sheet_flag:Vec<usize> = vec![0;rlen];
         for rk in 1..rlen{//beta sheets
             let r1:usize = rlen-rk;
@@ -330,10 +288,24 @@ pub fn assing_secstr(chains:&Vec<Vec<&PDBResidue>>,hbond_threshold:f64)->Vec<(St
         }
         
         let mut marks:Vec<String> = vec!["C".to_owned();rlen];
-        for (_vii,v) in helices.iter().enumerate(){
+        for (_vii,v) in helix_3.iter().enumerate(){
+            for vv in v.iter(){
+                //marks[*vv] = "[".to_owned()+&vii.to_string()+"]";
+                marks[*vv] = "3".to_owned();
+            }
+        }
+        
+        for (_vii,v) in helix_a.iter().enumerate(){
             for vv in v.iter(){
                 //marks[*vv] = "[".to_owned()+&vii.to_string()+"]";
                 marks[*vv] = "H".to_owned();
+            }
+        }
+        
+        for (_vii,v) in helix_p.iter().enumerate(){
+            for vv in v.iter(){
+                //marks[*vv] = "[".to_owned()+&vii.to_string()+"]";
+                marks[*vv] = "P".to_owned();
             }
         }
         for (vii,vv) in beta_sheet_flag.iter().enumerate(){
@@ -342,7 +314,9 @@ pub fn assing_secstr(chains:&Vec<Vec<&PDBResidue>>,hbond_threshold:f64)->Vec<(St
             }
         }
         let mut segments:Vec<Vec<usize>> = vec![];
-        segments.append(&mut helices);
+        segments.append(&mut helix_3);
+        segments.append(&mut helix_a);
+        segments.append(&mut helix_p);
 
         for ii in 0..betasheet_segments.len(){
             let mut bflag = true;
@@ -388,7 +362,7 @@ fn secstr_test(){
         }
         ress.push(rss);
     }
-    let res = assing_secstr(&ress,3.5);
+    let res = assing_secstr(&ress,2.8);
     for rr in res.iter(){
         println!("{}",rr.0);
     }
