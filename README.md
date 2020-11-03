@@ -26,6 +26,17 @@ cd rust_pdbloader
 cargo run --release --  ss_assign -in "example_files/1EFH_A.pdb"
 ```
 
+
+## Usage (Structural Alignment)
+``` bash
+git clone https://github.com/yamule/rust_pdbloader.git
+cd rust_pdbloader
+cargo run --release --  structural_alignment -query ./example_files/1EFH_A.pdb -template ./example_files/2OV8_A.pdb -out_pdb ./example_files/1EFH_A_aligned.pdb
+# Use "-type max" when you align unrelated or distantly related proteins (very slow)
+# cargo run --release --  structural_alignment -type max -query ./example_files/1EFH_A.pdb -template ./example_files/2OV8_A.pdb -out_pdb ./example_files/1EFH_A_aligned.pdb
+```
+
+
 ## Energy functions or terms used in this software
 > solvation_parameters.dat
 

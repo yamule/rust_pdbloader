@@ -948,9 +948,8 @@ fn main_comparative_domain_split(args:HashMap<String,String>) {
 fn main_str_align(args:HashMap<String,String>) {
     
     if args.contains_key("-h"){
-        eprintln!("usage:  rust_pdbloader.exe -structural_alignment -query <query_pdb> -template  <template_pdb> -type <max, raw, raw_full, sw (default)> [-out <output_file>] [-out_pdb <aligned_query_pdb>]");
+        eprintln!("usage:  rust_pdbloader.exe structural_alignment -query <query_pdb> -template  <template_pdb> -type <max, raw, raw_full, sw (default)> [-out <output_file>] [-out_pdb <aligned_query_pdb>]");
     }
-    //raw_full はカットオフを行わず全 CA についての RMSD を出す。
     
     let qfilename = args.get("-query").unwrap_or_else(|| panic!("-query was not found."));
     let tfilename = args.get("-template").unwrap_or_else(|| panic!("-template was not found."));
@@ -967,6 +966,7 @@ fn main_str_align(args:HashMap<String,String>) {
         alignment_type_ = "sw".to_string();
     }
 
+    //raw_full はカットオフを行わず全 CA についての RMSD を出す。
     //ToDo: 二次構造で SW して Seed はそれ以外使わないようにするモードの追加
     //seed_length と dist_limit をオプションで指定。
     let alignment_type:structural_alignment::AlignmentType = if alignment_type_ == "sw"{
@@ -1071,7 +1071,7 @@ fn main_str_align(args:HashMap<String,String>) {
 
 fn main_prepare_structure(args:HashMap<String,String>) {
     if args.contains_key("-h"){
-        eprintln!("usage:  rust_pdbloader.exe -prepare_structure -in <pdbfile> -out <outputfile> -resource_dir <directory contains top19.inp & param19.inp> [-random <float value>] [-random_seed <integer value>]");
+        eprintln!("usage:  rust_pdbloader.exe prepare_structure -in <pdbfile> -out <outputfile> -resource_dir <directory contains top19.inp & param19.inp> [-random <float value>] [-random_seed <integer value>]");
     }
 
     let options_expected:HashSet<String>=vec![
@@ -1088,8 +1088,6 @@ fn main_prepare_structure(args:HashMap<String,String>) {
         }
     }
 
-
-    //raw_full はカットオフを行わず全 CA についての RMSD を出す。
     
     let infilename:&str = args.get("-in").unwrap_or_else(|| panic!("-in was not found."));
     let resource_dir:&str = args.get("-resource_dir").unwrap_or_else(|| panic!("-resource_dir was not found."));
