@@ -759,8 +759,8 @@ pub fn drmsd_array_sparse(envv:&mut charmm_based_energy::CharmmEnv
     }
 }
 
-#[test]
-fn energy_load_test(){
-    let enn = PPEnergyWeight::load("example_files/energy_weight.dat");
-    println!("{:?}",enn);
-}
+//#[test]
+//fn energy_load_test(){
+//    let enn = PPEnergyWeight::load("example_files/energy_weight.dat");
+//    println!("{:?}",enn);
+//}

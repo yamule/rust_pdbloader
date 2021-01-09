@@ -50,6 +50,7 @@ fn start_with(target:&str,fragment:&str)-> bool{
 #[derive(Debug,Clone)]
 pub struct PDBAtom{
     pub parent_entry:Option<i64>,
+    pub parent_entity:Option<i64>,
     pub parent_chain:Option<i64>,
     pub parent_residue:Option<i64>,
     pub index:i64,
@@ -181,6 +182,7 @@ impl PDBAtom{
     pub fn new()->PDBAtom{
         return PDBAtom{
             parent_entry:None,
+            parent_entity:None,
             parent_chain:None,
             parent_residue:None,
             index:-1,
@@ -468,6 +470,7 @@ impl PDBResidue{
 #[derive(Debug)]
 pub struct PDBChain{
     pub parent_entry:Option<i64>,
+    pub parent_entity:Option<i64>,
     index:i64,
     pub chain_name:String,
     pub residues:Vec<PDBResidue>
@@ -477,6 +480,7 @@ impl PDBChain{
     pub fn new(name:&str)->PDBChain{
         return PDBChain{
             parent_entry:None,
+            parent_entity:None,
             index:-1,
             chain_name:name.to_string(),
             residues:vec![]
@@ -591,16 +595,33 @@ pub struct PDBEntry{
     index:i64,
     pub entry_id:String,
     pub description:String,
+    pub entities:Vec<PDBEntity>,
+}
+impl PDBEntry{
+    pub fn new()->PDBEntry{
+        return PDBEntry{
+        index:-1,
+        entry_id:"".to_string(),
+        description:"".to_string(),
+        entities:vec![]
+        };
+    }
+}
+
+pub struct PDBEntity{
+    index:i64,
+    pub parent_entry:Option<i64>,
+    pub entity_id:String,
     pub chains:Vec<PDBChain>,
 }
 
 #[allow(dead_code)]
-impl PDBEntry{
-    pub fn new()->PDBEntry{
-        return PDBEntry{
+impl PDBEntity{
+    pub fn new()->PDBEntity{
+        return PDBEntity{
             index:-1,
-            entry_id:"".to_string(),
-            description:"".to_string(),
+            parent_entry:None,
+            entity_id:"".to_string(),
             chains:vec![]
             };
     }
@@ -658,7 +679,8 @@ impl PDBEntry{
     pub fn create_chain(&mut self,name:&str)->(usize,&PDBChain){
         let newchain = PDBChain{
             chain_name:name.to_string(),
-            parent_entry:Some(self.index as i64),
+            parent_entry:self.parent_entry.clone(),
+            parent_entity:Some(self.index as i64),
             index:self.chains.len() as i64,
             residues:vec![]
         } ;
@@ -708,62 +730,88 @@ pub fn slice_to_string(chrs:&Vec<char>,start:usize,end_pls_one_:usize)->String{
 
 #[derive(Debug)]
 pub struct AtomRecord{
-    pub is_het:bool,
-    pub atom_id:i64,
-    pub atom_name:String,
-    pub alt_loc:String,
-    pub residue_name:String,
-    pub chain_id:String,
-    pub residue_pos:i64,
-    pub ins_code:String,
-    pub x:f64,
-    pub y:f64,
-    pub z:f64,
-    pub occupancy:Option<f64>,
-    pub temp_factor:Option<f64>,
-    pub element:Option<String>,
-    pub charge:Option<String>,
-    pub is_auth_data:bool,
-    pub is_ligand:bool,
-
+    pub group_PDB:String,
+    pub id:String,
+    pub type_symbol:String,
+    pub label_atom_id:String,
+    pub label_alt_id:String,
+    pub label_comp_id:String,
+    pub label_asym_id:String,
+    pub label_entity_id:String,
+    pub label_seq_id:String,
+    pub pdbx_PDB_ins_code:String,
+    pub Cartn_x:String,
+    pub Cartn_y:String,
+    pub Cartn_z:String,
+    pub occupancy:String,
+    pub B_iso_or_equiv:String,
+    pub pdbx_formal_charge:String,
+    pub auth_seq_id:String,
+    pub auth_comp_id:String,
+    pub auth_asym_id:String,
+    pub auth_atom_id:String,
+    pub pdbx_PDB_model_num:String,
 }
 
 impl AtomRecord{
-    pub fn atomrecord_to_atom(&self)->PDBAtom{
+    pub fn atomrecord_to_atom(&self,use_auth:bool)->PDBAtom{
         let ret:PDBAtom = PDBAtom{
             parent_entry:None,
+            parent_entity:None,
             parent_chain:None,
             parent_residue:None,
             index:-1,
-            serial_number:self.atom_id.clone(),
-            x:self.x.clone(),
-            y:self.y.clone(),
-            z:self.z.clone(),
-            charge:self.charge.clone(),
-            occupancy:self.occupancy.unwrap_or(1.0),
-            temp_factor:self.temp_factor.unwrap_or(0.0),
-            atom_symbol:self.element.clone().unwrap_or("".to_string()),
-            atom_code:self.atom_name.clone(),
-            alt_code:self.alt_loc.clone(),
+            serial_number:self.label_atom_id.parse::<i64>().unwrap().clone(),
+            x:self.Cartn_x.parse::<f64>().unwrap().clone(),
+            y:self.Cartn_y.parse::<f64>().unwrap().clone(),
+            z:self.Cartn_z.parse::<f64>().unwrap().clone(),
+            charge:if self.pdbx_formal_charge.len() > 0{Some(self.pdbx_formal_charge.clone())}else{None},
+            occupancy:if self.occupancy.len() > 0{self.occupancy.parse::<f64>().unwrap()}else{1.0},
+            temp_factor:if self.B_iso_or_equiv.len() > 0{self.B_iso_or_equiv.parse::<f64>().unwrap()}else{0.0},
+            atom_symbol:self.type_symbol.clone(),
+            atom_code:if use_auth{self.auth_atom_id.clone()}else{self.label_atom_id},
+            alt_code:self.label_alt_id.clone(),
             dummy:true,
-            het:self.is_het.clone(),
-            alt:false,
-            is_ligand:self.is_ligand,
+            het:self.is_het(),
+            alt:self.is_alt(),
+            is_ligand:false,
             external_array_pointer:-1//出現場所を入れた方が良いか？
         };//alt_loc は他の Atom も見ないと処理できないと思う
             
             return ret;
     }
+
+    pub fn is_het(&self)->bool{
+        if &self.group_PDB == "ATOM"{
+            return false;
+        }
+        return true;
+    }
+
+    pub fn is_alt(&self)->bool{
+        if &self.label_alt_id == ""
+        || &self.label_alt_id == "."
+        || &self.label_alt_id == "?"
+        || &self.label_alt_id == " "
+        || &self.label_alt_id == "A"{
+            return false;
+        }
+        return true;
+    }
+
+
     pub fn atomrecords_to_entry(atom_records:&Vec<AtomRecord>)->PDBEntry{
         
         let mut ret:PDBEntry = PDBEntry::new();
+        let mut entities:HashMap<String,Vec<Vec<&AtomRecord>>> = HashMap::new();
         let mut chains:HashMap<String,Vec<Vec<&AtomRecord>>> = HashMap::new();
         let mut chains_rindex:HashMap<String,HashMap<String,usize>> = HashMap::new();
         
         for aa in atom_records.iter(){
-            if !chains.contains_key(&aa.chain_id){
-                chains.insert(aa.chain_id.clone(),vec![]);
-                chains_rindex.insert(aa.chain_id.clone(),HashMap::new());
+            let ch:&str = &aa.label_asym_id;//use_auth を使おうと思ったが、外部データから Identify を求められる時と、PDB で Export するときだけ使うことにした。
+            if !chains.contains_key(ch){
+                chains.insert(ch.to_string(),vec![]);
+                chains_rindex.insert(ch.to_string(),HashMap::new());
             }
 
             
