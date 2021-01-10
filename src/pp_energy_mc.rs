@@ -2160,7 +2160,7 @@ pub fn build_test(){
     
     let mut chain:pdbdata::PDBAsym = pdbdata::PDBAsym::new("A");
     for rr in ress.into_iter(){
-        chain.add_residue(rr,true);
+        chain.add_comp(rr,true);
     }
 
 

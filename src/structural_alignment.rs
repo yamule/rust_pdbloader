@@ -194,7 +194,7 @@ pub fn align_pdb(chain1:&Vec<&pdbdata::PDBComp>,chain2:&Vec<&pdbdata::PDBComp>,a
                     }
                 }
                 if let Some(aa) = caatom{
-                    xseq.push((rr.residue_name.clone(),(aa.get_x(),aa.get_y(),aa.get_z())));
+                    xseq.push((rr.comp_id.clone(),(aa.get_x(),aa.get_y(),aa.get_z())));
                 }
             }
             
@@ -206,7 +206,7 @@ pub fn align_pdb(chain1:&Vec<&pdbdata::PDBComp>,chain2:&Vec<&pdbdata::PDBComp>,a
                     }
                 }
                 if let Some(aa) = caatom{
-                    yseq.push((rr.residue_name.clone(),(aa.get_x(),aa.get_y(),aa.get_z())));
+                    yseq.push((rr.comp_id.clone(),(aa.get_x(),aa.get_y(),aa.get_z())));
                 }
             }
             match alitype{
@@ -342,7 +342,7 @@ pub fn align_pdb(chain1:&Vec<&pdbdata::PDBComp>,chain2:&Vec<&pdbdata::PDBComp>,a
             xpos_all.push(vec![aa.get_x(),aa.get_y(),aa.get_z(),1.0]);
             xpos_index.push(rii);
         }else{
-            eprintln!("Chain1: {} {} {} does not have CA atom!",rr.get_name(),rr.get_residue_number(),rr.get_ins_code());
+            eprintln!("Chain1: {} {} {} does not have CA atom!",rr.get_name(),rr.get_seq_id(),rr.get_ins_code());
         }
     }
 
@@ -357,7 +357,7 @@ pub fn align_pdb(chain1:&Vec<&pdbdata::PDBComp>,chain2:&Vec<&pdbdata::PDBComp>,a
             ypos_all.push(vec![aa.get_x(),aa.get_y(),aa.get_z()]);
             ypos_index.push(rii);
         }else{
-            eprintln!("Chain2: {} {} {} does not have CA atom!",rr.get_name(),rr.get_residue_number(),rr.get_ins_code());
+            eprintln!("Chain2: {} {} {} does not have CA atom!",rr.get_name(),rr.get_seq_id(),rr.get_ins_code());
         }
     }
     //最適な回転行列が計算できたので
@@ -459,30 +459,30 @@ pub fn align_pdb(chain1:&Vec<&pdbdata::PDBComp>,chain2:&Vec<&pdbdata::PDBComp>,a
         }
         while lastcount_x < ii as i64 -1{
             lastcount_x += 1;
-            xstr.push(AA_3_TO_1.lock().unwrap().get(chain1[xpos_index[lastcount_x as usize]].get_residue_name()).unwrap_or(&("X".to_owned())).clone());
+            xstr.push(AA_3_TO_1.lock().unwrap().get(chain1[xpos_index[lastcount_x as usize]].get_comp_id()).unwrap_or(&("X".to_owned())).clone());
             ystr.push("-".to_string());
         }
         while lastcount_y < x_to_y_indexmap_t[ii].0 as i64 -1{
             lastcount_y += 1;
-            ystr.push(AA_3_TO_1.lock().unwrap().get(chain2[ypos_index[lastcount_y as usize]].get_residue_name()).unwrap_or(&("X".to_owned())).clone());
+            ystr.push(AA_3_TO_1.lock().unwrap().get(chain2[ypos_index[lastcount_y as usize]].get_comp_id()).unwrap_or(&("X".to_owned())).clone());
             xstr.push("-".to_string());
         }
         
         lastcount_y += 1;
         lastcount_x += 1;
         num_aligned += 1;
-        xstr.push(AA_3_TO_1.lock().unwrap().get(chain1[xpos_index[lastcount_x as usize]].get_residue_name()).unwrap_or(&("X".to_owned())).clone());
-        ystr.push(AA_3_TO_1.lock().unwrap().get(chain2[ypos_index[lastcount_y as usize]].get_residue_name()).unwrap_or(&("X".to_owned())).clone());
+        xstr.push(AA_3_TO_1.lock().unwrap().get(chain1[xpos_index[lastcount_x as usize]].get_comp_id()).unwrap_or(&("X".to_owned())).clone());
+        ystr.push(AA_3_TO_1.lock().unwrap().get(chain2[ypos_index[lastcount_y as usize]].get_comp_id()).unwrap_or(&("X".to_owned())).clone());
     }
     
     while lastcount_x < xpos_index.len() as i64 -1{
         lastcount_x += 1;
-        xstr.push(AA_3_TO_1.lock().unwrap().get(chain1[xpos_index[lastcount_x as usize]].get_residue_name()).unwrap_or(&("X".to_owned())).clone());
+        xstr.push(AA_3_TO_1.lock().unwrap().get(chain1[xpos_index[lastcount_x as usize]].get_comp_id()).unwrap_or(&("X".to_owned())).clone());
         ystr.push("-".to_string());
     }
     while lastcount_y < ypos_index.len() as i64 -1{
         lastcount_y += 1;
-        ystr.push(AA_3_TO_1.lock().unwrap().get(chain2[ypos_index[lastcount_y as usize]].get_residue_name()).unwrap_or(&("X".to_owned())).clone());
+        ystr.push(AA_3_TO_1.lock().unwrap().get(chain2[ypos_index[lastcount_y as usize]].get_comp_id()).unwrap_or(&("X".to_owned())).clone());
         xstr.push("-".to_string());
     }
     ret.aligned_chain1 = xstr;

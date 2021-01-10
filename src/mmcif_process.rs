@@ -587,7 +587,7 @@ impl MMCIFEntry{
                         ,use_auth);
                     rr.add_atom(att,true);
                 }
-                cc.add_residue(rr,true);
+                cc.add_comp(rr,true);
             }
             ret.add_chain(cc,true);
         }
