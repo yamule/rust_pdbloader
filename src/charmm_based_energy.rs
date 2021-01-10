@@ -1072,8 +1072,9 @@ impl MDAtom{
     pub fn to_pdbatom(&self)->(String,(String,i64,String),pdbdata::PDBAtom){
         let ret = pdbdata::PDBAtom{
             parent_entry:None,
-            parent_chain:None,
-            parent_residue:None,
+            parent_entity:None,
+            parent_asym:None,
+            parent_comp:None,
             index:-100,
             serial_number:self.atom_index as i64,
             x:self.x,
@@ -1089,7 +1090,7 @@ impl MDAtom{
             het:false,
             alt:false,
             is_ligand:false,
-            external_array_pointer:-1
+            atom_record_key:-1
         };
         return (self.chain_name.clone(),(self.residue_name.clone(),self.residue_number,self.residue_ins_code.clone()),ret);
     }
@@ -1171,7 +1172,7 @@ impl MDAtom{
 
     
 
-    pub fn chain_to_atoms(chains:&Vec<pdbdata::PDBAsym>
+    pub fn chain_to_atoms(chains:&Vec<&pdbdata::PDBAsym>
     ,parr:&charmm_param::CHARMMParam
     ,add_nc_cap:bool)->(CharmmEnv,CharmmVars){
 
@@ -1200,17 +1201,17 @@ impl MDAtom{
             for chain in chains.iter(){
             //残基順に RESI_MERGED を作成する
             let mut resi_merged_vec:Vec<charmm_param::Param_RESI_merged> = vec![];
-            let num_residues:usize = chain.residues.len();
-            for (rii,rr) in chain.residues.iter().enumerate(){
-                let resi_:Option<&&charmm_param::Param_RESI> = resi_map.get(&rr.residue_name);
+            let num_residues:usize = chain.num_comps();
+            for (rii,rr) in chain.iter_comps().enumerate(){
+                let resi_:Option<&&charmm_param::Param_RESI> = resi_map.get(rr.get_comp_id());
                 if let None = resi_{
-                    panic!("{} is not found in param.",rr.residue_name);
+                    panic!("{} is not found in param.",rr.get_comp_id());
                 }
                 let mut capentries:Vec<&charmm_param::Param_RESI> = vec![];
                 if rii == 0 && add_nc_cap{
-                    if rr.residue_name == "GLY"{
+                    if rr.get_comp_id() == "GLY"{
                         capentries.push(resi_map.get("GLYP").unwrap_or_else(||panic!("GLYP is not in param!")));
-                    }else if rr.residue_name == "PRO"{
+                    }else if rr.get_comp_id() == "PRO"{
                         capentries.push(resi_map.get("PROP").unwrap_or_else(||panic!("PROP is not in param!")));
                     }else{
                         capentries.push(resi_map.get("NTER").unwrap_or_else(||panic!("NTER is not in param!")));
@@ -1238,8 +1239,8 @@ impl MDAtom{
             }
             //Residue 順の、atom_name->MDAtom のハッシュ
             let mut residue_atomname_to_indexinmdatoms_all:Vec<HashMap<String,usize>> = vec![];
-            let resnum = chain.residues.len();
-            for (rii,rr) in chain.residues.iter().enumerate(){
+            let resnum = chain.num_comps();
+            for (rii,rr) in chain.iter_comps().enumerate(){
 
                 let mut ratoms:HashMap<String,MDAtom> = HashMap::new();
                 let resi:&charmm_param::Param_RESI_merged = &resi_merged_vec[rii];
@@ -1254,7 +1255,7 @@ impl MDAtom{
                 //与えられた Chain に含まれている原子に基本的な属性をアサインする。
                 for (_,aa) in rr.iter_atoms().enumerate(){
 
-                    let atype = amap.get(&aa.atom_code).unwrap_or_else(||panic!("atom {} in residue {} {} not found in map",aa.atom_code,rr.get_residue_name(),rr.get_residue_number())).atom_type.clone();
+                    let atype = amap.get(&aa.atom_code).unwrap_or_else(||panic!("atom {} in residue {} {} not found in map",aa.atom_code,rr.get_comp_id(),rr.get_seq_id())).atom_type.clone();
                     let ljparam:&charmm_param::Param_NONBONDED_ATOM = atomtype_ljparam_map.get(&atype).unwrap_or_else(||panic!("nonbonded param for {} is not defined.",atype));
                     if ljparam.tanford_kirkwood{
                         panic!("tanford_kirkwood is not supported.");
@@ -1263,11 +1264,11 @@ impl MDAtom{
                         atom_type:atype.clone(),
                         atom_name:aa.atom_code.clone(),
                         chain_name:chain.chain_name.clone(),
-                        residue_name:rr.get_residue_name().to_string(),
+                        residue_name:rr.get_comp_id().to_string(),
                         residue_ins_code:rr.get_ins_code().to_string(),
                         atom_index:9999999,
                         residue_index_in_chain:rii as i64,
-                        residue_number:rr.get_residue_number(),
+                        residue_number:rr.get_seq_id(),
                         x:aa.get_x(),
                         y:aa.get_y(),
                         z:aa.get_z(),
@@ -1313,11 +1314,11 @@ impl MDAtom{
                             atom_type:vv.atom_type.clone(),
                             atom_name:kk.clone(),
                             chain_name:chain.chain_name.clone(),
-                            residue_name:rr.get_residue_name().to_string(),
+                            residue_name:rr.get_comp_id().to_string(),
                             residue_ins_code:rr.get_ins_code().to_string(),
                             atom_index:9999999,
                             residue_index_in_chain:rii as i64,
-                            residue_number:rr.get_residue_number(),
+                            residue_number:rr.get_seq_id(),
                             x:dummypos.0,
                             y:dummypos.1,
                             z:dummypos.2,
@@ -1339,7 +1340,7 @@ impl MDAtom{
                         att.charge = vv.partial_charge;
                         att.mass = *masmap.get(&vv.atom_type).expect("atom not found in masmap");
                         
-                        //println!("{} {} {:?}",rr.get_residue_name(),kk,att);
+                        //println!("{} {} {:?}",rr.get_comp_id(),kk,att);
                         ratoms.insert(kk.clone(),att);
                     }
                 }
@@ -1484,7 +1485,7 @@ impl MDAtom{
 
             for ii in 0..resnum{
                 
-                let _rname:&str = &chain.residues[ii].residue_name;
+                let _rname:&str = &chain.get_comp_at(ii).get_comp_id();
                 let _hh = &residue_atomname_to_indexinmdatoms_all[ii];
                 
                 let resi:&charmm_param::Param_RESI_merged = &resi_merged_vec[ii];
@@ -1506,16 +1507,16 @@ impl MDAtom{
                         continue;
                     }
                     //前後の残基を含むのでこういうことをする必要がある
-                    let atom0:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res0 as usize].get(&icc.atoms.0.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.residues[res0 as usize].residue_name
+                    let atom0:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res0 as usize].get(&icc.atoms.0.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res0 as usize).get_comp_id()
                     ,residue_atomname_to_indexinmdatoms_all[res0 as usize],icc.atoms.0).as_str())];
                     
-                    let atom1:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res1 as usize].get(&icc.atoms.1.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.residues[res1 as usize].residue_name
+                    let atom1:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res1 as usize].get(&icc.atoms.1.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res1 as usize).get_comp_id()
                     ,residue_atomname_to_indexinmdatoms_all[res1 as usize],icc.atoms.1).as_str())];
                     
-                    let atom2:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res2 as usize].get(&icc.atoms.2.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.residues[res2 as usize].residue_name
+                    let atom2:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res2 as usize].get(&icc.atoms.2.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res2 as usize).get_comp_id()
                     ,residue_atomname_to_indexinmdatoms_all[res2 as usize],icc.atoms.2).as_str())];
                     
-                    let atom3:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res3 as usize].get(&icc.atoms.3.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.residues[res3 as usize].residue_name
+                    let atom3:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res3 as usize].get(&icc.atoms.3.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res3 as usize).get_comp_id()
                     ,residue_atomname_to_indexinmdatoms_all[res3 as usize],icc.atoms.3).as_str())];
                     
                     let mut l01_or_02:f64 = icc.length01_or_02;
@@ -1667,7 +1668,7 @@ impl MDAtom{
             let mut max_bondorder:Vec<usize> =vec![1;mdatoms_all.len()];
             //bond の作成
             for ii in 0..resnum{
-                let _rname:&str = &chain.residues[ii].residue_name;
+                let _rname:&str = &chain.get_comp_at(ii).get_comp_id();
                 let _hh = &residue_atomname_to_indexinmdatoms_all[ii];
 
                 let resi:&charmm_param::Param_RESI_merged = &resi_merged_vec[ii];
@@ -1681,8 +1682,8 @@ impl MDAtom{
                         continue;
                     }
                     //前後の残基を含むのでこういうことをする必要がある
-                    let atom0:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res0 as usize].get(&bb.0.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.residues[res0 as usize].residue_name,residue_atomname_to_indexinmdatoms_all[res0 as usize],bb.0).as_str())];
-                    let atom1:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res1 as usize].get(&bb.1.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.residues[res1 as usize].residue_name,residue_atomname_to_indexinmdatoms_all[res1 as usize],bb.1).as_str())];
+                    let atom0:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res0 as usize].get(&bb.0.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res0 as usize).get_comp_id(),residue_atomname_to_indexinmdatoms_all[res0 as usize],bb.0).as_str())];
+                    let atom1:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res1 as usize].get(&bb.1.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res1 as usize).get_comp_id(),residue_atomname_to_indexinmdatoms_all[res1 as usize],bb.1).as_str())];
                     max_bondorder[atom0.atom_index] = max_bondorder[atom0.atom_index].max(bb.2);
                     max_bondorder[atom1.atom_index] = max_bondorder[atom1.atom_index].max(bb.2);
                     let mut okflag:bool = false;
@@ -2606,10 +2607,13 @@ fn mdprepare_test(){
     let sset = side_chain_sample::SideChainSet::new(debug_env::ROTAMER_DIR);
 
     let mut ress:Vec<pdbdata::PDBComp> = chain_builder::build_dirty_chain(&allaa,&bset,&sset);
-    let mut chain:pdbdata::PDBChain = pdbdata::PDBChain::new("A");
-    chain.residues.append(&mut ress);
-    MDAtom::change_to_charmmnames(&mut chain.residues);
-    let (res,_cvars):(CharmmEnv,CharmmVars) = MDAtom::chain_to_atoms(&vec![chain],&parr,true);
+    let mut chain:pdbdata::PDBAsym = pdbdata::PDBAsym::new("A");
+    for rr in ress.into_iter(){
+        chain.add_comp(rr);
+    }
+
+    MDAtom::change_to_charmmnames(&mut chain.iter_mut_comps().map(|m|*m).collect());
+    let (res,_cvars):(CharmmEnv,CharmmVars) = MDAtom::chain_to_atoms(&vec![&chain],&parr,true);
     let mut lines:Vec<String> = vec![];
     let mut sp3_lines:Vec<String> = vec![];
     for aa in res.atoms.iter(){
@@ -2633,25 +2637,25 @@ fn add_h_test(){
     parr.resi.append(&mut topp.resi);
 
     
-    MDAtom::change_to_charmmnames(&mut pdbb.chains[0].residues);
+    MDAtom::change_to_charmmnames(&mut pdbb.get_entity_at(0).get_asym_at(0).iter_mut_comps().map(|m|{*m}).collect());
     let mut resvec:Vec<pdbdata::PDBComp> = vec![];
-    for rr in pdbb.chains[0].residues.iter(){
+    for rr in pdbb.get_entity_at(0).get_asym_at(0).iter_mut_comps(){
         let mut ress:pdbdata::PDBComp = pdbdata::PDBComp::new();
-        ress.set_residue_name(rr.get_name());
-        ress.set_residue_number(rr.get_residue_number());
+        ress.set_comp_id(rr.get_name());
+        ress.set_seq_id(rr.get_seq_id());
         for a in rr.iter_atoms(){
             if start_with(&a.atom_code,"H"){
             }else{
-                ress.add_atom(a.clone(),true);
+                ress.add_atom(a.clone());
             }
         }
         resvec.push(ress);
     }
-    let mut dchain:pdbdata::PDBChain = pdbdata::PDBChain::new("A");
+    let mut dchain:pdbdata::PDBAsym = pdbdata::PDBAsym::new("A");
     for rr in resvec.into_iter(){
-        dchain.add_residue(rr,true);
+        dchain.add_comp(rr);
     }
-    let (md_envset,_md_varset):(CharmmEnv,CharmmVars) = MDAtom::chain_to_atoms(&vec![dchain],&parr,true);
+    let (md_envset,_md_varset):(CharmmEnv,CharmmVars) = MDAtom::chain_to_atoms(&vec![&dchain],&parr,true);
     
     let mut lines:Vec<String> = vec![];
     for aa in md_envset.atoms.iter(){
@@ -2669,8 +2673,8 @@ fn add_h_test(){
 fn check_backbone_dihed(){
     let parr = charmm_param::CHARMMParam::load_chamm19((debug_env::CHARMM_DIR.to_string()+"\\toph19.inp").as_str(),(debug_env::CHARMM_DIR.to_string()+"\\param19.inp").as_str());
     let mut pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/6iws_model1_noh.pdb");
-    MDAtom::change_to_charmmnames(&mut pdbb.chains[0].residues);
-    let (md_envset,md_varset):(CharmmEnv,CharmmVars) = MDAtom::chain_to_atoms(&vec![pdbb.chains.remove(0)],&parr,true);
+    MDAtom::change_to_charmmnames(&mut pdbb.get_entity_at(0).get_asym_at(0).iter_mut_comps().map(|m|*m).collect());
+    let (md_envset,md_varset):(CharmmEnv,CharmmVars) = MDAtom::chain_to_atoms(&vec![pdbb.get_entity_at(0).get_asym_at(0)],&parr,true);
 
     let backbone_dihedrals:Vec<&str> = vec![
         "C#N#CA#C",

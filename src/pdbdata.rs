@@ -264,7 +264,9 @@ impl PDBComp{
             ins_code:"".to_string()
         };
     }
-
+    pub fn num_atoms(&self)->usize{
+        return self.atoms.len();
+    }
     pub fn get_copy_wo_parents(&self)->PDBComp{
         let mut ret = PDBComp::new();
         ret.seq_id = self.seq_id;
@@ -325,9 +327,6 @@ impl PDBComp{
     fn set_index(&mut self,index:i64){
         self.index = index;
     }
-    pub fn num_atoms(&self)->usize{
-        return self.atoms.len();
-    }
 
     pub fn get_all_atoms(&mut self)->Vec<&PDBAtom>{
         let mut ret:Vec<&PDBAtom> = vec![];
@@ -377,7 +376,6 @@ impl PDBComp{
         return None;
     }
 
-    
     #[allow(non_snake_case)]
     pub fn get_CA(&self)->Option<&PDBAtom>{
         for aa in self.atoms.iter(){
@@ -504,7 +502,11 @@ impl PDBAsym{
             comps:vec![]
         }
     }
-    
+
+    pub fn num_comps(&self) -> usize{
+        return self.comps.len();
+    }
+
     pub fn set_chain_name(&mut self,name:&str){
         self.chain_name = name.to_string();
     }
@@ -593,6 +595,14 @@ pdb2a45.ent.gz	insertion
         }
     }
     
+    pub fn get_comp_at(&self, i:usize)->&PDBComp{
+        return &self.comps[i];
+    }
+
+    pub fn get_mut_comp_at(&mut self, i:usize)->&mut PDBComp{
+        return &mut self.comps[i];
+    }
+
     pub fn add_comp(&mut self,mut a:PDBComp){
         self.comps.push(a);
     }
@@ -644,6 +654,18 @@ impl PDBEntity{
             };
     }
     
+    pub fn num_asyms(&self)->usize{
+        return self.asyms.len();
+    }
+
+    pub fn get_asym_at(&self, i:usize)->&PDBAsym{
+        return &self.asyms[i];
+    }
+
+    pub fn get_mut_asym_at(&mut self, i:usize)->&mut PDBAsym{
+        return &mut self.asyms[i];
+    }
+    
     pub fn iter_asyms(&self) -> Iter<PDBAsym>{
         return self.asyms.iter();
     }
@@ -693,7 +715,6 @@ impl PDBEntity{
         }
         return ret;
     }
-
     
     pub fn add_asym(&mut self,mut chain:PDBAsym){
         self.asyms.push(chain);
@@ -742,6 +763,14 @@ impl PDBEntry{
         };
     }
     
+    pub fn get_entity_at(&self, i:usize)->&PDBEntity{
+        return &self.entities[i];
+    }
+
+    pub fn get_mut_entity_at(&mut self, i:usize)->&mut PDBEntity{
+        return &mut self.entities[i];
+    }
+
     pub fn iter_entities(&self) -> Iter<PDBEntity>{
         return self.entities.iter();
     }

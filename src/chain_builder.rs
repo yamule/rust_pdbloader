@@ -203,7 +203,7 @@ pub fn build_dirty_chain(aa:&Vec<String>,backbone:&backbone_sample::BackboneSet,
         }
         let mut res = PDBComp::new();
         res.set_name(&aacode);
-        res.set_residue_number(sii as i64);
+        res.set_seq_id(sii as i64);
         
         //AA に含まれる原子をとりあえず作る
         let mut atoms:HashMap<String,PDBAtom> = HashMap::new();
@@ -218,7 +218,7 @@ pub fn build_dirty_chain(aa:&Vec<String>,backbone:&backbone_sample::BackboneSet,
         }
         
         for (_,aa) in atoms.into_iter(){
-            res.add_atom(aa,true);
+            res.add_atom(aa);
         }
         res.get_CA_mut().as_mut().unwrap().set_xyz(5.0*sii as f64,0.0,0.0);
         place_backbone_ca(&mut res,bbb);
@@ -349,13 +349,13 @@ fn chain_build_test(){
     let mut acount:i64 = 1;
     let mut pdbstr:Vec<String> = vec![];
     for (ii,rr) in ress.iter_mut().enumerate(){
-        rr.set_residue_number((ii+1) as i64);
+        rr.set_seq_id((ii+1) as i64);
         for aa in rr.iter_mut_atoms(){
             aa.set_serial_number(acount);
             acount += 1;
         }
         for aa in rr.iter_atoms(){
-            pdbstr.push(aa.get_pdb_atom_line_string("A",rr.get_name(),rr.get_residue_number(),""));
+            pdbstr.push(aa.get_pdb_atom_line_string("A",rr.get_name(),rr.get_seq_id(),""));
         }
     }
     write_to_file("test/dirty.pdb",pdbstr);
@@ -369,7 +369,7 @@ fn tbm_test(){
     ].iter().map(|m|m.to_string()).collect();
     let pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/1a4w_part.pdb");
 
-    let residues:Vec<&PDBComp> = pdbb.chains[0].residues.iter().collect();
+    let residues:Vec<&PDBComp> = pdbb.get_entity_at(0).get_asym_at(0).iter_comps().collect();
     let mut dummystring:Vec<String> = vec![];
     for rr in residues.iter(){
         dummystring.push(AA_3_TO_1.lock().unwrap().get(rr.get_name()).unwrap().clone());
@@ -393,13 +393,13 @@ fn tbm_test(){
     let mut acount:i64 = 1;
     let mut pdbstr:Vec<String> = vec![];
     for (ii,rr) in ress.iter_mut().enumerate(){
-        rr.0.set_residue_number((ii+1) as i64);
+        rr.0.set_seq_id((ii+1) as i64);
         for aa in rr.0.iter_mut_atoms(){
             aa.set_serial_number(acount);
             acount += 1;
         }
         for aa in rr.0.iter_atoms(){
-            pdbstr.push(aa.get_pdb_atom_line_string("A",rr.0.get_name(),rr.0.get_residue_number(),""));
+            pdbstr.push(aa.get_pdb_atom_line_string("A",rr.0.get_name(),rr.0.get_seq_id(),""));
         }
     }
     write_to_file("test/tbm_check.pdb",pdbstr);
