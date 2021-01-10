@@ -769,14 +769,14 @@ pub fn dist_aligntest(){
     let orig_aa = pdb_orig.get_aa_sequences();
     let pdb_aa = pdb_orig.get_aa_sequences();
     
-    let mut residues_a:Vec<&pdbdata::PDBResidue> = vec![];
+    let mut residues_a:Vec<&pdbdata::PDBComp> = vec![];
     
     for rr in pdb_orig.chains[0].residues.iter(){
         residues_a.push(rr);
     }
     
     
-    let mut residues_b:Vec<&pdbdata::PDBResidue> = vec![];
+    let mut residues_b:Vec<&pdbdata::PDBComp> = vec![];
     
     for rr in pdb.chains[0].residues.iter(){
         residues_b.push(rr);

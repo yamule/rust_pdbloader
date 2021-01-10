@@ -2043,7 +2043,7 @@ fn subgroup_assign_test(){
         allaa_.push(ss.clone());
     }
 
-    let mut ress:Vec<pdbdata::PDBResidue> = chain_builder::build_dirty_chain(&chain_builder::convert_aa_1_to_3(&allaa_),&bset,&sset);
+    let mut ress:Vec<pdbdata::PDBComp> = chain_builder::build_dirty_chain(&chain_builder::convert_aa_1_to_3(&allaa_),&bset,&sset);
     charmm_based_energy::MDAtom::change_to_charmmnames(&mut ress);
     
     let mut chain:pdbdata::PDBChain = pdbdata::PDBChain::new("A");
@@ -2155,10 +2155,10 @@ pub fn build_test(){
         allaa_.push(ss.clone());
     }
 
-    let mut ress:Vec<pdbdata::PDBResidue> = chain_builder::build_dirty_chain(&chain_builder::convert_aa_1_to_3(&allaa_),&bset,&sset);
+    let mut ress:Vec<pdbdata::PDBComp> = chain_builder::build_dirty_chain(&chain_builder::convert_aa_1_to_3(&allaa_),&bset,&sset);
     charmm_based_energy::MDAtom::change_to_charmmnames(&mut ress);
     
-    let mut chain:pdbdata::PDBChain = pdbdata::PDBChain::new("A");
+    let mut chain:pdbdata::PDBAsym = pdbdata::PDBAsym::new("A");
     for rr in ress.into_iter(){
         chain.add_residue(rr,true);
     }

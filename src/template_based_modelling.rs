@@ -126,7 +126,7 @@ pub fn try_mapping(fastafiles:&Vec<String>,backbonedir:&str,rotamerdir:&str,rand
         }
     }
 
-    let mut chain_hm:HashMap<String,Vec<pdbdata::PDBResidue>> =HashMap::new();
+    let mut chain_hm:HashMap<String,Vec<pdbdata::PDBComp>> =HashMap::new();
     let mut flag_string:Vec<String> = vec![];//chain residuename residue_index mapped_or_not(bool)
     
     let outfilename = outfilename_.to_string();
@@ -173,7 +173,7 @@ pub fn try_mapping(fastafiles:&Vec<String>,backbonedir:&str,rotamerdir:&str,rand
         }
         
         let pdbb:pdbdata::PDBEntry = pdbdata::load_pdb(&template_file);
-        let mut targetchain:Option<pdbdata::PDBChain> =None;
+        let mut targetchain:Option<pdbdata::PDBAsym> =None;
         for mut cc in pdbb.chains.into_iter(){
             cc.remove_alt(None);
             if cc.chain_name == template_chain{
@@ -199,7 +199,7 @@ pub fn try_mapping(fastafiles:&Vec<String>,backbonedir:&str,rotamerdir:&str,rand
             query_start = query_start_.unwrap();
         }
 
-        let ress_and_flag:Vec<(pdbdata::PDBResidue,bool)> = chain_builder::build_from_alignment(&query_seq
+        let ress_and_flag:Vec<(pdbdata::PDBComp,bool)> = chain_builder::build_from_alignment(&query_seq
             ,&template_seq,&(targetchain.unwrap().residues.iter().map(|m|{m}).collect()),&bset,&sset);
             
         let mut floating_mostclose:HashMap<usize,(f64,f64,f64)> = HashMap::new();
@@ -246,7 +246,7 @@ pub fn try_mapping(fastafiles:&Vec<String>,backbonedir:&str,rotamerdir:&str,rand
     let mut chainnames:Vec<String> = chain_hm.iter().map(|m|m.0.to_string()).collect();
     chainnames.sort();
     for cc in chainnames.into_iter(){
-        let mut chain:pdbdata::PDBChain = pdbdata::PDBChain::new(&cc);
+        let mut chain:pdbdata::PDBAsym = pdbdata::PDBAsym::new(&cc);
         chain.residues.append(chain_hm.get_mut(&cc).unwrap());
         pdb.chains.push(chain);
     }
@@ -633,8 +633,8 @@ pub struct MissingBuilderParam{
 }
 
 pub fn merge_structure(
-    basestructure:&Vec<pdbdata::PDBResidue>
-    ,samplestructure:&Vec<pdbdata::PDBResidue>
+    basestructure:&Vec<pdbdata::PDBComp>
+    ,samplestructure:&Vec<pdbdata::PDBComp>
     ,chain_name:&str
     ,topfile:&str
     ,paramfile:&str
@@ -647,8 +647,8 @@ pub fn merge_structure(
     ,outfile:&str
     ,top_x:usize){
     
-    let mut qresidues:Vec<&pdbdata::PDBResidue> = vec![];
-    let mut tresidues:Vec<&pdbdata::PDBResidue> = vec![];
+    let mut qresidues:Vec<&pdbdata::PDBComp> = vec![];
+    let mut tresidues:Vec<&pdbdata::PDBComp> = vec![];
 
     for rr in samplestructure.iter(){
         qresidues.push(rr); 
@@ -706,7 +706,7 @@ pub fn merge_structure(
     let mut top_x_structures:Vec<(f64,Vec<(String,(String,i64,String),pdbdata::PDBAtom)>)> = vec![];
     for (str_count,vv) in unaligned_region.iter().enumerate(){
         let mut pdbb:pdbdata::PDBEntry = pdbdata::PDBEntry::new();
-        let mut chain:pdbdata::PDBChain = pdbdata::PDBChain::new(chain_name);
+        let mut chain:pdbdata::PDBAsym = pdbdata::PDBAsym::new(chain_name);
         let swapper:HashSet<usize> = vv.iter().map(|m|*m).collect();
         for rr in 0..num_residues{
             if swapper.contains(&rr){

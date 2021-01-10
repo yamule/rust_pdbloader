@@ -1104,7 +1104,7 @@ impl MDAtom{
     }
 
     //残基や原子の名前を CHARMM に合うように変更する
-    pub fn change_to_charmmnames(residues:&mut Vec<pdbdata::PDBResidue>){
+    pub fn change_to_charmmnames(residues:&mut Vec<pdbdata::PDBComp>){
         for rr in residues.iter_mut(){
             if rr.get_name() == "HIS"{
                 eprintln!("HIS was changed to HSD.");
@@ -1171,7 +1171,7 @@ impl MDAtom{
 
     
 
-    pub fn chain_to_atoms(chains:&Vec<pdbdata::PDBChain>
+    pub fn chain_to_atoms(chains:&Vec<pdbdata::PDBAsym>
     ,parr:&charmm_param::CHARMMParam
     ,add_nc_cap:bool)->(CharmmEnv,CharmmVars){
 
@@ -2605,7 +2605,7 @@ fn mdprepare_test(){
     let bset = backbone_sample::BackboneSet::new(debug_env::ROTAMER_DIR);
     let sset = side_chain_sample::SideChainSet::new(debug_env::ROTAMER_DIR);
 
-    let mut ress:Vec<pdbdata::PDBResidue> = chain_builder::build_dirty_chain(&allaa,&bset,&sset);
+    let mut ress:Vec<pdbdata::PDBComp> = chain_builder::build_dirty_chain(&allaa,&bset,&sset);
     let mut chain:pdbdata::PDBChain = pdbdata::PDBChain::new("A");
     chain.residues.append(&mut ress);
     MDAtom::change_to_charmmnames(&mut chain.residues);
@@ -2634,9 +2634,9 @@ fn add_h_test(){
 
     
     MDAtom::change_to_charmmnames(&mut pdbb.chains[0].residues);
-    let mut resvec:Vec<pdbdata::PDBResidue> = vec![];
+    let mut resvec:Vec<pdbdata::PDBComp> = vec![];
     for rr in pdbb.chains[0].residues.iter(){
-        let mut ress:pdbdata::PDBResidue = pdbdata::PDBResidue::new();
+        let mut ress:pdbdata::PDBComp = pdbdata::PDBComp::new();
         ress.set_residue_name(rr.get_name());
         ress.set_residue_number(rr.get_residue_number());
         for a in rr.iter_atoms(){

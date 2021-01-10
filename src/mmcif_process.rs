@@ -562,7 +562,7 @@ impl MMCIFEntry{
         for (_cc,rr) in chains.into_iter(){
             
             //Chain の実体を作成する
-            let mut cc:PDBChain = PDBChain::new(&_cc);
+            let mut cc:PDBAsym = PDBAsym::new(&_cc);
             for vv in rr.into_iter(){
                 //Residue の実体を作成する
                 let atoms_v:Vec<&AtomSite> = vv;
@@ -570,7 +570,7 @@ impl MMCIFEntry{
                 let comp_id:String = aa.values[comp_id_].clone();
                 let seq_id:String = aa.values[seq_id_].clone();
                 let ins_code:String = aa.get_value_of(_ATOM_SITE_PDBX_PDB_INS_CODE,&atom_site_map).to_string();
-                let mut rr:PDBResidue = PDBResidue::new();
+                let mut rr:PDBComp = PDBComp::new();
                 if seq_id == "."{
                     //HOH に seq_id が設定されていない。。。
                     rr.set_residue_number(NO_SEQ_ID);

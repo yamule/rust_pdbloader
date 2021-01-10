@@ -37,7 +37,7 @@ impl BackboneAtoms{
 
 }
 //Threshold は 3.0 くらいかな
-pub fn assing_secstr(chains:&Vec<Vec<&PDBResidue>>,hbond_threshold:f64)->Vec<(String,Vec<Vec<usize>>)>{
+pub fn assing_secstr(chains:&Vec<Vec<&PDBComp>>,hbond_threshold:f64)->Vec<(String,Vec<Vec<usize>>)>{
     let mut ret:Vec<(String,Vec<Vec<usize>>)> = vec![];
     let region_length_threshold:usize = 3;//アサインされる最小の長さ
     //O と H は再構築する
@@ -83,7 +83,7 @@ pub fn assing_secstr(chains:&Vec<Vec<&PDBResidue>>,hbond_threshold:f64)->Vec<(St
                 None
             };
 
-            let rr:&PDBResidue = &residues[ri];
+            let rr:&PDBComp = &residues[ri];
             let aa:&mut BackboneAtoms = &mut atoms[ri];
             
             if let Some(nn) = rr.get_N(){
@@ -352,9 +352,9 @@ fn secstr_test(){
     let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"1EFH_A.pdb").as_str());
     //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6iws_model1.pdb").as_str());
     
-    let mut ress:Vec<Vec<&PDBResidue>> = vec![];
+    let mut ress:Vec<Vec<&PDBComp>> = vec![];
     for cc in pdb.chains.iter(){
-        let mut rss:Vec<&PDBResidue> = vec![];
+        let mut rss:Vec<&PDBComp> = vec![];
         for rr in cc.residues.iter(){
             if !rr.get_atom_at(0).is_ligand{
                 rss.push(rr);

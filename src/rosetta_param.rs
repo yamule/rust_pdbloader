@@ -327,7 +327,7 @@ fn rosetta_assign_test(){
 
     let bset = backbone_sample::BackboneSet::new(debug_env::ROTAMER_DIR);
     let sset = side_chain_sample::SideChainSet::new(debug_env::ROTAMER_DIR);
-    let mut ress:Vec<pdbdata::PDBResidue> = chain_builder::build_dirty_chain(&allaa,&bset,&sset);
+    let mut ress:Vec<pdbdata::PDBComp> = chain_builder::build_dirty_chain(&allaa,&bset,&sset);
     let mut acount:i64 = 1;
     //let mut pdbstr:Vec<String> = vec![];
     for (ii,rr) in ress.iter_mut().enumerate(){

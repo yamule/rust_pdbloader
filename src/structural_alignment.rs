@@ -176,7 +176,7 @@ pub fn calc_tmscore_gdtts(target:&Vec<Vec<f64>>,template:&Vec<Vec<f64>>,x_to_y_i
 }
 
 
-pub fn align_pdb(chain1:&Vec<&pdbdata::PDBResidue>,chain2:&Vec<&pdbdata::PDBResidue>,alitype:AlignmentType,tmscore_break:f64)->Option<StructuralAlignmentResult>{
+pub fn align_pdb(chain1:&Vec<&pdbdata::PDBComp>,chain2:&Vec<&pdbdata::PDBComp>,alitype:AlignmentType,tmscore_break:f64)->Option<StructuralAlignmentResult>{
     prepare_static();
     let mut xvec:Vec<Vec<f64>> = vec![];
     let mut yvec:Vec<Vec<f64>> = vec![];
@@ -1368,14 +1368,14 @@ fn pdbaligntest(){
     let pdb_orig = pdbdata::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6lu7_A.pdb").as_str());
     let mut pdb = pdbdata::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
 
-    let mut residues_a:Vec<&pdbdata::PDBResidue> = vec![];
+    let mut residues_a:Vec<&pdbdata::PDBComp> = vec![];
     for cc in pdb_orig.chains.iter(){
         for rr in cc.residues.iter(){
             residues_a.push(rr);
         }
     }
     
-    let mut residues_b:Vec<&pdbdata::PDBResidue> = vec![];
+    let mut residues_b:Vec<&pdbdata::PDBComp> = vec![];
     for cc in pdb.chains.iter(){
         for rr in cc.residues.iter(){
             residues_b.push(rr);

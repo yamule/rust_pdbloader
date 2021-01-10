@@ -86,7 +86,7 @@ pub fn prepare_static(){
 }
 
 
-pub fn place_backbone_ca(target:&mut PDBResidue,backbone:&backbone_sample::BackboneSample){
+pub fn place_backbone_ca(target:&mut PDBComp,backbone:&backbone_sample::BackboneSample){
     let ca_samplepos = &backbone.atoms[backbone_sample::CA as usize].get_xyz();
     let ca_targetpos = target.get_CA().expect("???").get_xyz();
     let mov:(f64,f64,f64) = (
@@ -131,7 +131,7 @@ pub fn convert_aa_1_to_3(seq:&Vec<String>)->Vec<String>{
 
 
 //SideChainSample の SideChain を、Target の N-CA-C に合わせた状態の座標を、Target の SideChain にコピーする
-pub fn fit_side_chain(target:&mut PDBResidue,sidechain:&side_chain_sample::SideChainSample){
+pub fn fit_side_chain(target:&mut PDBComp,sidechain:&side_chain_sample::SideChainSample){
     let mut target_ca:Point3D = Point3D::new(0.0,0.0,0.0);
     target_ca.set_vector(target.get_CA().unwrap());
     
@@ -163,7 +163,7 @@ pub fn fit_side_chain(target:&mut PDBResidue,sidechain:&side_chain_sample::SideC
 }
 
 //Target の N-CA-C を Template の N-CA-C 状態にマップする
-pub fn fit_n_ca_c(target:&mut PDBResidue,template:&PDBResidue){
+pub fn fit_n_ca_c(target:&mut PDBComp,template:&PDBComp){
     let mut target_ca:Point3D = Point3D::new(0.0,0.0,0.0);
     target_ca.set_vector(target.get_CA().unwrap());
     
@@ -193,15 +193,15 @@ pub fn fit_n_ca_c(target:&mut PDBResidue,template:&PDBResidue){
 }
 
 
-pub fn build_dirty_chain(aa:&Vec<String>,backbone:&backbone_sample::BackboneSet,side_chain:&side_chain_sample::SideChainSet)->Vec<PDBResidue>{
-    let mut ret:Vec<PDBResidue> = vec![];
+pub fn build_dirty_chain(aa:&Vec<String>,backbone:&backbone_sample::BackboneSet,side_chain:&side_chain_sample::SideChainSet)->Vec<PDBComp>{
+    let mut ret:Vec<PDBComp> = vec![];
     for (sii,ssname) in aa.iter().enumerate(){
         let mut aacode:String = ssname.to_string();
         if !backbone.has_sample(&aacode){
             aacode = "ALA".to_string();
             eprintln!("{} was changed to ALA.",ssname);
         }
-        let mut res = PDBResidue::new();
+        let mut res = PDBComp::new();
         res.set_name(&aacode);
         res.set_residue_number(sii as i64);
         
@@ -231,8 +231,8 @@ pub fn build_dirty_chain(aa:&Vec<String>,backbone:&backbone_sample::BackboneSet,
 //alignment とテンプレートを与えると作成された PDBResidue と、アラインされたかどうかの Boolean 値が入った配列を返す。
 //smithwaterman で並べるので template_string と template に不一致があってよい
 pub fn build_from_alignment(query_string:&Vec<String>,template_string:&Vec<String>
-    ,template:&Vec<&PDBResidue>
-    ,backbone:&backbone_sample::BackboneSet,side_chain:&side_chain_sample::SideChainSet)->Vec<(PDBResidue,bool)>{
+    ,template:&Vec<&PDBComp>
+    ,backbone:&backbone_sample::BackboneSet,side_chain:&side_chain_sample::SideChainSet)->Vec<(PDBComp,bool)>{
     assert_eq!(query_string.len(),template_string.len());
     prepare_static();
 
@@ -270,7 +270,7 @@ pub fn build_from_alignment(query_string:&Vec<String>,template_string:&Vec<Strin
         }
     }
     eprintln!("Building dirty chain...");
-    let mut modelled_res:Vec<PDBResidue> = build_dirty_chain(&query_aa, backbone, side_chain);
+    let mut modelled_res:Vec<PDBComp> = build_dirty_chain(&query_aa, backbone, side_chain);
 
     let mut ss1 = sequence_alignment::SeqData::new();
     let mut ss2 = sequence_alignment::SeqData::new();
@@ -324,11 +324,11 @@ pub fn build_from_alignment(query_string:&Vec<String>,template_string:&Vec<Strin
     //eprintln!("{:?}",mapper);
     eprintln!("Mapping on the template residues...");
     place_on_template(&mapper,&mut modelled_res,template);
-    let ret:Vec<(PDBResidue,bool)> = modelled_res.into_iter().zip(mappedflag).collect();
+    let ret:Vec<(PDBComp,bool)> = modelled_res.into_iter().zip(mappedflag).collect();
 
     return ret;
 }
-pub fn place_on_template(qery_template_map:&Vec<(usize,usize)>,query:&mut Vec<PDBResidue>,template:&Vec<&PDBResidue>){
+pub fn place_on_template(qery_template_map:&Vec<(usize,usize)>,query:&mut Vec<PDBComp>,template:&Vec<&PDBComp>){
     for rr in qery_template_map.iter(){
         fit_n_ca_c(&mut query[rr.0],&template[rr.1]);
     }
@@ -345,7 +345,7 @@ fn chain_build_test(){
     let bset = backbone_sample::BackboneSet::new(debug_env::ROTAMER_DIR);
     let sset = side_chain_sample::SideChainSet::new(debug_env::ROTAMER_DIR);
 
-    let mut ress:Vec<PDBResidue> = build_dirty_chain(&allaa,&bset,&sset);
+    let mut ress:Vec<PDBComp> = build_dirty_chain(&allaa,&bset,&sset);
     let mut acount:i64 = 1;
     let mut pdbstr:Vec<String> = vec![];
     for (ii,rr) in ress.iter_mut().enumerate(){
@@ -369,7 +369,7 @@ fn tbm_test(){
     ].iter().map(|m|m.to_string()).collect();
     let pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/1a4w_part.pdb");
 
-    let residues:Vec<&PDBResidue> = pdbb.chains[0].residues.iter().collect();
+    let residues:Vec<&PDBComp> = pdbb.chains[0].residues.iter().collect();
     let mut dummystring:Vec<String> = vec![];
     for rr in residues.iter(){
         dummystring.push(AA_3_TO_1.lock().unwrap().get(rr.get_name()).unwrap().clone());
@@ -389,7 +389,7 @@ fn tbm_test(){
     }
 
 
-    let mut ress:Vec<(PDBResidue,bool)> = build_from_alignment(&dummyquery,&dummystring,&residues,&bset,&sset);
+    let mut ress:Vec<(PDBComp,bool)> = build_from_alignment(&dummyquery,&dummystring,&residues,&bset,&sset);
     let mut acount:i64 = 1;
     let mut pdbstr:Vec<String> = vec![];
     for (ii,rr) in ress.iter_mut().enumerate(){
