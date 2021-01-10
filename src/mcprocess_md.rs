@@ -294,9 +294,10 @@ fn ca_mc_md_test(){
 
     let mut ca_atoms_pos:Vec<(usize,(f64,f64,f64))> = vec![];
     
-    charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.chains[0].residues);
+    charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_comps().map(|m|*m).collect());
 
-    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&vec![pdbb.chains.remove(0)],&parr,true);
+    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars)
+     = charmm_based_energy::MDAtom::chain_to_atoms(&vec![pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0)],&parr,true);
 
     let mut ca_md:Vec<&charmm_based_energy::MDAtom> = vec![];
     for (_rii,aa) in md_envset.atoms.iter().enumerate(){
@@ -307,15 +308,15 @@ fn ca_mc_md_test(){
     }
 
 
-    for (_rii,rr) in pdbb.chains[0].residues.iter().enumerate(){
-        if rr.residue_name == "HOH"{
+    for (_rii,rr) in pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_comps().enumerate(){
+        if rr.get_comp_id() == "HOH"{
             continue;
         }
 
         //CA が全ての AA について 1 つずつ存在し、Residue 順に Vector に加えられているとみなしている。
         //名前だけチェック。ずれていたら panic する。その場合もっと保証できる方法に変更。
         //CA distance の時のマップに必要
-        assert_eq!(ca_md[_rii].residue_name,rr.residue_name);
+        assert_eq!(ca_md[_rii].residue_name,rr.get_comp_id());
         for (_aii,aa) in rr.iter_atoms().enumerate(){
             if aa.atom_code == "CA"{
                 ca_atoms_pos.push((_rii,(aa.get_x(),aa.get_y(),aa.get_z())));

@@ -11,10 +11,12 @@ use std::io::{BufWriter,Write,BufReader,BufRead};
 use self::regex::Regex;//module ファイル内で extern crate した場合 self が必要。lib.rs で extern crate すると必要ない。
 
 use super::geometry::Vector3D;
+use super::mmcif_process::AtomSite;
 
 #[derive(Debug)]
 enum StructureHierarchyLevel{
 Entry,
+Model,
 Entity,
 Asym,
 Comp,
@@ -78,7 +80,7 @@ pub struct PDBAtom{
     pub het:bool,
     pub alt:bool,
     pub is_ligand:bool,
-    pub atom_record_key:i64,//PDBEntry.atom_records 内のどの要素からとられたか。-1 は後生成とか。
+    pub atom_site_key:i64,//PDBEntry.atom_records 内のどの要素からとられたか。-1 は後生成とか。
 }
 
 impl Vector3D for PDBAtom{
@@ -136,12 +138,12 @@ impl PDBAtom{
         return self.serial_number;
     }
 
-    pub fn set_atom_record_key(&mut self,i:i64){
-        self.atom_record_key = i;
+    pub fn set_atom_site_key(&mut self,i:i64){
+        self.atom_site_key = i;
     }
     
-    pub fn get_atom_record_key(&self)->i64{
-        return self.atom_record_key;
+    pub fn get_atom_site_key(&self)->i64{
+        return self.atom_site_key;
     }
     
         /*
@@ -210,7 +212,7 @@ impl PDBAtom{
             het:false,
             alt:false,
             is_ligand:false,
-            atom_record_key:-1,
+            atom_site_key:-1,
         };
     }
 
@@ -224,19 +226,13 @@ impl PDBAtom{
     fn set_index(&mut self,index:i64){
         self.index = index;
     }
-    fn set_parent(&mut self,entry_id:Option<i64>,entity_id:Option<i64>,asym_id:Option<i64>,comp_id:Option<i64>,index:i64,force:bool){
-        if let Some(x) = self.parent_comp{
-            if x != comp_id.unwrap(){
-                if !force{
-                    panic!("{:?} already has parent.",self);
-                }
-            }
-        }
+    fn set_parent(&mut self,entry_id:Option<i64>,entity_id:Option<i64>,asym_id:Option<i64>,comp_id:Option<i64>,index:i64){
+        
         self.set_index(index);
-        self.parent_comp = comp_id.clone();
-        self.parent_asym = asym_id.clone();
-        self.parent_entity = entity_id.clone();
-        self.parent_entry = entry_id.clone();
+        self.parent_comp = comp_id;
+        self.parent_asym = asym_id;
+        self.parent_entity = entity_id;
+        self.parent_entry = entry_id;
     }
 }
 
@@ -449,35 +445,13 @@ impl PDBComp{
     pub fn iter_mut_atoms(&mut self)->IterMut<'_, PDBAtom>{
         return self.atoms.iter_mut();
     }
-    fn set_parent(&mut self,entry_id:Option<i64>,entity_id:Option<i64>,asym_id:Option<i64>,index:i64,force:bool){
-        if let Some(x) = self.parent_entry{
-            if let Some(y) = entry_id{
-                if x != y && !force{
-                    panic!("{:?} already has parent entry_id.",self);
-                }
-            }
-        }
-        if let Some(x) = self.parent_entity{
-            if let Some(y) = entity_id{
-                if x != y && !force{
-                    panic!("{:?} already has parent entity_id.",self);
-                }
-            }
-        }
-        if let Some(x) = self.parent_asym{
-            if let Some(y) = asym_id{
-                if x != y && !force{
-                    panic!("{:?} already has parent asym_id.",self);
-                }
-            }
-        }
+    fn set_parent(&mut self,entry_id:Option<i64>,entity_id:Option<i64>,asym_id:Option<i64>,index:i64){
         self.set_index(index);
         self.parent_asym = asym_id;
         self.parent_entity = entity_id;
         self.parent_entry = entry_id;
-        let sii = self.get_index();
         for (ii,aa) in self.atoms.iter_mut().enumerate(){
-            aa.set_parent(self.parent_entry.clone(),self.parent_entity.clone(),self.parent_asym.clone(),Some(sii),ii as i64,force);
+            aa.set_parent(self.parent_entry.clone(),self.parent_entity.clone(),self.parent_asym.clone(),Some(self.get_index()),ii as i64);
         }
     }
 }
@@ -607,28 +581,12 @@ pdb2a45.ent.gz	insertion
         self.comps.push(a);
     }
 
-    pub fn set_parent(&mut self,entry_id:Option<i64>,entity_id:Option<i64>,index:i64,force:bool){
-        if let Some(x) = self.parent_entry{
-            if let Some(y) = entry_id{
-                if x != y && !force{
-                    panic!("{:?} already has parent.",self);
-                }
-            }
-        }
-        if let Some(x) = self.parent_entity{
-            if let Some(y) = entity_id{
-                if x != y && !force{
-                    panic!("{:?} already has parent.",self);
-                }
-            }
-        }
-        
+    pub fn set_parent(&mut self,entry_id:Option<i64>,entity_id:Option<i64>,index:i64){
         self.set_index(index);
         self.parent_entity = entity_id;
         self.parent_entry = entry_id;
-        let sii = self.get_index();
         for (ii,aa) in self.comps.iter_mut().enumerate(){
-            aa.set_parent(self.parent_entry.clone(),self.parent_entity.clone(),Some(sii),ii as i64,force);
+            aa.set_parent(self.parent_entry.clone(),self.parent_entity.clone(),Some(self.get_index()),ii as i64);
         }
     }
 
@@ -639,6 +597,7 @@ pdb2a45.ent.gz	insertion
 pub struct PDBEntity{
     index:i64,
     pub parent_entry:Option<i64>,
+    pub parent_model:Option<i64>,
     pub entity_id:String,
     asyms:Vec<PDBAsym>,
 }
@@ -649,6 +608,7 @@ impl PDBEntity{
         return PDBEntity{
             index:-1,
             parent_entry:None,
+            parent_model:None,
             entity_id:"".to_string(),
             asyms:vec![]
             };
@@ -682,6 +642,103 @@ impl PDBEntity{
         self.index = index;
     }
 
+    
+    pub fn add_asym(&mut self,mut chain:PDBAsym){
+        self.asyms.push(chain);
+    } 
+
+    pub fn set_parent(&mut self,entry_id:Option<i64>,model_id:Option<i64>,index:i64){
+        self.set_index(index);
+        self.parent_model = model_id;
+        self.parent_entry = entry_id;
+        for (ii,aa) in self.iter_mut_asyms().enumerate(){
+            aa.set_parent(self.parent_entry.clone(),Some(self.get_index()),ii as i64);
+        }
+    }
+
+    pub fn create_chain(&mut self,name:&str)->(usize,&PDBAsym){
+        let newchain = PDBAsym{
+            chain_name:name.to_string(),
+            parent_entry:self.parent_entry.clone(),
+            parent_entity:Some(self.index as i64),
+            index:self.asyms.len() as i64,
+            comps:vec![]
+        } ;
+        let index:i64 = newchain.index;
+        self.asyms.push(newchain);
+        return (index as usize,&self.asyms[index as usize])
+    }
+
+}
+
+pub struct PDBModel{
+    parent_entry:Option<i64>,
+    entities:Vec<PDBEntity>,
+    index:i64,
+    model_id:String,
+}
+impl PDBModel{
+    pub fn new()->PDBModel{
+        return PDBModel{
+            parent_entry:None,
+            entities:vec![],
+            index:-1,
+            model_id:"".to_owned(),
+            
+        };
+    }
+    pub fn get_entity_at(&self, i:usize)->&PDBEntity{
+        return &self.entities[i];
+    }
+
+    pub fn get_mut_entity_at(&mut self, i:usize)->&mut PDBEntity{
+        return &mut self.entities[i];
+    }
+
+    pub fn iter_entities(&self) -> Iter<PDBEntity>{
+        return self.entities.iter();
+    }
+
+    pub fn iter_mut_entities(&mut self) -> IterMut<PDBEntity>{
+        return self.entities.iter_mut();
+    }
+
+    pub fn add_entity(&mut self,entt:PDBEntity){
+        self.entities.push(entt);
+    }
+
+    pub fn set_index(&mut self,i:i64){
+        self.index = i;
+    }
+    pub fn get_index(&self)->i64{
+        return self.index;
+    }
+    pub fn set_parent(&mut self,entry_id:Option<i64>,i:i64){
+        self.parent_entry = entry_id.clone();
+        self.set_index(i);
+        for (ii,aa) in self.iter_mut_entities().enumerate(){
+            aa.set_parent(self.parent_entry.clone(),Some(self.get_index()),ii as i64);
+        }
+    }
+}
+pub struct PDBEntry{
+    index:i64,
+    pub entry_id:String,
+    pub description:String,
+    pub atom_records:Vec<AtomSite>,//PDBAtom が、record_key > -1 を持っている場合、ここからの参照とさせる
+    models:Vec<PDBModel>,
+}
+impl PDBEntry{
+    pub fn new()->PDBEntry{
+        return PDBEntry{
+        index:-1,
+        entry_id:"".to_string(),
+        description:"".to_string(),
+        atom_records:vec![],
+        models:vec![]
+        };
+    }
+    
     pub fn get_aa_sequences(&self)->Vec<(String,Vec<String>)>{
         let mut ret:Vec<(String,Vec<String>)> = vec![];
         let aaname:Vec<(&str,&str)> = vec![
@@ -706,140 +763,106 @@ impl PDBEntity{
             ("TYR","Y"),
             ("VAL","V")];
         let mapper:HashMap<String,String> = aaname.iter().map(|m|(m.0.to_string(),m.1.to_string())).collect();
-        for cc in self.asyms.iter(){
-            let mut ss:Vec<String> = vec![];
-            for rr in cc.comps.iter(){
-                ss.push(mapper.get(rr.get_comp_id()).unwrap_or(&("X".to_string())).clone());
+        for mm in self.iter_models(){
+            for ee in mm.iter_entities(){
+                for cc in ee.iter_asyms(){
+                    let mut ss:Vec<String> = vec![];
+                    for rr in cc.comps.iter(){
+                        ss.push(mapper.get(rr.get_comp_id()).unwrap_or(&("X".to_string())).clone());
+                    }
+                    ret.push((cc.chain_name.clone(),ss));
+                }
             }
-            ret.push((cc.chain_name.clone(),ss));
         }
         return ret;
     }
-    
-    pub fn add_asym(&mut self,mut chain:PDBAsym){
-        self.asyms.push(chain);
-    } 
-
-    pub fn set_parent(&mut self,entry_id:Option<i64>,index:i64,force:bool){
-        self.set_index(index);
-        self.parent_entry = entry_id;
-        let sii = self.get_index();
-        for (ii,aa) in self.iter_mut_asyms().enumerate(){
-            aa.set_parent(self.parent_entry.clone(),Some(sii),ii as i64,force);
-        }
+    pub fn get_model_at(&self, i:usize)->&PDBModel{
+        return &self.models[i];
     }
 
-    pub fn create_chain(&mut self,name:&str)->(usize,&PDBAsym){
-        let newchain = PDBAsym{
-            chain_name:name.to_string(),
-            parent_entry:self.parent_entry.clone(),
-            parent_entity:Some(self.index as i64),
-            index:self.asyms.len() as i64,
-            comps:vec![]
-        } ;
-        let index:i64 = newchain.index;
-        self.asyms.push(newchain);
-        return (index as usize,&self.asyms[index as usize])
+    pub fn get_mut_model_at(&mut self, i:usize)->&mut PDBModel{
+        return &mut self.models[i];
     }
 
-}
+    pub fn iter_models(&self) -> Iter<PDBModel>{
+        return self.models.iter();
+    }
 
+    pub fn iter_mut_models(&mut self) -> IterMut<PDBModel>{
+        return self.models.iter_mut();
+    }
 
-pub struct PDBEntry{
-    index:i64,
-    pub entry_id:String,
-    pub description:String,
-    pub atom_records:Vec<AtomRecord>,//PDBAtom が、record_key > -1 を持っている場合、ここからの参照とさせる
-    entities:Vec<PDBEntity>,
-}
-impl PDBEntry{
-    pub fn new()->PDBEntry{
-        return PDBEntry{
-        index:-1,
-        entry_id:"".to_string(),
-        description:"".to_string(),
-        atom_records:vec![],
-        entities:vec![]
-        };
+    pub fn add_model(&mut self,entt:PDBModel){
+        self.models.push(entt);
     }
     
-    pub fn get_entity_at(&self, i:usize)->&PDBEntity{
-        return &self.entities[i];
-    }
-
-    pub fn get_mut_entity_at(&mut self, i:usize)->&mut PDBEntity{
-        return &mut self.entities[i];
-    }
-
-    pub fn iter_entities(&self) -> Iter<PDBEntity>{
-        return self.entities.iter();
-    }
-
-    pub fn iter_mut_entities(&mut self) -> IterMut<PDBEntity>{
-        return self.entities.iter_mut();
-    }
-
-    pub fn add_entity(&mut self,entt:PDBEntity){
-        self.entities.push(entt);
+    pub fn get_index(&self)->i64{
+        return self.index;
     }
 
     pub fn update_downstream_index(&mut self){
-        for (ii,aa) in self.iter_mut_entities().enumerate(){
-            aa.set_parent(Some(self.index),ii as i64,true);
+        for (ii,aa) in self.iter_mut_models().enumerate(){
+            aa.set_parent(Some(self.get_index()),ii as i64);
         }
     }
 
-    pub fn prepare_entry(atom_records:Vec<AtomRecord>)->PDBEntry{
+    pub fn prepare_entry(atom_records:Vec<AtomSite>)->PDBEntry{
         
         let mut ret:PDBEntry = PDBEntry::new();
         ret.atom_records = atom_records;
         for (ee,aa) in ret.atom_records.iter_mut().enumerate(){
             aa.set_index(ee as i64);
         }
-
-        let entities:HashMap<String,Vec<&AtomRecord>> = PDBEntry::get_entity_map(&(ret.atom_records.iter().collect()));
-        for (entk,entv) in entities.into_iter(){
-            let mut entt = PDBEntity::new();
-            let asyms:HashMap<String,Vec<&AtomRecord>> = PDBEntry::get_asym_map(&(entv.iter().map(|m|m.clone()).collect()));
-            for (asymk,asymv) in asyms.into_iter(){
-                let mut asymm = PDBAsym::new(&asymk);
-                let comps:HashMap<String,Vec<&AtomRecord>> = PDBEntry::get_comp_map(&(asymv.iter().map(|m|m.clone()).collect()));
-                for (compk,compv) in comps.into_iter(){
-                    if compv.len() == 0{
-                        panic!("{} has no atom??",compk);
+        let models:HashMap<String,Vec<&AtomSite>> = PDBEntry::get_model_map(&(ret.atom_records.iter().collect()));
+        for (modk,modv) in models.into_iter(){
+            let mut modell = PDBModel::new();
+            let entities:HashMap<String,Vec<&AtomSite>> = PDBEntry::get_entity_map(&(ret.atom_records.iter().collect()));
+            for (entk,entv) in entities.into_iter(){
+                let mut entt = PDBEntity::new();
+                let asyms:HashMap<String,Vec<&AtomSite>> = PDBEntry::get_asym_map(&(entv.iter().map(|m|m.clone()).collect()));
+                for (asymk,asymv) in asyms.into_iter(){
+                    let mut asymm = PDBAsym::new(&asymk);
+                    let comps:HashMap<String,Vec<&AtomSite>> = PDBEntry::get_comp_map(&(asymv.iter().map(|m|m.clone()).collect()));
+                    for (compk,compv) in comps.into_iter(){
+                        if compv.len() == 0{
+                            panic!("{} has no atom??",compk);
+                        }
+                        let mut rr:PDBComp = PDBComp{
+                            parent_entry:None,
+                                parent_entity:None,
+                                parent_asym:None,
+                                index:-1,
+                                seq_id:compv[0].label_seq_id.parse::<i64>().unwrap(),//sequence number
+                                comp_id:compv[0].label_comp_id.clone(),
+                                atoms:vec![],
+                                ins_code:compv[0].pdbx_PDB_ins_code.clone(),
+                        };
+                        for aa in compv.into_iter(){
+                            let mut att = aa.atomsite_to_atom();
+                            rr.add_atom(
+                                aa.atomsite_to_atom()
+                            );
+                        }
+                        asymm.add_comp(rr);
                     }
-                    let mut rr:PDBComp = PDBComp{
-                           parent_entry:None,
-                            parent_entity:None,
-                            parent_asym:None,
-                            index:-1,
-                            seq_id:compv[0].label_seq_id.parse::<i64>().unwrap(),//sequence number
-                            comp_id:compv[0].label_comp_id.clone(),
-                            atoms:vec![],
-                            ins_code:compv[0].pdbx_PDB_ins_code.clone(),
-                    };
-                    for aa in compv.into_iter(){
-                        let mut att = aa.atomrecord_to_atom();
-                        rr.add_atom(
-                            aa.atomrecord_to_atom()
-                        );
-                    }
-                    asymm.add_comp(rr);
+                    entt.add_asym(asymm);
                 }
-                entt.add_asym(asymm);
+                modell.add_entity(entt);
             }
-            ret.add_entity(entt);
+            ret.add_model(modell);
         }
 
-        
-        for (eii,ee) in ret.iter_mut_entities().enumerate(){
-            ee.set_index(eii as i64);
-            for (aii,aas) in ee.iter_mut_asyms().enumerate(){
-                aas.set_index(aii as i64);
-                for (cii,cc) in aas.iter_mut_comps().enumerate(){
-                    cc.set_index(cii as i64);
-                    for (aii,aa) in cc.iter_atoms().enumerate(){
-                        aa.set_index(aii as i64);
+        for (mii,mm) in ret.iter_mut_models().enumerate(){
+            mm.set_index(mii as i64);
+            for (eii,ee) in mm.iter_mut_entities().enumerate(){
+                ee.set_index(eii as i64);
+                for (aii,aas) in ee.iter_mut_asyms().enumerate(){
+                    aas.set_index(aii as i64);
+                    for (cii,cc) in aas.iter_mut_comps().enumerate(){
+                        cc.set_index(cii as i64);
+                        for (aii,aa) in cc.iter_atoms().enumerate(){
+                            aa.set_index(aii as i64);
+                        }
                     }
                 }
             }
@@ -849,22 +872,27 @@ impl PDBEntry{
     }
 
 
-    pub fn get_entity_map<'a>(atom_records:&Vec<&'a AtomRecord>)->HashMap<String,Vec<&'a AtomRecord>>{
+    pub fn get_entity_map<'a>(atom_records:&Vec<&'a AtomSite>)->HashMap<String,Vec<&'a AtomSite>>{
         return PDBEntry::get_map(atom_records,StructureHierarchyLevel::Entity);
     }
     
-    pub fn get_asym_map<'a>(atom_records:&Vec<&'a AtomRecord>)->HashMap<String,Vec<&'a AtomRecord>>{
+    pub fn get_model_map<'a>(atom_records:&Vec<&'a AtomSite>)->HashMap<String,Vec<&'a AtomSite>>{
+        return PDBEntry::get_map(atom_records,StructureHierarchyLevel::Model);
+    }
+    
+    pub fn get_asym_map<'a>(atom_records:&Vec<&'a AtomSite>)->HashMap<String,Vec<&'a AtomSite>>{
         return PDBEntry::get_map(atom_records,StructureHierarchyLevel::Asym);
     }
     
-    pub fn get_comp_map<'a>(atom_records:&Vec<&'a AtomRecord>)->HashMap<String,Vec<&'a AtomRecord>>{
+    pub fn get_comp_map<'a>(atom_records:&Vec<&'a AtomSite>)->HashMap<String,Vec<&'a AtomSite>>{
         return PDBEntry::get_map(atom_records,StructureHierarchyLevel::Comp);
     }
 
-    pub fn get_map<'a>(atom_records:&Vec<&'a AtomRecord>,lev:StructureHierarchyLevel)->HashMap<String,Vec<&'a AtomRecord>>{
-        let mut ret:HashMap<String,Vec<&AtomRecord>> = HashMap::new();
+    pub fn get_map<'a>(atom_records:&Vec<&'a AtomSite>,lev:StructureHierarchyLevel)->HashMap<String,Vec<&'a AtomSite>>{
+        let mut ret:HashMap<String,Vec<&AtomSite>> = HashMap::new();
         for aa in atom_records.iter(){
             let ak:String = match lev{
+                StructureHierarchyLevel::Model => aa.pdbx_PDB_model_num.clone(),
                 StructureHierarchyLevel::Entity => aa.label_entity_id.clone(),
                 StructureHierarchyLevel::Asym => aa.label_asym_id.clone(),
                 StructureHierarchyLevel::Comp => aa.get_unique_comp_label(),
@@ -880,15 +908,17 @@ impl PDBEntry{
     
     pub fn get_pdb_atom_line_string(&self)->Vec<String>{
         let mut ret:Vec<String>  = vec![];
-        for ee in self.iter_entities(){
-            for cc in ee.iter_asyms(){
-                let cid:&str = &cc.chain_name;
-                for rr in cc.iter_comps(){
-                    let rname:&str = &rr.comp_id;
-                    let rpos:i64 = rr.seq_id;
-                    let inscode:&str = &rr.ins_code;
-                    for aa in rr.iter_atoms(){
-                        ret.push(aa.get_pdb_atom_line_string(cid,rname,rpos,inscode));
+        for mm in self.iter_models(){
+            for ee in mm.iter_entities(){
+                for cc in ee.iter_asyms(){
+                    let cid:&str = &cc.chain_name;
+                    for rr in cc.iter_comps(){
+                        let rname:&str = &rr.comp_id;
+                        let rpos:i64 = rr.seq_id;
+                        let inscode:&str = &rr.ins_code;
+                        for aa in rr.iter_atoms(){
+                            ret.push(aa.get_pdb_atom_line_string(cid,rname,rpos,inscode));
+                        }
                     }
                 }
             }
@@ -943,7 +973,7 @@ ATOM   1    N N   . MET A 1 1   ? -17.775 41.398 46.220  1.00 26.26  ? 1   MET A
 **/
 
 #[derive(Debug)]
-pub struct AtomRecord{
+pub struct __AtomSite{
     index_in_entry:i64,//PDBEntry 内の atom_records 内のインデクス
     pub group_PDB:String,
     pub id:String,
@@ -968,7 +998,7 @@ pub struct AtomRecord{
     pub pdbx_PDB_model_num:String,
 }
 
-impl AtomRecord{
+impl __AtomSite{
 
     pub fn set_index(&mut self,i:i64){
         self.index_in_entry = i;
@@ -978,7 +1008,7 @@ impl AtomRecord{
         return self.index_in_entry;
     }
     
-    pub fn atomrecord_to_atom(&self)->PDBAtom{
+    pub fn atomsite_to_atom(&self)->PDBAtom{
         let ret:PDBAtom = PDBAtom{
             parent_entry:None,
             parent_entity:None,
@@ -999,7 +1029,7 @@ impl AtomRecord{
             het:self.is_het(),
             alt:self.is_alt(),
             is_ligand:false,
-            atom_record_key:self.index_in_entry
+            atom_site_key:self.index_in_entry
         };//alt_loc は他の Atom も見ないと処理できないと思う
             
         return ret;
@@ -1023,8 +1053,8 @@ impl AtomRecord{
         return true;
     }
 
-    pub fn new()->AtomRecord{
-        return AtomRecord{
+    pub fn new()->AtomSite{
+        return AtomSite{
             index_in_entry:-1,
             group_PDB:"".to_owned(),
             id:"".to_owned(),
@@ -1055,8 +1085,8 @@ impl AtomRecord{
         +"#"+self.label_seq_id.as_str()
         +"#"+self.pdbx_PDB_ins_code.as_str();
     }
-    pub fn parse_atom_line_pdb(line:&str,model_code:&str)-> AtomRecord{
-        let mut ret = AtomRecord::new();
+    pub fn parse_atom_line_pdb(line:&str,model_code:&str)-> AtomSite{
+        let mut ret = AtomSite::new();
 
         let pt:Vec<char> = line.chars().collect();
         let label = slice_to_string(&pt,0,6);
@@ -1132,8 +1162,8 @@ pub fn load_pdb(filename:&str) ->PDBEntry{
     let mut _ret:Vec<Vec<String>> = Vec::new();
 
     let _noline = Regex::new(r"^[\r\n]*$").unwrap();
-    let mut records:Vec<AtomRecord> = vec![];
-    let mut ligand_records:Vec<AtomRecord> = vec![];
+    let mut records:Vec<AtomSite> = vec![];
+    let mut ligand_records:Vec<AtomSite> = vec![];
     let mut terflag:bool = false;
     let mut possibly_ligand = false;
     let mut current_model_num:String = "".to_owned();
@@ -1147,7 +1177,7 @@ pub fn load_pdb(filename:&str) ->PDBEntry{
             terflag = false;
         }
         if start_with(&sstr,"ATOM") || start_with(&sstr,"HETATM"){
-            let mut arecord = AtomRecord::parse_atom_line_pdb(&sstr,&current_model_num);
+            let mut arecord = AtomSite::parse_atom_line_pdb(&sstr,&current_model_num);
             //println!("{:?}",arecord);
             if terflag{
                 possibly_ligand = true;
@@ -1163,11 +1193,7 @@ pub fn load_pdb(filename:&str) ->PDBEntry{
         eprintln!("There are possibly ligand records. ");
     }
 
-    let mut ret_:PDBEntry = PDBEntry::prepare_entry(records);
-    //?? こうしないとボローチェッカー通らない。。。
-    
-    let mut ret:PDBEntry = PDBEntry::new();
-    ret.entities.append(&mut ret_.entities);
+    let mut ret:PDBEntry = PDBEntry::prepare_entry(records);
     return ret;
 }
 
@@ -1187,23 +1213,25 @@ fn slicetest(){
 #[test]
 fn atomlineloadtest(){
     let mut pdb = load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/alt_example_1a48.pdb");
-    for ee in pdb.iter_mut_entities(){
-        for cc in ee.iter_mut_asyms(){
-            for rr in cc.comps.iter(){
-                if rr.seq_id != 17{
-                    continue;
+    for mm in pdb.iter_mut_models(){
+        for ee in mm.iter_mut_entities(){
+            for cc in ee.iter_mut_asyms(){
+                for rr in cc.comps.iter(){
+                    if rr.seq_id != 17{
+                        continue;
+                    }
+                    for aa in rr.atoms.iter(){
+                        println!("{} {} {} {}",rr.comp_id,aa.atom_code,aa.serial_number,aa.alt_code);
+                    }
                 }
-                for aa in rr.atoms.iter(){
-                    println!("{} {} {} {}",rr.comp_id,aa.atom_code,aa.serial_number,aa.alt_code);
-                }
-            }
-            cc.remove_alt(Some(&vec!["B"]));
-            for rr in cc.comps.iter(){
-                if rr.seq_id != 17{
-                    continue;
-                }
-                for aa in rr.atoms.iter(){
-                    println!("{} {} {} {}",rr.comp_id,aa.atom_code,aa.serial_number,aa.alt_code);
+                cc.remove_alt(Some(&vec!["B"]));
+                for rr in cc.comps.iter(){
+                    if rr.seq_id != 17{
+                        continue;
+                    }
+                    for aa in rr.atoms.iter(){
+                        println!("{} {} {} {}",rr.comp_id,aa.atom_code,aa.serial_number,aa.alt_code);
+                    }
                 }
             }
         }

@@ -599,8 +599,8 @@ fn opencltest(){
 fn calc_mc_test_gpu(){
     let pdbb:PDBEntry = load_pdb("D:/dummy/vbox_share/bioo/tbmtest/2r75.pdb");
     let mut ca_atoms:Vec<PDBAtom> = vec![];
-    for (_cii,cc) in pdbb.chains.iter().enumerate(){
-        for (_rii,rr) in cc.residues.iter().enumerate(){
+    for (_cii,cc) in pdbb.get_model_at(0).get_entity_at(0).iter_asyms().enumerate(){
+        for (_rii,rr) in cc.iter_comps().enumerate(){
             assert_eq!(_cii as i64,rr.parent_chain.unwrap());
             if rr.residue_name == "HOH"{
                 continue;

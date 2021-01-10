@@ -184,10 +184,10 @@ fn ss_assign(args:HashMap<String,String>) {
     let pdb = load_pdb(&infile);
     //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6iws_model1.pdb").as_str());
     
-    for cc in pdb.chains.iter(){
+    for cc in pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
         let mut ress:Vec<Vec<&PDBResidue>> = vec![];
         let mut rss:Vec<&PDBResidue> = vec![];
-        for rr in cc.residues.iter(){
+        for rr in cc.iter_comps(){
             if !rr.get_atom_at(0).is_ligand{
                 rss.push(rr);
             }
@@ -430,7 +430,7 @@ fn refinement(args:HashMap<String,String>) {
         None
     };
     let mut pdbb:PDBEntry = load_pdb(args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")));
-    for cc in pdbb.chains.iter_mut(){
+    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
         cc.remove_alt(None);
         charmm_based_energy::MDAtom::change_to_charmmnames(&mut cc.residues);
     }
@@ -480,7 +480,7 @@ fn docking(args:HashMap<String,String>) {
     
     let angle:&str = args.get("-angle").unwrap_or_else(|| panic!("Please specify backbone torsion angle file with -angle"));
     let mut pdbb:PDBEntry = load_pdb(args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")));
-    for cc in pdbb.chains.iter_mut(){
+    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
         cc.remove_alt(None);
         charmm_based_energy::MDAtom::change_to_charmmnames(&mut cc.residues);
     }
@@ -540,30 +540,30 @@ fn make_homo_multimer(args:HashMap<String,String>) {
 
     query_chain.remove("");
     template_chain.remove("");
-    for qcc in query_pdb.chains.iter(){
+    for qcc in query_pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
         if query_chain.len() > 0{
             if !query_chain.contains(&qcc.chain_name){
                 continue;
             }
         }
         let mut qresidues:Vec<&PDBResidue> = vec![];
-        for rr in qcc.residues.iter(){
+        for rr in qcc.iter_comps(){
             qresidues.push(rr);
         }
         
-        for tcc in template_pdb.chains.iter(){
+        for tcc in template_pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
             if template_chain.len() > 0{
                 if !template_chain.contains(&tcc.chain_name){
                     continue;
                 }
             }
             let mut tresidues:Vec<&PDBResidue> = vec![];
-            for rr in tcc.residues.iter(){
+            for rr in tcc.iter_comps(){
                 tresidues.push(rr);
             }
             let res_ = structural_alignment::align_pdb(&qresidues,&tresidues,alignment_type.clone(),0.2);
             let res:structural_alignment::StructuralAlignmentResult = res_.unwrap();
-            for rr in qcc.residues.iter(){
+            for rr in qcc.iter_comps(){
                 for aa_ in rr.iter_atoms(){
                     let mut aa = aa_.clone();
                     let mres = matrix_process::matrix_multi(&res.transform_matrix,&vec![vec![aa_.get_x()],vec![aa_.get_y()],vec![aa_.get_z()],vec![1.0]]);
@@ -587,7 +587,7 @@ fn calc_phi_psi(args:HashMap<String,String>) {
     let mut lines:Vec<String> = vec![];
     let mut pdbb:PDBEntry = load_pdb(args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")));
     let outfilename:&str = args.get("-out").unwrap_or_else(|| panic!("Please specify output file with -out."));
-    for cc in pdbb.chains.iter_mut(){
+    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
         cc.remove_alt(None);
         let rnum =cc.residues.len();
         let dist_threshold:f64 = 2.0;
@@ -829,7 +829,7 @@ fn main_comparative_domain_split(args:HashMap<String,String>) {
         let mut t_chainindex_:i64 = -1;
         
         if query_chain.len() != 0{
-            for cc in query_pdb.chains.iter().enumerate(){
+            for cc in query_pdb.get_model_at(0).get_entity_at(0).iter_asyms().enumerate(){
                 if cc.1.chain_name == query_chain{
                     q_chainindex_ = cc.0 as i64;
                 }
@@ -846,7 +846,7 @@ fn main_comparative_domain_split(args:HashMap<String,String>) {
         }
         
         if template_chain.len() != 0{
-            for cc in template_pdb.chains.iter().enumerate(){
+            for cc in template_pdb.get_model_at(0).get_entity_at(0).iter_asyms().enumerate(){
                 if cc.1.chain_name == template_chain{
                     t_chainindex_ = cc.0 as i64;
                 }
@@ -871,7 +871,7 @@ fn main_comparative_domain_split(args:HashMap<String,String>) {
         let mut template_cas_index:Vec<usize> = vec![];
         query_pdb.chains[q_chainindex].remove_alt(None);
         template_pdb.chains[t_chainindex].remove_alt(None);
-        for (rii,rr) in query_pdb.chains[q_chainindex].residues.iter().enumerate(){
+        for (rii,rr) in query_pdb.chains[q_chainindex].iter_comps().enumerate(){
             let ca_:Option<&PDBAtom> = rr.get_CA();
             if let None = ca_{
                 continue;
@@ -882,7 +882,7 @@ fn main_comparative_domain_split(args:HashMap<String,String>) {
         }
 
 
-        for (rii,rr) in template_pdb.chains[t_chainindex].residues.iter().enumerate(){
+        for (rii,rr) in template_pdb.chains[t_chainindex].iter_comps().enumerate(){
             let ca_:Option<&PDBAtom> = rr.get_CA();
             if let None = ca_{
                 continue;
@@ -1002,17 +1002,17 @@ fn main_str_align(args:HashMap<String,String>) {
 
     let mut qresidues:Vec<&PDBResidue> = vec![];
     let mut tresidues:Vec<&PDBResidue> = vec![];
-    for cc in query_pdb.chains.iter(){
+    for cc in query_pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
         if cc.chain_name == query_chain{
-            for rr in cc.residues.iter(){
+            for rr in cc.iter_comps(){
                 qresidues.push(rr);
             }
         }
     }
     
-    for cc in template_pdb.chains.iter(){
+    for cc in template_pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
         if cc.chain_name == template_chain{
-            for rr in cc.residues.iter(){
+            for rr in cc.iter_comps(){
                 tresidues.push(rr);
             }
         }
@@ -1053,8 +1053,8 @@ fn main_str_align(args:HashMap<String,String>) {
         write_to_file(&result_file,res_str);
     }
     if outfile_pdb.len() > 0{
-        for cc in query_pdb.chains.iter_mut(){
-            for rr in cc.residues.iter_mut(){
+        for cc in query_pdb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
+            for rr in cc.iter_comps_mut(){
                 for aa in rr.iter_mut_atoms(){
                     let mres = matrix_process::matrix_multi(&res.transform_matrix,&vec![vec![aa.get_x()],vec![aa.get_y()],vec![aa.get_z()],vec![1.0]]);
                     aa.set_xyz(mres[0][0],mres[1][0],mres[2][0]);
@@ -1106,11 +1106,11 @@ fn main_prepare_structure(args:HashMap<String,String>) {
     let mut rgen:StdRng =  SeedableRng::seed_from_u64(random_seed);
 
     let mut lines_all:Vec<String> = vec![];
-    let numchains:usize = pdbb.chains.len();
+    let numchains:usize = pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect().len();
     for ll in 0..numchains{
-        charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.chains[ll].residues);
+        charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect()[ll].residues);
     }
-    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.chains,&parr,true);
+    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect(),&parr,true);
     let num_atoms = md_envset.atoms.len();
     charmm_based_energy::estimate_positions_unplaced(&mut md_envset,&md_varset);
     for ii in 0..num_atoms{

@@ -174,7 +174,7 @@ pub fn try_mapping(fastafiles:&Vec<String>,backbonedir:&str,rotamerdir:&str,rand
         
         let pdbb:pdbdata::PDBEntry = pdbdata::load_pdb(&template_file);
         let mut targetchain:Option<pdbdata::PDBAsym> =None;
-        for mut cc in pdbb.chains.into_iter(){
+        for mut cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect().into_iter(){
             cc.remove_alt(None);
             if cc.chain_name == template_chain{
                 targetchain = Some(cc);
@@ -200,7 +200,7 @@ pub fn try_mapping(fastafiles:&Vec<String>,backbonedir:&str,rotamerdir:&str,rand
         }
 
         let ress_and_flag:Vec<(pdbdata::PDBComp,bool)> = chain_builder::build_from_alignment(&query_seq
-            ,&template_seq,&(targetchain.unwrap().residues.iter().map(|m|{m}).collect()),&bset,&sset);
+            ,&template_seq,&(targetchain.unwrap().iter_comps().map(|m|{m}).collect()),&bset,&sset);
             
         let mut floating_mostclose:HashMap<usize,(f64,f64,f64)> = HashMap::new();
         let llen = ress_and_flag.len();
@@ -796,7 +796,7 @@ pub fn docking(pdbb:pdbdata::PDBEntry
         }
     }
     let parr = charmm_param::CHARMMParam::load_chamm19(topfile,paramfile);
-    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.chains,&parr,true);
+    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_model_at(0).get_entity_at(0).iter_asyms().collect(),&parr,true);
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(
         &backbone_dihedral_angle_file);
     let (torsion,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,false,true),false);
@@ -1347,7 +1347,7 @@ pub fn refinement(pdbb:pdbdata::PDBEntry
     if let Some(x) = templatefiles{
         for xx in x{
             let pdbb:pdbdata::PDBEntry = pdbdata::load_pdb(xx.1.as_str());
-            for mut cc in pdbb.chains.into_iter(){
+            for mut cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect().into_iter(){
                 cc.remove_alt(None);
                 if cc.chain_name == xx.2{
                     let mut vvec:Vec<(Vec<f64>,Vec<f64>,Vec<f64>)> = vec![];
@@ -1374,7 +1374,7 @@ pub fn refinement(pdbb:pdbdata::PDBEntry
         }
     }
     
-    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.chains,&parr,true);
+    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect(),&parr,true);
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(
         &backbone_dihedral_angle_file);
     let (torsion,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,false,true),false);
@@ -2364,11 +2364,11 @@ pub fn calc_energies(pdbfile:&str
     ){
     let parr = charmm_param::CHARMMParam::load_chamm19(topfile,paramfile);
     let mut pdbb:pdbdata::PDBEntry = pdbdata::load_pdb(pdbfile);
-    for cc in pdbb.chains.iter_mut(){
+    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
         cc.remove_alt(None);
         charmm_based_energy::MDAtom::change_to_charmmnames(&mut cc.residues);
     }
-    let (md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.chains,&parr,true);
+    let (md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect(),&parr,true);
     
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(
         &backbone_dihedral_angle_file);
@@ -2640,7 +2640,7 @@ fn peptide_build_test2(){
     let mut last:Vec<(f64,f64,f64)> = vec![];
     let mut phi_psi_omega:Vec<(f64,f64,f64)> = vec![];
     let mut pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("example_files/1a4w_part.pdb");
-    for cc in pdbb.chains.iter_mut(){
+    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
         cc.remove_alt(None);
         let rnum =cc.residues.len();
         let dist_threshold:f64 = 2.0;

@@ -1306,8 +1306,8 @@ fn aligntest(){
 fn domain_splittest(){
     let mut pdb = pdbdata::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
     let mut cas:Vec<Vec<f64>> = vec![];
-    for cc in pdb.chains.iter_mut(){
-        for rr in cc.residues.iter_mut(){
+    for cc in pdb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
+        for rr in cc.iter_comps_mut(){
             for aa in rr.iter_mut_atoms(){
                 if aa.atom_code == "CA"{
                     cas.push(vec![aa.get_x(),aa.get_y(),aa.get_z()]);
@@ -1369,23 +1369,23 @@ fn pdbaligntest(){
     let mut pdb = pdbdata::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
 
     let mut residues_a:Vec<&pdbdata::PDBComp> = vec![];
-    for cc in pdb_orig.chains.iter(){
-        for rr in cc.residues.iter(){
+    for cc in pdb_orig.get_model_at(0).get_entity_at(0).iter_asyms(){
+        for rr in cc.iter_comps(){
             residues_a.push(rr);
         }
     }
     
     let mut residues_b:Vec<&pdbdata::PDBComp> = vec![];
-    for cc in pdb.chains.iter(){
-        for rr in cc.residues.iter(){
+    for cc in pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
+        for rr in cc.iter_comps(){
             residues_b.push(rr);
         }
     }
     let res_:Option<StructuralAlignmentResult> = align_pdb(&residues_b,&residues_a,AlignmentType::SW,0.0);
     let res = res_.unwrap();
     //pdb.save("test/testrot.pdb");
-    for cc in pdb.chains.iter_mut(){
-        for rr in cc.residues.iter_mut(){
+    for cc in pdb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
+        for rr in cc.iter_comps_mut(){
             for aa in rr.iter_mut_atoms(){
                 let mres = matrix_process::matrix_multi(&res.transform_matrix,&vec![vec![aa.get_x()],vec![aa.get_y()],vec![aa.get_z()],vec![1.0]]);
                 aa.set_xyz(mres[0][0],mres[1][0],mres[2][0]);

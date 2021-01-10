@@ -338,7 +338,7 @@ fn rosetta_assign_test(){
         }
     }
     let parr = charmm_param::CHARMMParam::load_chamm19((debug_env::CHARMM_DIR.to_string()+"\\toph19.inp").as_str(),(debug_env::CHARMM_DIR.to_string()+"\\param19.inp").as_str());
-    let mut chain:pdbdata::PDBChain = pdbdata::PDBChain::new("A");
+    let mut chain:pdbdata::PDBAsym = pdbdata::PDBAsym::new("A");
     for rr in ress.into_iter(){
         chain.add_residue(rr,true);
     }

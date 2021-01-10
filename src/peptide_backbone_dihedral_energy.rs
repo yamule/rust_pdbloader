@@ -570,9 +570,9 @@ impl PlainDistribution{
             }
             chains.get_mut(&aa.chain_name).unwrap().push(aa);
         }
-        let mut chain_names:Vec<String> = chains.iter().map(|m|m.0.to_string()).collect();
+        let mut chain_names:Vec<String> = .get_model_at(0).get_entity_at(0).iter_asyms().map(|m|m.0.to_string()).collect();
         chain_names.sort();
-        for (_cname,avec) in chains.iter(){
+        for (_cname,avec) in .get_model_at(0).get_entity_at(0).iter_asyms(){
             if avec.len() <= 1{
                 continue;
             }
