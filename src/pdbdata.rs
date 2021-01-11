@@ -11,10 +11,10 @@ use std::io::{BufWriter,Write,BufReader,BufRead};
 use self::regex::Regex;//module ファイル内で extern crate した場合 self が必要。lib.rs で extern crate すると必要ない。
 
 use super::geometry::Vector3D;
-use super::mmcif_process::AtomSite;
+use super::mmcif_process::{MMCIFEntry,AtomSite};
 
 #[derive(Debug)]
-enum StructureHierarchyLevel{
+pub enum StructureHierarchyLevel{
 Entry,
 Model,
 Entity,
@@ -725,7 +725,7 @@ pub struct PDBEntry{
     index:i64,
     pub entry_id:String,
     pub description:String,
-    pub atom_records:Vec<AtomSite>,//PDBAtom が、record_key > -1 を持っている場合、ここからの参照とさせる
+    pub mmcif_data:Option<MMCIFEntry>,//PDBAtom が、record_key > -1 を持っている場合、ここからの参照とさせる
     models:Vec<PDBModel>,
 }
 impl PDBEntry{
@@ -734,7 +734,7 @@ impl PDBEntry{
         index:-1,
         entry_id:"".to_string(),
         description:"".to_string(),
-        atom_records:vec![],
+        mmcif_data:None,
         models:vec![]
         };
     }
@@ -806,23 +806,20 @@ impl PDBEntry{
         }
     }
 
-    pub fn prepare_entry(atom_records:Vec<AtomSite>)->PDBEntry{
+    pub fn prepare_entry(mmcifdata:MMCIFEntry)->PDBEntry{
         
         let mut ret:PDBEntry = PDBEntry::new();
-        ret.atom_records = atom_records;
-        for (ee,aa) in ret.atom_records.iter_mut().enumerate(){
-            aa.set_index(ee as i64);
-        }
-        let models:HashMap<String,Vec<&AtomSite>> = PDBEntry::get_model_map(&(ret.atom_records.iter().collect()));
+
+        let models:HashMap<String,Vec<usize>> = mmcifdata.get_model_map(&(ret.atom_records.iter().collect()));
         for (modk,modv) in models.into_iter(){
             let mut modell = PDBModel::new();
-            let entities:HashMap<String,Vec<&AtomSite>> = PDBEntry::get_entity_map(&(ret.atom_records.iter().collect()));
+            let entities:HashMap<String,Vec<usize>> = mmcifdata.get_entity_map(&(ret.atom_records.iter().collect()));
             for (entk,entv) in entities.into_iter(){
                 let mut entt = PDBEntity::new();
-                let asyms:HashMap<String,Vec<&AtomSite>> = PDBEntry::get_asym_map(&(entv.iter().map(|m|m.clone()).collect()));
+                let asyms:HashMap<String,Vec<usize>> = mmcifdata.get_asym_map(&(entv.iter().map(|m|m.clone()).collect()));
                 for (asymk,asymv) in asyms.into_iter(){
                     let mut asymm = PDBAsym::new(&asymk);
-                    let comps:HashMap<String,Vec<&AtomSite>> = PDBEntry::get_comp_map(&(asymv.iter().map(|m|m.clone()).collect()));
+                    let comps:HashMap<String,Vec<usize>> = mmcifdata.get_comp_map(&(asymv.iter().map(|m|m.clone()).collect()));
                     for (compk,compv) in comps.into_iter(){
                         if compv.len() == 0{
                             panic!("{} has no atom??",compk);
@@ -832,15 +829,15 @@ impl PDBEntry{
                                 parent_entity:None,
                                 parent_asym:None,
                                 index:-1,
-                                seq_id:compv[0].label_seq_id.parse::<i64>().unwrap(),//sequence number
-                                comp_id:compv[0].label_comp_id.clone(),
+                                seq_id:mmcifdata.get_atom_site(compv[0]).get_label_seq_id().parse::<i64>().unwrap(),//sequence number
+                                comp_id:mmcifdata.get_atom_site(compv[0]).get_label_seq_id().to_string(),
                                 atoms:vec![],
-                                ins_code:compv[0].pdbx_PDB_ins_code.clone(),
+                                ins_code:mmcifdata.get_atom_site(compv[0]).get_pdbx_PDB_ins_code().to_string(),
                         };
                         for aa in compv.into_iter(){
-                            let mut att = aa.atomsite_to_atom();
+                            let mut att = mmcifdata.get_atom_site(aa).atomsite_to_atom();
                             rr.add_atom(
-                                aa.atomsite_to_atom()
+                                att
                             );
                         }
                         asymm.add_comp(rr);
@@ -868,43 +865,11 @@ impl PDBEntry{
             }
         }
         
+        ret.mmcif_data = Some(mmcifdata);
+        ret.mmcif_data.unwrap().update_atom_site_index();
         return ret;
     }
 
-
-    pub fn get_entity_map<'a>(atom_records:&Vec<&'a AtomSite>)->HashMap<String,Vec<&'a AtomSite>>{
-        return PDBEntry::get_map(atom_records,StructureHierarchyLevel::Entity);
-    }
-    
-    pub fn get_model_map<'a>(atom_records:&Vec<&'a AtomSite>)->HashMap<String,Vec<&'a AtomSite>>{
-        return PDBEntry::get_map(atom_records,StructureHierarchyLevel::Model);
-    }
-    
-    pub fn get_asym_map<'a>(atom_records:&Vec<&'a AtomSite>)->HashMap<String,Vec<&'a AtomSite>>{
-        return PDBEntry::get_map(atom_records,StructureHierarchyLevel::Asym);
-    }
-    
-    pub fn get_comp_map<'a>(atom_records:&Vec<&'a AtomSite>)->HashMap<String,Vec<&'a AtomSite>>{
-        return PDBEntry::get_map(atom_records,StructureHierarchyLevel::Comp);
-    }
-
-    pub fn get_map<'a>(atom_records:&Vec<&'a AtomSite>,lev:StructureHierarchyLevel)->HashMap<String,Vec<&'a AtomSite>>{
-        let mut ret:HashMap<String,Vec<&AtomSite>> = HashMap::new();
-        for aa in atom_records.iter(){
-            let ak:String = match lev{
-                StructureHierarchyLevel::Model => aa.pdbx_PDB_model_num.clone(),
-                StructureHierarchyLevel::Entity => aa.label_entity_id.clone(),
-                StructureHierarchyLevel::Asym => aa.label_asym_id.clone(),
-                StructureHierarchyLevel::Comp => aa.get_unique_comp_label(),
-                _=> panic!("{:?} is not allowed in this function.",lev)
-            };
-            if !ret.contains_key(&ak){
-                ret.insert(ak.clone(),vec![]);
-            }
-            ret.get_mut(&ak).unwrap().push(aa);
-        }
-        return ret;
-    }
     
     pub fn get_pdb_atom_line_string(&self)->Vec<String>{
         let mut ret:Vec<String>  = vec![];

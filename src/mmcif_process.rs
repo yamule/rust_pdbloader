@@ -19,6 +19,7 @@ const NO_SEQ_ID:i64 = -999;
 const SECTION_NUMLETTER_MAX:usize = 30;//これより長いと複数行モードにされる
 
 
+const __ELEMENT_INDEX:&str = "__element_index";
 const _ATOM_SITE_GROUP_PDB:&str ="_atom_site.group_PDB";
 const _ATOM_SITE_ID:&str ="_atom_site.id";
 const _ATOM_SITE_TYPE_SYMBOL:&str ="_atom_site.type_symbol";
@@ -272,17 +273,52 @@ pub fn parse_mmcif(filename:&str)->Vec<(Vec<String>,Vec<Vec<String>>)>{
 
 #[allow(dead_code)]
 pub struct MMCIFEntry{
-    //二番目要素はベクトルを持っていて、そのベクトルの値に対応するラベルが一番目の要素に入っている
-    atom_site:(Vec<String>,Vec<AtomSite>),
-    misc_section:Vec<(Vec<String>,Vec<MiscSection>)>,
-    entry_id:String,
-    header:String,
+    //三番目要素はベクトルを持っていて、そのベクトルの値に対応するラベルが一番目の要素に入っている
+    //二番目の要素は逆引き
+    pub atom_site:(Vec<String>,HashMap<String,usize>,Vec<Vec<String>>),
+    pub misc_section:Vec<(Vec<String>,HashMap<String,usize>,Vec<Vec<String>>)>,
+    pub entry_id:String,
+    pub header:String,
 }
 
 
 impl MMCIFEntry{
     
-    pub fn set_atom_site_section(&mut self,kk:Vec<String>,vll:Vec<AtomSite>){
+    pub fn get_entity_map(&self,atom_records:&Vec<usize>)->HashMap<String,Vec<usize>>{
+        return self.get_map(atom_records,StructureHierarchyLevel::Entity);
+    }
+    
+    pub fn get_model_map(&self,atom_records:&Vec<usize>)->HashMap<String,Vec<usize>>{
+        return self.get_map(atom_records,StructureHierarchyLevel::Model);
+    }
+    
+    pub fn get_asym_map(&self,atom_records:&Vec<usize>)->HashMap<String,Vec<usize>>{
+        return self.get_map(atom_records,StructureHierarchyLevel::Asym);
+    }
+    
+    pub fn get_comp_map(&self,atom_records:&Vec<usize>)->HashMap<String,Vec<usize>>{
+        return self.get_map(atom_records,StructureHierarchyLevel::Comp);
+    }
+
+    pub fn get_map(&self,atom_records:&Vec<usize>,lev:StructureHierarchyLevel)->HashMap<String,Vec<usize>>{
+        let mut ret:HashMap<String,Vec<usize>> = HashMap::new();
+        for aa in atom_records.iter(){
+            let ak:String = match lev{
+                StructureHierarchyLevel::Model => self.get_atom_site(*aa).get_pdbx_PDB_model_num().to_string(),
+                StructureHierarchyLevel::Entity => self.get_atom_site(*aa).get_label_entity_id().to_string(),
+                StructureHierarchyLevel::Asym => self.get_atom_site(*aa).get_label_asym_id().to_string(),
+                StructureHierarchyLevel::Comp => self.get_atom_site(*aa).get_unique_residue_label(),
+                _=> panic!("{:?} is not allowed in this function.",lev)
+            };
+            if !ret.contains_key(&ak){
+                ret.insert(ak.clone(),vec![]);
+            }
+            ret.get_mut(&ak).unwrap().push(*aa);
+        }
+        return ret;
+    }
+    
+    pub fn set_atom_site_section(&mut self,kk:Vec<String>,vll:Vec<Vec<String>>){
         /*何をしようとしていたか忘れてしまった。
         let atom_site_map:HashMap<String,usize> = MMCIFEntry::get_key_index_map(&self.atom_site.0);
         let pxx:(i64,i64,i64)=(
@@ -291,150 +327,25 @@ impl MMCIFEntry{
             match atom_site_map.get(_ATOM_SITE_CARTN_Z){Some(x)=>{*x as i64},None=>{-1}}
         );
         */
-        self.atom_site =(kk,vll);
+        self.atom_site =(kk,MMCIFEntry::get_key_index_map(&self.atom_site.0),vll);
         self.update_atom_site_index();
     }
 
     pub fn update_atom_site_index(&mut self){
-        for (aii,aa) in self.atom_site.1.iter_mut().enumerate(){
-            aa.set_atom_index(aii as i64);
+        for (aii,aa) in self.atom_site.2.iter_mut().enumerate(){
+            AtomSite::new(&self.atom_site.1,aa).set_index(aii as i64);
         }
     }
 
-    //PDB データに見つからなかった AtomSite のインデクスを返す
-    pub fn assign_cartn(&mut self,pdbb:&PDBEntry,add_new_atoms:bool)
-    ->Vec<usize>{
-        let atom_site_map:HashMap<String,usize> = MMCIFEntry::get_key_index_map(&self.atom_site.0);
-        let mut newatoms_all:Vec<AtomSite> = vec![];
-        let mut newatoms_notassigned:Vec<AtomSite> = vec![];
-        let xyz:(usize,usize,usize) = (
-         *atom_site_map.get(_ATOM_SITE_CARTN_X).expect("Cartn_x is not found.")
-        ,*atom_site_map.get(_ATOM_SITE_CARTN_Y).expect("Cartn_y is not found.")
-        ,*atom_site_map.get(_ATOM_SITE_CARTN_Z).expect("Cartn_z is not found.")
-        );
-        let occ:i64 = match atom_site_map.get(_ATOM_SITE_OCCUPANCY){Some(x) => {*x as i64},None=>{-1}};
-        let biso:i64 = match atom_site_map.get(_ATOM_SITE_B_ISO_OR_EQUIV){Some(x) => {*x as i64},None=>{-1}};
-        let f_charge:i64 = match atom_site_map.get(_ATOM_SITE_PDBX_FORMAL_CHARGE){Some(x) => {*x as i64},None=>{-1}};
-        let mut updated:Vec<bool> = vec![false;self.atom_site.1.len()];
-
-        let mut haspointer_all:i64 = -1;//最後に Model num とかを付ける場合に使用
-        for cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms(){
-            for rr in cc.iter_comps(){
-                let mut newatoms:Vec<AtomSite> = vec![];
-                for aa in rr.iter_atoms(){
-                    let p_ = aa.get_atom_site_key();
-                    let mut targetatom_:Option<&mut AtomSite> = None;
-                    if p_ > -1{
-                        if haspointer_all < 0{
-                            haspointer_all = p_;
-                        }
-                        let p:usize = p_ as usize;
-                        updated[p] = true;
-                        targetatom_ = Some(&mut self.atom_site.1[p]);   
-                    }else if add_new_atoms{
-                        let mut naa:AtomSite = AtomSite::new();
-                        naa.set_num_values(self.atom_site.0.len());
-                        if aa.het{
-                            naa.set_value_of(_ATOM_SITE_GROUP_PDB,"HETATM".to_string(),&atom_site_map,true);
-                        }else{
-                            naa.set_value_of(_ATOM_SITE_GROUP_PDB,"ATOM".to_string(),&atom_site_map,true);
-                        }
-                        naa.set_value_of(_ATOM_SITE_ID,aa.index.to_string(),&atom_site_map,true);
-                        naa.set_value_of(_ATOM_SITE_TYPE_SYMBOL,aa.atom_symbol.clone(),&atom_site_map,true);
-                        naa.set_value_of(_ATOM_SITE_LABEL_ATOM_ID,aa.atom_code.clone(),&atom_site_map,true);
-                        naa.set_value_of(_ATOM_SITE_LABEL_ALT_ID,aa.alt_code.clone(),&atom_site_map,true);
-                        naa.set_value_of(_ATOM_SITE_AUTH_ATOM_ID,aa.atom_code.to_string(),&atom_site_map,true);
-                        newatoms.push(naa);
-                        targetatom_ = Some(newatoms.last_mut().unwrap());
-                    }
-                    if let None = targetatom_{
-                        continue;
-                    }
-                    let targetatom:&mut AtomSite = targetatom_.unwrap();
-                    targetatom.set_xyz(
-                        aa.get_x(),
-                        aa.get_y(),
-                        aa.get_z(),
-                        xyz
-                    );
-                    if occ > -1{
-                        targetatom.set_occupancy(aa.occupancy,(occ as usize,));
-                    }
-                    if biso > -1{
-                        targetatom.set_temperature_factor(aa.temp_factor,(biso as usize,));
-                    }
-                    if f_charge > -1{
-                        if let Some(x) = aa.charge.as_ref(){
-                            targetatom.set_formal_charge(x.clone(),(f_charge as usize,));
-                        }
-                    }
-                }
-                let mut haspointer:i64 = -1;
-                for (aii,aa) in rr.iter_atoms().enumerate(){
-                    let p_ = aa.get_atom_site_key();
-                    if p_ > -1{
-                        haspointer = aii as i64;
-                    }
-                }
-                if haspointer > -1{
-                    let refatom:&AtomSite = &self.atom_site.1[haspointer as usize];
-                    let ikeys:Vec<&str> = vec![
-                    _ATOM_SITE_LABEL_COMP_ID
-                    ,_ATOM_SITE_LABEL_ASYM_ID
-                    ,_ATOM_SITE_LABEL_ENTITY_ID 
-                    ,_ATOM_SITE_LABEL_SEQ_ID
-                    ,_ATOM_SITE_PDBX_PDB_INS_CODE
-                    ,_ATOM_SITE_AUTH_SEQ_ID
-                    ,_ATOM_SITE_AUTH_COMP_ID
-                    ,_ATOM_SITE_AUTH_ASYM_ID
-                    ,_ATOM_SITE_PDBX_PDB_MODEL_NUM
-                    ];
-                    for nn in newatoms.iter_mut(){
-                        nn.copy_information_from(refatom,&ikeys,&atom_site_map);
-                    }
-                    newatoms_all.append(&mut newatoms);
-                }else{
-                    for naa in newatoms.iter_mut(){
-                        //同じ Residue 中にマップされた原子が無い場合 residue とかの情報を使って再構成する
-                        naa.set_value_of(_ATOM_SITE_LABEL_COMP_ID,rr.get_comp_id().to_string(),&atom_site_map,true);
-                        naa.set_value_of(_ATOM_SITE_LABEL_ASYM_ID,cc.chain_name.clone(),&atom_site_map,true);
-                        naa.set_value_of(_ATOM_SITE_LABEL_SEQ_ID,rr.get_seq_id().to_string(),&atom_site_map,true);
-                        
-                        naa.set_value_of(_ATOM_SITE_AUTH_COMP_ID,rr.get_comp_id().to_string(),&atom_site_map,true);
-                        naa.set_value_of(_ATOM_SITE_AUTH_ASYM_ID,cc.chain_name.clone(),&atom_site_map,true);
-                        naa.set_value_of(_ATOM_SITE_AUTH_SEQ_ID,rr.get_seq_id().to_string(),&atom_site_map,true);
-                        
-                        naa.set_value_of(_ATOM_SITE_PDBX_PDB_INS_CODE,rr.get_ins_code().to_string(),&atom_site_map,true);
-                        naa.set_value_of(_ATOM_SITE_LABEL_ENTITY_ID,"?".to_string(),&atom_site_map,true);
-                        naa.set_value_of(_ATOM_SITE_PDBX_PDB_MODEL_NUM,"?".to_string(),&atom_site_map,true);
-                    }
-                    newatoms_notassigned.append(&mut newatoms);
-                }
-            }
-        }
-
-        if haspointer_all > -1 && newatoms_notassigned.len() > 0{
-            let refatom:&AtomSite = &self.atom_site.1[haspointer_all as usize];
-            let ikeys:Vec<&str> = vec![
-            _ATOM_SITE_LABEL_ENTITY_ID 
-            ,_ATOM_SITE_PDBX_PDB_MODEL_NUM
-            ];
-            for nn in newatoms_notassigned.iter_mut(){
-                nn.copy_information_from(refatom,&ikeys,&atom_site_map);
-            }
-            newatoms_all.append(&mut newatoms_notassigned);
-        }
-
-        self.atom_site.1.append(&mut newatoms_all);
-        let mut ret:Vec<usize> = vec![];
-        for mm in 0..updated.len(){
-            if !updated[mm]{
-                ret.push(mm);
-            }
-        }
-        return ret;
-    }    
+    pub fn get_atom_site(&self,i:usize)->AtomSite{
+        return AtomSite::new(&self.atom_site.1,&self.atom_site.2[i]);
+    }
     
+    pub fn get_mut_atom_site(&mut self,i:usize)->AtomSite{
+        return AtomSite::new(&self.atom_site.1,&self.atom_site.2[i]);
+    }
+    
+
     //ToDo: use auth 途中
     pub fn load_mmcif(filename:&str,use_auth:bool)->(MMCIFEntry,PDBEntry){
         let mut blocks:Vec<(Vec<String>,Vec<Vec<String>>)> = parse_mmcif(filename);
@@ -443,7 +354,7 @@ impl MMCIFEntry{
         //let mut atom_sites:Vec<AtomSite> = vec![];
         let header = blocks.remove(0);
         //println!("{}",MMCIFEntry::blocks_to_string(&blocks));
-        let mut misc_section:Vec<(Vec<String>,Vec<MiscSection>)> = vec![];
+        let mut misc_section:Vec<(Vec<String>,HashMap<String,usize>,Vec<Vec<String>>)> = vec![];
         let mut entry_id:String = "NONE".to_string();
         for bb in blocks.into_iter(){
             if bb.0.len() == 0{//entry
@@ -462,31 +373,29 @@ impl MMCIFEntry{
                     entry_id = bb.1[0][eindex as usize].clone();   
                 }
                 misc_section.push(
-                    (bb.0,bb.1.into_iter().map(|m|MiscSection{values:m}).collect())
+                    (bb.0,MMCIFEntry::get_key_index_map(&bb.0),bb.1)
                 );
             }else{
                 misc_section.push(
-                    (bb.0,bb.1.into_iter().map(|m|MiscSection{values:m}).collect())
+                    (bb.0,MMCIFEntry::get_key_index_map(&bb.0),bb.1)
                 );
             }
             
         }
         let mut ret = MMCIFEntry{
-            atom_site:(vec![],vec![]),
+            atom_site:(vec![],HashMap::new(),vec![]),
             entry_id:entry_id,
             header:header.1[0][0].clone(),
             misc_section:misc_section
         };
         if let Some(x) = atom_site_block_{
             let (keys,values) = x;
-            let mut atoms:Vec<AtomSite> = vec![];
+            let mut atoms:Vec<Vec<String>> = vec![];
             for vv in values.into_iter(){
                 if vv.len() == 0{
                     continue;
                 }
-                let mut atom:AtomSite = AtomSite::new();
-                atom.values = vv;
-                atoms.push(atom);
+                atoms.push(vv);
             }
             ret.set_atom_site_section(keys,atoms);
         }else{
@@ -538,14 +447,13 @@ impl MMCIFEntry{
         let comp_id_:usize = *atom_site_map.get(&comp_id_label).unwrap_or_else(||panic!("{} is not defined.",comp_id_label));
         let seq_id_:usize = *atom_site_map.get(&seq_id_label).unwrap_or_else(||panic!("{} is not defined.",seq_id_label));
         //let atom_id_:usize = *atom_site_map.get(&atom_id_label).unwrap_or_else(||panic!("{} is not defined.",atom_id_label));
-        let atom_sites:Vec<pdbdata::AtomSiteRecord> = vec![];
-        for (_aii,aa) in mmcif.atom_site.1.iter().enumerate(){
+        let atom_sites:Vec<AtomSite> = vec![];
+        for (_aii,aa) in mmcif.atom_site.2.iter().enumerate(){
+    //かきさし
+            //let asym_id:String = aa.values[asym_id_].clone();
     
-            let asym_id:String = aa.values[asym_id_].clone();
-    
-            ここから
         }
-    
+    /*
         for (cii,cc) in ret.get_model_at(0).get_entity_at(0).iter_asyms().enumerate(){
             for (rii,rr) in cc.iter_comps().enumerate(){
                 assert_eq!(cii as i64,rr.parent_chain.unwrap());
@@ -556,6 +464,7 @@ impl MMCIFEntry{
                 }
             }
         }
+    */
         return ret;
     }
     
@@ -636,18 +545,19 @@ impl MMCIFEntry{
 
     //めちゃ遅い・・・
     pub fn save(&self,filename:&str){
+        
         let mut lines:Vec<String> = vec![];
         lines.push(self.header.clone());
         
         for ll in self.misc_section.iter(){
-            let val:Vec<&Vec<String>> = ll.1.iter().map(|m|{&m.values}).collect();
+            let val:Vec<&Vec<String>> = ll.2.iter().map(|m|{m}).collect();
             lines.append(&mut MMCIFEntry::blocks_to_strings(
                 &vec![(&ll.0,&val)]
             ));    
         }
         
 
-        let asite:Vec<&Vec<String>> = self.atom_site.1.iter().map(|m|&m.values).collect();
+        let asite:Vec<&Vec<String>> = self.atom_site.2.iter().map(|m|m).collect();
         lines.append(&mut MMCIFEntry::blocks_to_strings(
             &vec![(&self.atom_site.0,&asite)]
         ));
@@ -662,15 +572,66 @@ pub struct MiscSection{
 }
 
 #[allow(non_snake_case)]
-pub struct AtomSite{
-    pub values:Vec<String>,
-    pub atom_index:i64, //MMCIFEntry 内の Vec にあるこのインスタンスのインデクス。PDBAtom から参照する
-    pub used_auth:bool
+pub struct AtomSite<'a>{
+    pub keymap:&'a HashMap<String,usize>,
+    pub values:&'a Vec<String>,
 }
 
-impl AtomSite{
+impl<'a> AtomSite<'a>{
     
+    pub fn set_index(&mut self,s:i64){
+        self.set_value_of(__ELEMENT_INDEX,s.to_string(),false);
+    }
+    
+    pub fn get_index(&mut self)->i64{
+        return self.get_value(__ELEMENT_INDEX).parse::<i64>().unwrap_or(-1);
+    }
+    
+    pub fn atomsite_to_atom(&self)->PDBAtom{
+        let ret:PDBAtom = PDBAtom{
+            parent_entry:None,
+            parent_entity:None,
+            parent_asym:None,
+            parent_comp:None,
+            index:-1,
+            serial_number:self.get_label_atom_id().parse::<i64>().unwrap().clone(),
+            x:self.get_Cartn_x().parse::<f64>().unwrap().clone(),
+            y:self.get_Cartn_y().parse::<f64>().unwrap().clone(),
+            z:self.get_Cartn_z().parse::<f64>().unwrap().clone(),
+            charge:if self.get_pdbx_formal_charge().len() > 0{Some(self.get_pdbx_formal_charge().to_string())}else{None},
+            occupancy:if self.get_occupancy().len() > 0{self.get_occupancy().parse::<f64>().unwrap()}else{1.0},
+            temp_factor:if self.get_B_iso_or_equiv().len() > 0{self.get_B_iso_or_equiv().parse::<f64>().unwrap()}else{0.0},
+            atom_symbol:self.get_type_symbol().to_string(),
+            atom_code:self.get_label_atom_id().to_string(),
+            alt_code:self.get_label_alt_id().to_string(),
+            dummy:true,
+            het:self.is_het(),
+            alt:self.is_alt(),
+            is_ligand:false,
+            atom_site_key:self.get_index()
+        };//alt_loc は他の Atom も見ないと処理できないと思う
+            
+        return ret;
+    }
 
+    pub fn is_het(&self)->bool{
+        if self.get_group_PDB() == "ATOM"{
+            return false;
+        }
+        return true;
+    }
+
+    pub fn is_alt(&self)->bool{
+        let lab:&str = self.get_label_alt_id();
+        if lab == ""
+        || lab == "."
+        || lab == "?"
+        || lab == " "
+        || lab == "A"{
+            return false;
+        }
+        return true;
+    }
     //残基名とかチェーン名とか、上位情報をコピーする
     pub fn copy_information_from(&mut self,src:&AtomSite,keys:&Vec<&str>,vmap:&HashMap<String,usize>){
         assert_eq!(self.values.len(),src.values.len());
@@ -683,54 +644,62 @@ impl AtomSite{
         }
     }
 
-    pub fn set_num_values(&mut self,siz:usize){
-        assert!(self.values.len() == 0);
-        self.values = vec!["?".to_string();siz];
-    }
-
-    pub fn new()->AtomSite{
+    pub fn new(km:&'a HashMap<String,usize>,val:&'a Vec<String>)->AtomSite<'a>{
         return AtomSite{
-            values:vec![],
-            atom_index:-1,
-            used_auth:false
+            keymap:km,values:val
         };
     }
-    
-Getter もつける
-Vec しかないので Collect で HM も作る
-get_model_at(0).get_entity_at(0) で Chain を取ろうとしているところは、
-Get All Chains というような関数を作って Entity から何からまたいだ結果を全部返させる
+//ToDo
+//Vec しかないので Collect で HM も作る
+//get_model_at(0).get_entity_at(0) で Chain を取ろうとしているところは、
+//Get All Chains というような関数を作って Entity から何からまたいだ結果を全部返させる
 
-    pub fn set_value(&mut self,k:&str,v:String,hsmap:&HashMap<String,usize>){
-        self.values[*hsmap.get(k).unwrap()] = v;
+    pub fn set_group_PDB(&mut self,s:String){self.set_value_of(_ATOM_SITE_GROUP_PDB,s,false);} 
+    pub fn set_id(&mut self,s:String){self.set_value_of(_ATOM_SITE_ID,s,false);} 
+    pub fn set_type_symbol(&mut self,s:String){self.set_value_of(_ATOM_SITE_TYPE_SYMBOL,s,false);} 
+    pub fn set_label_atom_id(&mut self,s:String){self.set_value_of(_ATOM_SITE_LABEL_ATOM_ID,s,false);} 
+    pub fn set_label_alt_id(&mut self,s:String){self.set_value_of(_ATOM_SITE_LABEL_ALT_ID,s,false);} 
+    pub fn set_label_comp_id(&mut self,s:String){self.set_value_of(_ATOM_SITE_LABEL_COMP_ID,s,false);} 
+    pub fn set_label_asym_id(&mut self,s:String){self.set_value_of(_ATOM_SITE_LABEL_ASYM_ID,s,false);} 
+    pub fn set_label_entity_id(&mut self,s:String){self.set_value_of(_ATOM_SITE_LABEL_ENTITY_ID,s,false);} 
+    pub fn set_label_seq_id(&mut self,s:String){self.set_value_of(_ATOM_SITE_LABEL_SEQ_ID,s,false);} 
+    pub fn set_pdbx_PDB_ins_code(&mut self,s:String){self.set_value_of(_ATOM_SITE_PDBX_PDB_INS_CODE,s,false);} 
+    pub fn set_Cartn_x(&mut self,s:String){self.set_value_of(_ATOM_SITE_CARTN_X,s,false);} 
+    pub fn set_Cartn_y(&mut self,s:String){self.set_value_of(_ATOM_SITE_CARTN_Y,s,false);} 
+    pub fn set_Cartn_z(&mut self,s:String){self.set_value_of(_ATOM_SITE_CARTN_Z,s,false);} 
+    pub fn set_occupancy(&mut self,s:String){self.set_value_of(_ATOM_SITE_OCCUPANCY,s,false);} 
+    pub fn set_B_iso_or_equiv(&mut self,s:String){self.set_value_of(_ATOM_SITE_B_ISO_OR_EQUIV,s,false);} 
+    pub fn set_pdbx_formal_charge(&mut self,s:String){self.set_value_of(_ATOM_SITE_PDBX_FORMAL_CHARGE,s,false);} 
+    pub fn set_auth_seq_id(&mut self,s:String){self.set_value_of(_ATOM_SITE_AUTH_SEQ_ID,s,false);} 
+    pub fn set_auth_comp_id(&mut self,s:String){self.set_value_of(_ATOM_SITE_AUTH_COMP_ID,s,false);} 
+    pub fn set_auth_asym_id(&mut self,s:String){self.set_value_of(_ATOM_SITE_AUTH_ASYM_ID,s,false);} 
+    pub fn set_auth_atom_id(&mut self,s:String){self.set_value_of(_ATOM_SITE_AUTH_ATOM_ID,s,false);} 
+    pub fn set_pdbx_PDB_model_num(&mut self,s:String){self.set_value_of(_ATOM_SITE_PDBX_PDB_MODEL_NUM,s,false);} 
+
+    pub fn get_value(&mut self,k:&str) -> &str{
+        return &self.values[*self.keymap.get(k).unwrap()];
     }
-    pub fn set_group_PDB(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_GROUP_PDB,s,hsmap);} 
-    pub fn set_id(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_ID,s,hsmap);} 
-    pub fn set_type_symbol(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_TYPE_SYMBOL,s,hsmap);} 
-    pub fn set_label_atom_id(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_LABEL_ATOM_ID,s,hsmap);} 
-    pub fn set_label_alt_id(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_LABEL_ALT_ID,s,hsmap);} 
-    pub fn set_label_comp_id(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_LABEL_COMP_ID,s,hsmap);} 
-    pub fn set_label_asym_id(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_LABEL_ASYM_ID,s,hsmap);} 
-    pub fn set_label_entity_id(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_LABEL_ENTITY_ID,s,hsmap);} 
-    pub fn set_label_seq_id(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_LABEL_SEQ_ID,s,hsmap);} 
-    pub fn set_pdbx_PDB_ins_code(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_PDBX_PDB_INS_CODE,s,hsmap);} 
-    pub fn set_Cartn_x(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_CARTN_X,s,hsmap);} 
-    pub fn set_Cartn_y(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_CARTN_Y,s,hsmap);} 
-    pub fn set_Cartn_z(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_CARTN_Z,s,hsmap);} 
-    pub fn set_occupancy(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_OCCUPANCY,s,hsmap);} 
-    pub fn set_B_iso_or_equiv(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_B_ISO_OR_EQUIV,s,hsmap);} 
-    pub fn set_pdbx_formal_charge(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_PDBX_FORMAL_CHARGE,s,hsmap);} 
-    pub fn set_auth_seq_id(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_AUTH_SEQ_ID,s,hsmap);} 
-    pub fn set_auth_comp_id(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_AUTH_COMP_ID,s,hsmap);} 
-    pub fn set_auth_asym_id(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_AUTH_ASYM_ID,s,hsmap);} 
-    pub fn set_auth_atom_id(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_AUTH_ATOM_ID,s,hsmap);} 
-    pub fn set_pdbx_PDB_model_num(&mut self,s:String,hsmap:&HashMap<String,usize>){self.set_value(_ATOM_SITE_PDBX_PDB_MODEL_NUM,s,hsmap);} 
-
-
-    //MMCIFEntry 内の Vec にあるこのインスタンスのインデクスを与えてください
-    pub fn set_atom_index(&mut self,i:i64){
-        self.atom_index = i;
-    }
+    pub fn get_group_PDB(&mut self) -> &str{return self.get_value(_ATOM_SITE_GROUP_PDB);} 
+    pub fn get_id(&mut self) -> &str{return self.get_value(_ATOM_SITE_ID);} 
+    pub fn get_type_symbol(&mut self) -> &str{return self.get_value(_ATOM_SITE_TYPE_SYMBOL);} 
+    pub fn get_label_atom_id(&mut self) -> &str{return self.get_value(_ATOM_SITE_LABEL_ATOM_ID);} 
+    pub fn get_label_alt_id(&mut self) -> &str{return self.get_value(_ATOM_SITE_LABEL_ALT_ID);} 
+    pub fn get_label_comp_id(&mut self) -> &str{return self.get_value(_ATOM_SITE_LABEL_COMP_ID);} 
+    pub fn get_label_asym_id(&mut self) -> &str{return self.get_value(_ATOM_SITE_LABEL_ASYM_ID);} 
+    pub fn get_label_entity_id(&mut self) -> &str{return self.get_value(_ATOM_SITE_LABEL_ENTITY_ID);} 
+    pub fn get_label_seq_id(&mut self) -> &str{return self.get_value(_ATOM_SITE_LABEL_SEQ_ID);} 
+    pub fn get_pdbx_PDB_ins_code(&mut self) -> &str{return self.get_value(_ATOM_SITE_PDBX_PDB_INS_CODE);} 
+    pub fn get_Cartn_x(&mut self) -> &str{return self.get_value(_ATOM_SITE_CARTN_X);} 
+    pub fn get_Cartn_y(&mut self) -> &str{return self.get_value(_ATOM_SITE_CARTN_Y);} 
+    pub fn get_Cartn_z(&mut self) -> &str{return self.get_value(_ATOM_SITE_CARTN_Z);} 
+    pub fn get_occupancy(&mut self) -> &str{return self.get_value(_ATOM_SITE_OCCUPANCY);} 
+    pub fn get_B_iso_or_equiv(&mut self) -> &str{return self.get_value(_ATOM_SITE_B_ISO_OR_EQUIV);} 
+    pub fn get_pdbx_formal_charge(&mut self) -> &str{return self.get_value(_ATOM_SITE_PDBX_FORMAL_CHARGE);} 
+    pub fn get_auth_seq_id(&mut self) -> &str{return self.get_value(_ATOM_SITE_AUTH_SEQ_ID);} 
+    pub fn get_auth_comp_id(&mut self) -> &str{return self.get_value(_ATOM_SITE_AUTH_COMP_ID);} 
+    pub fn get_auth_asym_id(&mut self) -> &str{return self.get_value(_ATOM_SITE_AUTH_ASYM_ID);} 
+    pub fn get_auth_atom_id(&mut self) -> &str{return self.get_value(_ATOM_SITE_AUTH_ATOM_ID);} 
+    pub fn get_pdbx_PDB_model_num(&mut self) -> &str{return self.get_value(_ATOM_SITE_PDBX_PDB_MODEL_NUM);} 
     
     //PDBAtom 以外から変更されることを今のところ想定していない
     //小数点以下の桁数を合わせるためであり、あまり意味はない。
@@ -740,24 +709,14 @@ Get All Chains というような関数を作って Entity から何からまた
         self.values[indices.1] = format!("{:.3}",y);
         self.values[indices.2] = format!("{:.3}",z);
     }
-    fn set_occupancy(&mut self,v:f64,indices:(usize,)){
-        self.values[indices.0] = format!("{:.2}",v);
-    }
-    fn set_temperature_factor(&mut self,v:f64,indices:(usize,)){
-        self.values[indices.0] = format!("{:.2}",v);
-    }
-    fn set_formal_charge(&mut self,v:String,indices:(usize,)){
-        self.values[indices.0] = v;
-    }
-    
-    pub fn set_value_of(&mut self,k:&str,v:String,vmap:&HashMap<String,usize>,dont_panic:bool){
-        if !vmap.contains_key(k){
+    pub fn set_value_of(&mut self,k:&str,v:String,dont_panic:bool){
+        if !self.keymap.contains_key(k){
             if !dont_panic{
                 panic!("{} is not found in key list.",k);
             }
             return;
         }
-        self.values[*vmap.get(k).unwrap()] = v;
+        self.values[*self.keymap.get(k).unwrap()] = v;
     }
     /*
     
@@ -790,77 +749,73 @@ Get All Chains というような関数を作って Entity から何からまた
 
     */
     
-    pub fn atom_site_to_pdbatom(&self,vmap:&HashMap<String,usize>,use_auth:bool)->PDBAtom{
+
+    pub fn atom_site_to_pdbatom(&self,use_auth:bool)->PDBAtom{
         let mut ret = PDBAtom::new();
-        if self.get_atom_index() < 0{
+        if self.get_index() < 0{
             panic!("update_atom_site_index must have been performed at first.");
         }
 
-        ret.set_atom_site_key(self.get_atom_index());
-        ret.set_xyz(self.get_value_of(_ATOM_SITE_CARTN_X,&vmap).parse::<f64>().unwrap_or_else(|_|panic!("can not parse x"))
-        ,self.get_value_of(_ATOM_SITE_CARTN_Y,&vmap).parse::<f64>().unwrap_or_else(|_|panic!("can not parse y"))
-        ,self.get_value_of(_ATOM_SITE_CARTN_Z,&vmap).parse::<f64>().unwrap_or_else(|_|panic!("can not parse z"))
+        ret.set_atom_site_key(self.get_index());
+        ret.set_xyz(self.get_value_of(_ATOM_SITE_CARTN_X).parse::<f64>().unwrap_or_else(|_|panic!("can not parse x"))
+        ,self.get_value_of(_ATOM_SITE_CARTN_Y).parse::<f64>().unwrap_or_else(|_|panic!("can not parse y"))
+        ,self.get_value_of(_ATOM_SITE_CARTN_Z).parse::<f64>().unwrap_or_else(|_|panic!("can not parse z"))
         );
        
-        ret.serial_number = self.get_value_of(_ATOM_SITE_ID,vmap).parse::<i64>().expect("Cannot parse atom id.");
-        ret.atom_symbol = self.get_value_of(_ATOM_SITE_TYPE_SYMBOL,vmap).to_string();
-        ret.alt_code = self.get_value_of(_ATOM_SITE_LABEL_ALT_ID,vmap).to_string();
-        if ret.alt_code == "?" || ret.alt_code == "."{
+        ret.serial_number = self.get_value_of(_ATOM_SITE_ID).parse::<i64>().expect("Cannot parse atom id.");
+        ret.atom_symbol = self.get_value_of(_ATOM_SITE_TYPE_SYMBOL).to_string();
+        ret.alt_code = self.get_value_of(_ATOM_SITE_LABEL_ALT_ID).to_string();
+        if !self.is_alt(){
             ret.alt_code = "".to_string();
         }
 
         ret.dummy = false;
-        if self.get_value_of(_ATOM_SITE_GROUP_PDB,vmap) == "HETATM"{
+        if self.get_value_of(_ATOM_SITE_GROUP_PDB) == "HETATM"{
             ret.het = true;
         }else{
             ret.het = false;
         }
         
-        if vmap.contains_key(_ATOM_SITE_PDBX_FORMAL_CHARGE){
-            let fcc:String = self.get_value_of(_ATOM_SITE_PDBX_FORMAL_CHARGE,vmap).to_string();
-            if fcc == "?" || fcc == "."{
+        if self.keymap.contains_key(_ATOM_SITE_PDBX_FORMAL_CHARGE){
+            let fcc:String = self.get_value_of(_ATOM_SITE_PDBX_FORMAL_CHARGE).to_string();
+            if fcc == "?" || fcc == "." || fcc == "" {
                 ret.charge = None;
             }else{
                 ret.charge = Some(fcc);
             }
         }
-        if vmap.contains_key(_ATOM_SITE_OCCUPANCY){
-            ret.occupancy = self.get_value_of(_ATOM_SITE_OCCUPANCY,vmap).parse::<f64>().unwrap();
+        if self.keymap.contains_key(_ATOM_SITE_OCCUPANCY){
+            ret.occupancy = self.get_value_of(_ATOM_SITE_OCCUPANCY).parse::<f64>().unwrap();
         }
-        if vmap.contains_key(_ATOM_SITE_B_ISO_OR_EQUIV){
-            ret.temp_factor = self.get_value_of(_ATOM_SITE_B_ISO_OR_EQUIV,vmap).parse::<f64>().unwrap();
+        if self.keymap.contains_key(_ATOM_SITE_B_ISO_OR_EQUIV){
+            ret.temp_factor = self.get_value_of(_ATOM_SITE_B_ISO_OR_EQUIV).parse::<f64>().unwrap();
         }
 
         if use_auth{
-            ret.atom_code = self.get_value_of(_ATOM_SITE_AUTH_ATOM_ID,vmap).to_string();
+            ret.atom_code = self.get_value_of(_ATOM_SITE_AUTH_ATOM_ID).to_string();
             
         }else{
-            ret.atom_code = self.get_value_of(_ATOM_SITE_LABEL_ATOM_ID,vmap).to_string();
+            ret.atom_code = self.get_value_of(_ATOM_SITE_LABEL_ATOM_ID).to_string();
         }
         
         return ret;
     }
-    pub fn get_atom_index(&self)->i64{
-        return self.atom_index;
-    }
-
-
-    pub fn get_value_of(&self,key:&str,vmap:&HashMap<String,usize>)->&str{
-        return match vmap.get(key){
+    pub fn get_value_of(&self,key:&str)->&str{
+        return match self.keymap.get(key){
             Some(x)=>self.values[*x].as_str(),
             None=>"?"};
     }
-    pub fn get_unique_residue_label(&self,vmap:&HashMap<String,usize>)->String{
+    pub fn get_unique_residue_label(&self)->String{
         return "".to_string()
-        +self.get_value_of(_ATOM_SITE_LABEL_COMP_ID,vmap)
+        +self.get_value_of(_ATOM_SITE_LABEL_COMP_ID)
         +"#"
-        +self.get_value_of(_ATOM_SITE_LABEL_SEQ_ID,vmap)
+        +self.get_value_of(_ATOM_SITE_LABEL_SEQ_ID)
         +"#"
-        +self.get_value_of(_ATOM_SITE_AUTH_COMP_ID,vmap)
+        +self.get_value_of(_ATOM_SITE_AUTH_COMP_ID)
         +"#"
-        +self.get_value_of(_ATOM_SITE_AUTH_SEQ_ID,vmap)
+        +self.get_value_of(_ATOM_SITE_AUTH_SEQ_ID)
         +"#"
-        +self.get_value_of(_ATOM_SITE_PDBX_PDB_INS_CODE,vmap)
+        +self.get_value_of(_ATOM_SITE_PDBX_PDB_INS_CODE)
         ;
     }
 }
@@ -893,7 +848,7 @@ fn mmcifloadtest(){
     let pdbentry = MMCIFEntry::load_mmcif("example_files/ins_example_1a4w.cif",false);
     for mm in pdbentry.0.misc_section.iter(){//atom_site を間違うと他でエラーが出ると思う
         for ii in 0..(mm.1).len(){
-            assert_eq!(mm.0.len(),mm.1[ii].values.len());
+            assert_eq!(mm.0.len(),mm.2[ii].len());
         }
     }
     pdbentry.1.save("test/mmcifout_1a4w.pdb");
