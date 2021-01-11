@@ -451,7 +451,7 @@ impl PDBComp{
         self.parent_entity = entity_id;
         self.parent_entry = entry_id;
         for (ii,aa) in self.atoms.iter_mut().enumerate(){
-            aa.set_parent(self.parent_entry.clone(),self.parent_entity.clone(),self.parent_asym.clone(),Some(self.get_index()),ii as i64);
+            aa.set_parent(self.parent_entry.clone(),self.parent_entity.clone(),self.parent_asym.clone(),Some(index),ii as i64);
         }
     }
 }
@@ -586,7 +586,7 @@ pdb2a45.ent.gz	insertion
         self.parent_entity = entity_id;
         self.parent_entry = entry_id;
         for (ii,aa) in self.comps.iter_mut().enumerate(){
-            aa.set_parent(self.parent_entry.clone(),self.parent_entity.clone(),Some(self.get_index()),ii as i64);
+            aa.set_parent(self.parent_entry.clone(),self.parent_entity.clone(),Some(index),ii as i64);
         }
     }
 
@@ -652,7 +652,7 @@ impl PDBEntity{
         self.parent_model = model_id;
         self.parent_entry = entry_id;
         for (ii,aa) in self.iter_mut_asyms().enumerate(){
-            aa.set_parent(self.parent_entry.clone(),Some(self.get_index()),ii as i64);
+            aa.set_parent(entry_id,Some(index),ii as i64);
         }
     }
 
@@ -713,11 +713,11 @@ impl PDBModel{
     pub fn get_index(&self)->i64{
         return self.index;
     }
-    pub fn set_parent(&mut self,entry_id:Option<i64>,i:i64){
+    pub fn set_parent(&mut self,entry_id:Option<i64>,index:i64){
         self.parent_entry = entry_id.clone();
-        self.set_index(i);
+        self.set_index(index);
         for (ii,aa) in self.iter_mut_entities().enumerate(){
-            aa.set_parent(self.parent_entry.clone(),Some(self.get_index()),ii as i64);
+            aa.set_parent(entry_id,Some(index),ii as i64);
         }
     }
 }
@@ -740,7 +740,7 @@ impl PDBEntry{
     }
     
     pub fn prepare_base()->PDBEntry{
-        let ret =  PDBEntry{
+        let mut ret =  PDBEntry{
         index:-1,
         entry_id:"".to_string(),
         description:"".to_string(),
@@ -814,8 +814,9 @@ impl PDBEntry{
     }
 
     pub fn update_downstream_index(&mut self){
+        let index = self.get_index();
         for (ii,aa) in self.iter_mut_models().enumerate(){
-            aa.set_parent(Some(self.get_index()),ii as i64);
+            aa.set_parent(Some(index),ii as i64);
         }
     }
 
@@ -870,16 +871,17 @@ impl PDBEntry{
                     aas.set_index(aii as i64);
                     for (cii,cc) in aas.iter_mut_comps().enumerate(){
                         cc.set_index(cii as i64);
-                        for (aii,aa) in cc.iter_atoms().enumerate(){
+                        for (aii,aa) in cc.iter_mut_atoms().enumerate(){
                             aa.set_index(aii as i64);
                         }
                     }
                 }
             }
         }
-        
         ret.mmcif_data = Some(mmcifdata);
-        ret.mmcif_data.unwrap().update_atom_site_index();
+        if let Some(x) = ret.mmcif_data.as_mut(){
+            x.update_atom_site_index();
+        }
         return ret;
     }
 

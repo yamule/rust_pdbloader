@@ -11,10 +11,6 @@ use super::misc_util::*;
 #[allow(unused_imports)]
 use std::fs::File;
 #[allow(unused_imports)]
-use super::charmm_param;
-#[allow(unused_imports)]
-use super::charmm_based_energy;
-#[allow(unused_imports)]
 use super::debug_env;
 #[allow(unused_imports)]
 use super::geometry::Vector3D;
@@ -22,6 +18,8 @@ use super::geometry::Vector3D;
 use super::geometry::Point3D;
 #[allow(unused_imports)]
 use super::process_3d;
+#[allow(unused_imports)]
+use super::md_env;
 
 use super::energy_function::EnergyFunction;
 use super::energy_function::Binning;
@@ -36,7 +34,7 @@ pub struct AtomDistanceEnergy{
 
 
 impl EnergyFunction for AtomDistanceEnergy{
-    fn calc_energy(&self,mdenv:&charmm_based_energy::CharmmEnv,atom_level_energy:&mut Vec<f64>,weight:f64)->f64{  
+    fn calc_energy(&self,mdenv:&md_env::MDEnv,atom_level_energy:&mut Vec<f64>,weight:f64)->f64{  
         let dist:f64 = process_3d::distance(&mdenv.atoms[self.atoms.0].get_xyz(),&mdenv.atoms[self.atoms.1].get_xyz());
         let dsc = self.score*(dist-self.dist0)*(dist-self.dist0)*weight;
         atom_level_energy[self.atoms.0] += dsc/2.0;
@@ -46,7 +44,7 @@ impl EnergyFunction for AtomDistanceEnergy{
 }
 impl AtomDistanceEnergy{
     
-    pub fn assign_atom_ids(mdenv:&charmm_based_energy::CharmmEnv,distdata:Vec<(String,usize,String,usize,AtomDistanceEnergy)>)->Vec<AtomDistanceEnergy>{
+    pub fn assign_atom_ids(mdenv:&md_env::MDEnv,distdata:Vec<(String,usize,String,usize,AtomDistanceEnergy)>)->Vec<AtomDistanceEnergy>{
         let mut ret:Vec<AtomDistanceEnergy> = vec![];
         let mut cbatoms:HashMap<String,usize> = HashMap::new();//chain;residue_index->index
         let mut cbatoms_nochain:HashMap<String,usize> = HashMap::new();//"";residue_index->index
@@ -178,7 +176,7 @@ impl Binning for AtomBinnedDistanceEnergy{
 }
 
 impl EnergyFunction for AtomBinnedDistanceEnergy{
-    fn calc_energy(&self,mdenv:&charmm_based_energy::CharmmEnv,atom_level_energy:&mut Vec<f64>,weight:f64)->f64{  
+    fn calc_energy(&self,mdenv:&md_env::MDEnv,atom_level_energy:&mut Vec<f64>,weight:f64)->f64{  
         let val:f64 = mdenv.atoms[self.atoms.0].distance(&mdenv.atoms[self.atoms.1]);
         let dsc = get_linear_interpolated_value(self,val,&self.energy_bins)*weight;
         atom_level_energy[self.atoms.0] += dsc/2.0;
@@ -187,7 +185,7 @@ impl EnergyFunction for AtomBinnedDistanceEnergy{
     }
 }
 impl AtomBinnedDistanceEnergy{
-    pub fn assign_atom_ids(mdenv:&charmm_based_energy::CharmmEnv,distdata:Vec<(String,usize,String,usize,AtomBinnedDistanceEnergy)>)->Vec<AtomBinnedDistanceEnergy>{
+    pub fn assign_atom_ids(mdenv:&md_env::MDEnv,distdata:Vec<(String,usize,String,usize,AtomBinnedDistanceEnergy)>)->Vec<AtomBinnedDistanceEnergy>{
         let mut ret:Vec<AtomBinnedDistanceEnergy> = vec![];
         let mut cbatoms:HashMap<String,usize> = HashMap::new();//chain;residue_index->index
         let mut cbatoms_nochain:HashMap<String,usize> = HashMap::new();//"";residue_index->index
