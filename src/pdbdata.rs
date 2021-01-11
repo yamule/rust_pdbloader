@@ -11,7 +11,7 @@ use std::io::{BufWriter,Write,BufReader,BufRead};
 use self::regex::Regex;//module ファイル内で extern crate した場合 self が必要。lib.rs で extern crate すると必要ない。
 
 use super::geometry::Vector3D;
-use super::mmcif_process::{MMCIFEntry,AtomSite};
+use super::mmcif_process::*;
 
 #[derive(Debug)]
 pub enum StructureHierarchyLevel{
@@ -739,6 +739,19 @@ impl PDBEntry{
         };
     }
     
+    pub fn prepare_base()->PDBEntry{
+        let ret =  PDBEntry{
+        index:-1,
+        entry_id:"".to_string(),
+        description:"".to_string(),
+        mmcif_data:None,
+        models:vec![]
+        };
+        ret.add_model(PDBModel::new());
+        ret.get_mut_model_at(0).add_entity(PDBEntity::new());
+        return ret;
+    }
+    
     pub fn get_aa_sequences(&self)->Vec<(String,Vec<String>)>{
         let mut ret:Vec<(String,Vec<String>)> = vec![];
         let aaname:Vec<(&str,&str)> = vec![
@@ -810,16 +823,16 @@ impl PDBEntry{
         
         let mut ret:PDBEntry = PDBEntry::new();
 
-        let models:HashMap<String,Vec<usize>> = mmcifdata.get_model_map(&(ret.atom_records.iter().collect()));
+        let models:HashMap<String,Vec<usize>> = mmcifdata.get_model_map(&((0..mmcifdata.get_num_atoms()).into_iter().collect()));
         for (modk,modv) in models.into_iter(){
             let mut modell = PDBModel::new();
-            let entities:HashMap<String,Vec<usize>> = mmcifdata.get_entity_map(&(ret.atom_records.iter().collect()));
+            let entities:HashMap<String,Vec<usize>> = mmcifdata.get_entity_map(&(modv));
             for (entk,entv) in entities.into_iter(){
                 let mut entt = PDBEntity::new();
-                let asyms:HashMap<String,Vec<usize>> = mmcifdata.get_asym_map(&(entv.iter().map(|m|m.clone()).collect()));
+                let asyms:HashMap<String,Vec<usize>> = mmcifdata.get_asym_map(&(entv));
                 for (asymk,asymv) in asyms.into_iter(){
                     let mut asymm = PDBAsym::new(&asymk);
-                    let comps:HashMap<String,Vec<usize>> = mmcifdata.get_comp_map(&(asymv.iter().map(|m|m.clone()).collect()));
+                    let comps:HashMap<String,Vec<usize>> = mmcifdata.get_comp_map(&(asymv));
                     for (compk,compv) in comps.into_iter(){
                         if compv.len() == 0{
                             panic!("{} has no atom??",compk);
@@ -1018,8 +1031,8 @@ impl __AtomSite{
         return true;
     }
 
-    pub fn new()->AtomSite{
-        return AtomSite{
+    pub fn new()->__AtomSite{
+        return __AtomSite{
             index_in_entry:-1,
             group_PDB:"".to_owned(),
             id:"".to_owned(),
@@ -1050,119 +1063,8 @@ impl __AtomSite{
         +"#"+self.label_seq_id.as_str()
         +"#"+self.pdbx_PDB_ins_code.as_str();
     }
-    pub fn parse_atom_line_pdb(line:&str,model_code:&str)-> AtomSite{
-        let mut ret = AtomSite::new();
 
-        let pt:Vec<char> = line.chars().collect();
-        let label = slice_to_string(&pt,0,6);
-        ret.group_PDB = label;
-
-        let idd = slice_to_string(&pt,6,11);
-        ret.id = idd;
-
-        let atomid = slice_to_string(&pt,12,16);
-        ret.label_atom_id = atomid.clone();
-        ret.auth_atom_id = atomid;
-
-        let altloc = slice_to_string(&pt,16,17);
-        ret.label_alt_id = altloc;
-
-        let resname = slice_to_string(&pt,17,20);
-        ret.label_comp_id = resname.clone();
-        ret.auth_comp_id = resname;
-
-        let chainid = slice_to_string(&pt,21,22);
-        ret.label_asym_id = chainid.clone();
-        ret.auth_asym_id = chainid;
-
-        let respos = slice_to_string(&pt,22,26);
-        ret.label_seq_id = respos.clone();
-        ret.auth_seq_id = respos;
-
-        let icode = slice_to_string(&pt,26,27);
-        ret.pdbx_PDB_ins_code = icode;
-
-        let x = slice_to_string(&pt,30,38);
-        ret.Cartn_x = x;
-
-        let y = slice_to_string(&pt,38,46);
-        ret.Cartn_y = y;
-
-        let z = slice_to_string(&pt,46,54);
-        ret.Cartn_z = z;
-
-        let occupancy = slice_to_string(&pt,54,60);
-        if occupancy.len() > 0{
-            ret.occupancy = occupancy;
-        }
-
-        let tempfactor = slice_to_string(&pt,60,66);
-        if tempfactor.len() > 0{
-            ret.B_iso_or_equiv = tempfactor;
-        }
-
-        let element = slice_to_string(&pt,76,78);
-        if element.len() > 0{
-            ret.type_symbol = element;
-        }
-
-        let charge = slice_to_string(&pt,78,80);
-        if charge.len() > 0{
-            ret.pdbx_formal_charge = charge;
-        }
-        ret.pdbx_PDB_model_num = model_code.to_string();
-
-        return ret;
-    }
 }
-
-
-
-
-pub fn load_pdb(filename:&str) ->PDBEntry{
-    let file = File::open(filename).unwrap();
-    let reader = BufReader::new(file);
-    
-    //let mut lcount:i64 = 0;
-    let mut _ret:Vec<Vec<String>> = Vec::new();
-
-    let _noline = Regex::new(r"^[\r\n]*$").unwrap();
-    let mut records:Vec<AtomSite> = vec![];
-    let mut ligand_records:Vec<AtomSite> = vec![];
-    let mut terflag:bool = false;
-    let mut possibly_ligand = false;
-    let mut current_model_num:String = "".to_owned();
-    for (_lcount,line) in reader.lines().enumerate() {
-
-        let sstr = line.unwrap_or_else(|e|panic!("{:?}",e));
-        
-        if start_with(&sstr,"MODEL"){
-            let ppt: Vec<&str> = sstr.split("[\\s;]+").collect();
-            current_model_num = ppt[1].to_owned();
-            terflag = false;
-        }
-        if start_with(&sstr,"ATOM") || start_with(&sstr,"HETATM"){
-            let mut arecord = AtomSite::parse_atom_line_pdb(&sstr,&current_model_num);
-            //println!("{:?}",arecord);
-            if terflag{
-                possibly_ligand = true;
-            }
-            records.push(arecord);
-        }else if start_with(&sstr,"TER"){
-            terflag = true;
-        }else{
-
-        }
-    }
-    if possibly_ligand{
-        eprintln!("There are possibly ligand records. ");
-    }
-
-    let mut ret:PDBEntry = PDBEntry::prepare_entry(records);
-    return ret;
-}
-
-
 
 
 

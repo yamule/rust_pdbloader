@@ -17,12 +17,15 @@ use super::side_chain_sample;
 use super::chain_builder;
 use super::charmm_param;
 use super::pdbdata;
+#[allow(unused_imports)]
+use super::mmcif_process;
 use super::sequence_alignment;
 use super::structural_alignment;
 use super::matrix_process;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::Rng;
+#[allow(unused_imports)]
 use rand_distr::{Normal, Distribution};
 
 use super::geometry::Vector3D;
@@ -172,12 +175,12 @@ pub fn try_mapping(fastafiles:&Vec<String>,backbonedir:&str,rotamerdir:&str,rand
             }
         }
         
-        let pdbb:pdbdata::PDBEntry = pdbdata::load_pdb(&template_file);
+        let pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb(&template_file);
         let mut targetchain:Option<pdbdata::PDBAsym> =None;
-        for mut cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect().into_iter(){
+        for mut cc in pdbb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
             cc.remove_alt(None);
             if cc.chain_name == template_chain{
-                targetchain = Some(cc);
+                targetchain = Some(*cc);
                 break;
             }
         }
@@ -193,7 +196,7 @@ pub fn try_mapping(fastafiles:&Vec<String>,backbonedir:&str,rotamerdir:&str,rand
                 query_start = 1;
             }else{
                 let p = chain_hm.get(&query_chain_name).unwrap();
-                query_start = p[p.len()-1].get_residue_number()+1;
+                query_start = p[p.len()-1].get_seq_id()+1;
             }
         }else{
             query_start = query_start_.unwrap();
@@ -220,7 +223,7 @@ pub fn try_mapping(fastafiles:&Vec<String>,backbonedir:&str,rotamerdir:&str,rand
         }
 
         for (ii,(mut rr,ff)) in ress_and_flag.into_iter().enumerate(){
-            rr.set_residue_number(query_start+ii as i64);
+            rr.set_seq_id(query_start+ii as i64);
             if !ff{
                 let ca:&pdbdata::PDBAtom = rr.get_CA().unwrap();
                 let mut pbase = floating_mostclose.get(&ii).unwrap_or(&(rgen.gen_range(-6.0,6.0),rgen.gen_range(-6.0,6.0),rgen.gen_range(-6.0,6.0))).clone();
@@ -235,20 +238,23 @@ pub fn try_mapping(fastafiles:&Vec<String>,backbonedir:&str,rotamerdir:&str,rand
                     aa.set_xyz(xx+p.0,yy+p.1,zz+p.2);
                 }
             }
-            flag_string.push(format!("chain:{}\tresidue_name:{}\tresidue_number:{}\tplaced:{}",query_chain_name,rr.get_residue_name(),rr.get_residue_number(),ff));
+            flag_string.push(format!("chain:{}\tresidue_name:{}\tresidue_number:{}\tplaced:{}",query_chain_name,rr.get_comp_id(),rr.get_seq_id(),ff));
             chain_hm.get_mut(&query_chain_name).unwrap().push(rr);
             residue_count += 1;
         }
     }
 
-    let mut pdb = pdbdata::PDBEntry::new();
+    let mut pdb = pdbdata::PDBEntry::prepare_base();
     pdb.entry_id = "XXXX".to_owned();
     let mut chainnames:Vec<String> = chain_hm.iter().map(|m|m.0.to_string()).collect();
     chainnames.sort();
     for cc in chainnames.into_iter(){
         let mut chain:pdbdata::PDBAsym = pdbdata::PDBAsym::new(&cc);
-        chain.residues.append(chain_hm.get_mut(&cc).unwrap());
-        pdb.chains.push(chain);
+        let mut cvec = chain_hm.get_mut(&cc).unwrap();
+        while cvec.len() > 0{
+            chain.add_comp(cvec.remove(0));
+        }
+        pdb.get_mut_model_at(0).get_entity_at(0).add_asym(chain);
     }
     pdb.save(&outfilename);
     write_to_file(&(outfilename+".flag"),flag_string);
@@ -705,17 +711,17 @@ pub fn merge_structure(
     }
     let mut top_x_structures:Vec<(f64,Vec<(String,(String,i64,String),pdbdata::PDBAtom)>)> = vec![];
     for (str_count,vv) in unaligned_region.iter().enumerate(){
-        let mut pdbb:pdbdata::PDBEntry = pdbdata::PDBEntry::new();
+        let mut pdbb:pdbdata::PDBEntry = pdbdata::PDBEntry::prepare_base();
         let mut chain:pdbdata::PDBAsym = pdbdata::PDBAsym::new(chain_name);
         let swapper:HashSet<usize> = vv.iter().map(|m|*m).collect();
         for rr in 0..num_residues{
             if swapper.contains(&rr){
-                chain.residues.push(samplestructure[rr].get_copy_wo_parents());
+                chain.add_comp(samplestructure[rr].get_copy_wo_parents());
             }else{
-                chain.residues.push(basestructure[rr].get_copy_wo_parents());
+                chain.add_comp(basestructure[rr].get_copy_wo_parents());
             }
         }
-        pdbb.add_chain(chain,true);
+        pdbb.get_mut_model_at(0).get_mut_entity_at(0).add_asym(chain);
         let res:pp_energy::PPEnergySet = refinement(pdbb
             ,None
             ,None
@@ -1346,12 +1352,12 @@ pub fn refinement(pdbb:pdbdata::PDBEntry
     let mut templates:Vec<(String,Vec<(Vec<f64>,Vec<f64>,Vec<f64>)>)> = vec![];
     if let Some(x) = templatefiles{
         for xx in x{
-            let pdbb:pdbdata::PDBEntry = pdbdata::load_pdb(xx.1.as_str());
-            for mut cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect().into_iter(){
+            let pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb(xx.1.as_str());
+            for mut cc in pdbb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
                 cc.remove_alt(None);
                 if cc.chain_name == xx.2{
                     let mut vvec:Vec<(Vec<f64>,Vec<f64>,Vec<f64>)> = vec![];
-                    for rr in cc.residues.into_iter(){
+                    for rr in cc.iter_mut_comps(){
                         let n = rr.get_N();
                         let ca = rr.get_CA();
                         let c = rr.get_C();
@@ -1374,7 +1380,7 @@ pub fn refinement(pdbb:pdbdata::PDBEntry
         }
     }
     
-    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect(),&parr,true);
+    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|m).collect(),&parr,true);
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(
         &backbone_dihedral_angle_file);
     let (torsion,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,false,true),false);
@@ -2363,12 +2369,12 @@ pub fn calc_energies(pdbfile:&str
     ,outfile:&str
     ){
     let parr = charmm_param::CHARMMParam::load_chamm19(topfile,paramfile);
-    let mut pdbb:pdbdata::PDBEntry = pdbdata::load_pdb(pdbfile);
-    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
+    let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb(pdbfile);
+    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
         cc.remove_alt(None);
-        charmm_based_energy::MDAtom::change_to_charmmnames(&mut cc.residues);
+        charmm_based_energy::MDAtom::change_to_charmmnames(&mut cc.iter_mut_comps().map(|m|*m).collect());
     }
-    let (md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect(),&parr,true);
+    let (md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|m).collect(),&parr,true);
     
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(
         &backbone_dihedral_angle_file);
@@ -2639,20 +2645,20 @@ fn peptide_build_test2(){
     let mut first:Vec<(f64,f64,f64)> = vec![];
     let mut last:Vec<(f64,f64,f64)> = vec![];
     let mut phi_psi_omega:Vec<(f64,f64,f64)> = vec![];
-    let mut pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("example_files/1a4w_part.pdb");
-    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
+    let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("example_files/1a4w_part.pdb");
+    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
         cc.remove_alt(None);
-        let rnum =cc.residues.len();
+        let rnum =cc.num_comps();
         let dist_threshold:f64 = 2.0;
         for rr in 0..rnum{
             
-            let mut prevca_:Option<&pdbdata::PDBAtom> = if rr == 0 {None}else{cc.residues[rr-1].get_CA()};
-            let mut prevc_:Option<&pdbdata::PDBAtom> = if rr == 0 {None}else{cc.residues[rr-1].get_C()};
-            let currentn_:Option<&pdbdata::PDBAtom> = cc.residues[rr].get_N();
-            let currentca_:Option<&pdbdata::PDBAtom> = cc.residues[rr].get_CA();
-            let currentc_:Option<&pdbdata::PDBAtom> = cc.residues[rr].get_C();
-            let mut nextn_:Option<&pdbdata::PDBAtom> = if rr == rnum-1{None}else{cc.residues[rr+1].get_N()};
-            let mut nextca_:Option<&pdbdata::PDBAtom> = if rr == rnum-1{None}else{cc.residues[rr+1].get_CA()};
+            let mut prevca_:Option<&pdbdata::PDBAtom> = if rr == 0 {None}else{cc.get_comp_at(rr-1).get_CA()};
+            let mut prevc_:Option<&pdbdata::PDBAtom> = if rr == 0 {None}else{cc.get_comp_at(rr-1).get_C()};
+            let currentn_:Option<&pdbdata::PDBAtom> = cc.get_comp_at(rr).get_N();
+            let currentca_:Option<&pdbdata::PDBAtom> = cc.get_comp_at(rr).get_CA();
+            let currentc_:Option<&pdbdata::PDBAtom> = cc.get_comp_at(rr).get_C();
+            let mut nextn_:Option<&pdbdata::PDBAtom> = if rr == rnum-1{None}else{cc.get_comp_at(rr+1).get_N()};
+            let mut nextca_:Option<&pdbdata::PDBAtom> = if rr == rnum-1{None}else{cc.get_comp_at(rr+1).get_CA()};
             if rr == 0{
                 first.push(currentn_.unwrap().get_xyz());
                 first.push(currentca_.unwrap().get_xyz());

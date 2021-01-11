@@ -18,7 +18,6 @@ pub mod chain_builder;
 pub mod charmm_param;
 pub mod charmm_based_energy;
 pub mod debug_env;
-pub mod rosetta_param;
 pub mod neighbor_joining;
 pub mod mmcif_process;
 pub mod max_hit_clust;

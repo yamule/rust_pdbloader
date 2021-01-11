@@ -1,9 +1,14 @@
 
+#[allow(unused_imports)]
 use super::debug_env;
 use super::pdbdata::*;
+
+#[allow(unused_imports)]
+use super::mmcif_process;
 use super::geometry::Vector3D;
 use super::geometry::Point3D;
 use std::collections::HashSet;
+#[allow(unused_imports)]
 use std::collections::HashMap;
 
 #[derive(Clone,Copy)]
@@ -65,7 +70,7 @@ pub fn assing_secstr(chains:&Vec<Vec<&PDBComp>>,hbond_threshold:f64)->Vec<(Strin
         p0.set_z(p0.get_z()*len+a2.get_z());
         return p0;
     };
-    for residues in .get_model_at(0).get_entity_at(0).iter_asyms(){
+    for residues in chains.iter(){
         let rlen:usize = residues.len();
         let mut atoms:Vec<BackboneAtoms> = vec![BackboneAtoms::new();residues.len()];
         let mut betasheet_segments:Vec<Vec<usize>> = vec![];
@@ -349,7 +354,7 @@ pub fn assing_secstr(chains:&Vec<Vec<&PDBComp>>,hbond_threshold:f64)->Vec<(Strin
 fn secstr_test(){
     //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"3rgk_A.pdb").as_str());
     //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
-    let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"1EFH_A.pdb").as_str());
+    let pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"1EFH_A.pdb").as_str());
     //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6iws_model1.pdb").as_str());
     
     let mut ress:Vec<Vec<&PDBComp>> = vec![];

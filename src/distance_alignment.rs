@@ -13,6 +13,8 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 #[allow(dead_code,unused_imports)]
 use rand::Rng;
+#[allow(dead_code,unused_imports)]
+use super::mmcif_process;
 
 #[allow(dead_code,unused_imports)]
 use super::debug_env;
@@ -764,8 +766,8 @@ pub fn align_dp(
 
 pub fn dist_aligntest(){
     
-    let pdb_orig = pdbdata::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6lu7_A.pdb").as_str());
-    let pdb = pdbdata::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
+    let pdb_orig = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6lu7_A.pdb").as_str());
+    let pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
     let orig_aa = pdb_orig.get_aa_sequences();
     let pdb_aa = pdb_orig.get_aa_sequences();
     

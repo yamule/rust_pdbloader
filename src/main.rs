@@ -17,7 +17,6 @@ use rust_pdbloader::debug_env;
 use rust_pdbloader::structural_alignment;
 #[allow(unused_imports)]
 use rust_pdbloader::mcprocess_md;
-use rust_pdbloader::rosetta_param;
 use rust_pdbloader::evoef2_energy;
 use rust_pdbloader::secondary_structure_assignment;
 use rust_pdbloader::sequence_alignment;
@@ -430,7 +429,7 @@ fn refinement(args:HashMap<String,String>) {
         None
     };
     let mut pdbb:PDBEntry = load_pdb(args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")));
-    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
+    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
         cc.remove_alt(None);
         charmm_based_energy::MDAtom::change_to_charmmnames(&mut cc.residues);
     }
@@ -480,7 +479,7 @@ fn docking(args:HashMap<String,String>) {
     
     let angle:&str = args.get("-angle").unwrap_or_else(|| panic!("Please specify backbone torsion angle file with -angle"));
     let mut pdbb:PDBEntry = load_pdb(args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")));
-    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
+    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
         cc.remove_alt(None);
         charmm_based_energy::MDAtom::change_to_charmmnames(&mut cc.residues);
     }
@@ -568,12 +567,12 @@ fn make_homo_multimer(args:HashMap<String,String>) {
                     let mut aa = aa_.clone();
                     let mres = matrix_process::matrix_multi(&res.transform_matrix,&vec![vec![aa_.get_x()],vec![aa_.get_y()],vec![aa_.get_z()],vec![1.0]]);
                     aa.set_xyz(mres[0][0],mres[1][0],mres[2][0]);
-                    result_string.push(aa.get_pdb_atom_line_string(&tcc.chain_name,&rr.get_residue_name(),rr.get_residue_number(),rr.get_ins_code()));
+                    result_string.push(aa.get_pdb_atom_line_string(&tcc.chain_name,&rr.get_comp_id(),rr.get_seq_id(),rr.get_ins_code()));
                 }
                 if rr.get_ins_code().len() > 0{
                     eprintln!("Inscode is not supported for grouping.");
                 }
-                group_string.push(format!("chain:{}\tresidue_name:{}\tresidue_number:{}\tgroup:{}",tcc.chain_name,&rr.get_residue_name(),rr.get_residue_number(),chaincount));
+                group_string.push(format!("chain:{}\tresidue_name:{}\tresidue_number:{}\tgroup:{}",tcc.chain_name,&rr.get_comp_id(),rr.get_seq_id(),chaincount));
             }
             chaincount += 1;
         }
@@ -587,7 +586,7 @@ fn calc_phi_psi(args:HashMap<String,String>) {
     let mut lines:Vec<String> = vec![];
     let mut pdbb:PDBEntry = load_pdb(args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")));
     let outfilename:&str = args.get("-out").unwrap_or_else(|| panic!("Please specify output file with -out."));
-    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
+    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
         cc.remove_alt(None);
         let rnum =cc.residues.len();
         let dist_threshold:f64 = 2.0;
@@ -694,7 +693,7 @@ fn calc_phi_psi(args:HashMap<String,String>) {
             lines.push(format!("chain_name:\t{}\tresidue_name:\t{}\tresidue_number:\t{}\tins_code:\t{}\tomega_prev:\t{}\tphi:\t{}\tpsi:\t{}\tomega_next:\t{}"
             ,cc.chain_name
             ,cc.residues[rr].residue_name
-            ,cc.residues[rr].get_residue_number()
+            ,cc.residues[rr].get_seq_id()
             ,cc.residues[rr].ins_code
             ,prev_omega,phi,psi,next_omega));
         }
@@ -930,8 +929,8 @@ fn main_comparative_domain_split(args:HashMap<String,String>) {
                     for aa in r.iter_atoms(){
                         res_str.push(aa.get_pdb_atom_line_string(
                             chainname,
-                            r.get_residue_name(),
-                            r.get_residue_number(),
+                            r.get_comp_id(),
+                            r.get_seq_id(),
                             r.get_ins_code()
                             )
                         );
@@ -1053,7 +1052,7 @@ fn main_str_align(args:HashMap<String,String>) {
         write_to_file(&result_file,res_str);
     }
     if outfile_pdb.len() > 0{
-        for cc in query_pdb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
+        for cc in query_pdb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
             for rr in cc.iter_comps_mut(){
                 for aa in rr.iter_mut_atoms(){
                     let mres = matrix_process::matrix_multi(&res.transform_matrix,&vec![vec![aa.get_x()],vec![aa.get_y()],vec![aa.get_z()],vec![1.0]]);

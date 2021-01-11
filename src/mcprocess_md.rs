@@ -16,6 +16,8 @@ use super::charmm_param;
 use super::process_3d;
 #[allow(unused_imports)]
 use super::debug_env;
+#[allow(unused_imports)]
+use super::mmcif_process;
 
 
 
@@ -286,7 +288,7 @@ pub fn mc_iter_array(md_envset:&mut charmm_based_energy::CharmmEnv
 #[test]
 
 fn ca_mc_md_test(){
-    let mut pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/1a4w_part.pdb");
+    let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/1a4w_part.pdb");
     let mut topp:charmm_param::CHARMMParam = charmm_param::CHARMMParam::load_top_all22_inp((debug_env::CHARMM_DIR.to_string()+"\\top_all22_prot.rtf").as_str());
     let mut parr:charmm_param::CHARMMParam = charmm_param::CHARMMParam::load_param((debug_env::CHARMM_DIR.to_string()+"\\par_all22_prot.prm").as_str());
     parr.resi.append(&mut topp.resi);

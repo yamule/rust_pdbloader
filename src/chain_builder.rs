@@ -27,6 +27,7 @@ use super::sequence_alignment;
 
 #[allow(dead_code,unused_imports)]
 use super::misc_util::*;
+use super::mmcif_process;
 
 use std::sync::Mutex;
 
@@ -367,7 +368,7 @@ fn tbm_test(){
             "ALA","ARG","ASN","ASP","CYS","GLN","GLU","GLY","HIS","ILE"
             ,"LEU","LYS","MET","PHE","PRO","SER","THR","TRP","TYR","VAL",
     ].iter().map(|m|m.to_string()).collect();
-    let pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/1a4w_part.pdb");
+    let pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/1a4w_part.pdb");
 
     let residues:Vec<&PDBComp> = pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_comps().collect();
     let mut dummystring:Vec<String> = vec![];

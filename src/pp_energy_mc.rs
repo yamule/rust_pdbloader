@@ -24,6 +24,8 @@ use super::side_chain_sample;
 use super::chain_builder;
 #[allow(unused_imports)]
 use super::sequence_alignment;
+#[allow(unused_imports)]
+use super::mmcif_process;
 
 use super::peptide_backbone_dihedral_energy;
 use super::distance_energy;
@@ -1960,11 +1962,11 @@ pub fn copy_xyz_atom_to_tmp(src:& Vec<charmm_based_energy::MDAtom>,dest:&mut Vec
 fn test_aa(){
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(&(debug_env::RESOURCE_DIR.to_string()+"/"+"angle_distribution_energy.dat"));
     let parr = charmm_param::CHARMMParam::load_chamm19((debug_env::CHARMM_DIR.to_string()+"\\toph19.inp").as_str(),(debug_env::CHARMM_DIR.to_string()+"\\param19.inp").as_str());
-    //let mut pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("test/test_lys_nohz3.pdb");
-    let mut pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("test/lys_mdd.pdb");
-    //let mut pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("test/lys_changed.pdb");
-    charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect()[0].residues);
-    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&vec![pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect().remove(0)],&parr,true);
+    //let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("test/test_lys_nohz3.pdb");
+    let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("test/lys_mdd.pdb");
+    //let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("test/lys_changed.pdb");
+    charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_mut_comps().map(|m|*m).collect());
+    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&vec![pdbb.get_model_at(0).get_entity_at(0).get_mut_asym_at(0)],&parr,true);
     let (torsion,omegas) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,true,false),false);
     let masked:Vec<usize> = peptide_backbone_dihedral_energy::get_overwrapping_dihed(&mut md_varset.dihedvec,&torsion,&omegas);
 
@@ -2051,7 +2053,7 @@ fn subgroup_assign_test(){
         chain.add_comp(rr);
     }
 
-    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&vec![chain],&parr,true);
+    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&vec![&chain],&parr,true);
     
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(&(debug_env::RESOURCE_DIR.to_string()+"/"+"angle_distribution_energy.dat"));
     let (_,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,true,false),false);
@@ -2160,11 +2162,11 @@ pub fn build_test(){
     
     let mut chain:pdbdata::PDBAsym = pdbdata::PDBAsym::new("A");
     for rr in ress.into_iter(){
-        chain.add_comp(rr,true);
+        chain.add_comp(rr);
     }
 
 
-    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&vec![chain],&parr,true);
+    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&vec![&chain],&parr,true);
     
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(&(debug_env::RESOURCE_DIR.to_string()+"/"+"angle_distribution_energy.dat"));
     let (_,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,true,false),false);
@@ -3046,7 +3048,7 @@ pub fn tbm_and_loop_test(){
             "ALA","ARG","ASN","ASP","CYS","GLN","GLU","GLY","HIS","ILE"
             ,"LEU","LYS","MET","PHE","PRO","SER","THR","TRP","TYR","VAL",
     ].iter().map(|m|m.to_string()).collect();
-    let pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/1a4w_part.pdb");
+    let pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/1a4w_part.pdb");
 
     let residues:Vec<&pdbdata::PDBResidue> = pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect()[0].iter_comps().collect();
     let mut dummystring:Vec<String> = vec![];

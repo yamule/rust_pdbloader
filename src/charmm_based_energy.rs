@@ -21,6 +21,8 @@ use rand::rngs::StdRng;
 #[allow(unused_imports)]
 use rand::prelude::*;
 
+#[allow(unused_imports)]
+use super::mmcif_process;
 
 #[allow(unused_imports)]
 use self::regex::Regex;//module ファイル内で extern crate した場合 self が必要。lib.rs で extern crate すると必要ない。
@@ -2631,7 +2633,7 @@ fn mdprepare_test(){
 
 #[test]
 fn add_h_test(){
-    let mut pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/6iws_model1.pdb");
+    let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/6iws_model1.pdb");
     let mut topp:charmm_param::CHARMMParam = charmm_param::CHARMMParam::load_top_all22_inp((debug_env::CHARMM_DIR.to_string()+"\\top_all22_prot.rtf").as_str());
     let mut parr:charmm_param::CHARMMParam = charmm_param::CHARMMParam::load_param((debug_env::CHARMM_DIR.to_string()+"\\par_all22_prot.prm").as_str());
     parr.resi.append(&mut topp.resi);
@@ -2672,7 +2674,7 @@ fn add_h_test(){
 #[test]
 fn check_backbone_dihed(){
     let parr = charmm_param::CHARMMParam::load_chamm19((debug_env::CHARMM_DIR.to_string()+"\\toph19.inp").as_str(),(debug_env::CHARMM_DIR.to_string()+"\\param19.inp").as_str());
-    let mut pdbb:pdbdata::PDBEntry = pdbdata::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/6iws_model1_noh.pdb");
+    let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/6iws_model1_noh.pdb");
     MDAtom::change_to_charmmnames(&mut pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_mut_comps().map(|m|*m).collect());
     let (md_envset,md_varset):(CharmmEnv,CharmmVars) = MDAtom::chain_to_atoms(&vec![pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0)],&parr,true);
 

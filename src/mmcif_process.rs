@@ -283,23 +283,41 @@ pub struct MMCIFEntry{
 
 
 impl MMCIFEntry{
-    
+    pub fn new()->MMCIFEntry{
+        return MMCIFEntry{
+            atom_site:(vec![],HashMap::new(),vec![]),
+            misc_section:vec![(vec![],HashMap::new(),vec![])],
+            entry_id:"".to_owned(),
+            header:"".to_owned()
+        };
+    }
+
+    pub fn get_num_atoms(&self)->usize{
+        return self.atom_site.2.len();
+    }
+
+    //与えられたインデックスのリストを Entity ごとに分ける
     pub fn get_entity_map(&self,atom_records:&Vec<usize>)->HashMap<String,Vec<usize>>{
         return self.get_map(atom_records,StructureHierarchyLevel::Entity);
     }
     
+    //与えられたインデックスのリストを Model ごとに分ける
     pub fn get_model_map(&self,atom_records:&Vec<usize>)->HashMap<String,Vec<usize>>{
         return self.get_map(atom_records,StructureHierarchyLevel::Model);
     }
     
+    //与えられたインデックスのリストを asym ごとに分ける
     pub fn get_asym_map(&self,atom_records:&Vec<usize>)->HashMap<String,Vec<usize>>{
         return self.get_map(atom_records,StructureHierarchyLevel::Asym);
     }
     
+    
+    //与えられたインデックスのリストを comp ごとに分ける
     pub fn get_comp_map(&self,atom_records:&Vec<usize>)->HashMap<String,Vec<usize>>{
         return self.get_map(atom_records,StructureHierarchyLevel::Comp);
     }
 
+    //インデックスのリストを分割する関数の本体
     pub fn get_map(&self,atom_records:&Vec<usize>,lev:StructureHierarchyLevel)->HashMap<String,Vec<usize>>{
         let mut ret:HashMap<String,Vec<usize>> = HashMap::new();
         for aa in atom_records.iter(){
@@ -318,16 +336,9 @@ impl MMCIFEntry{
         return ret;
     }
     
+    //atom_site 情報を設定する
     pub fn set_atom_site_section(&mut self,kk:Vec<String>,vll:Vec<Vec<String>>){
-        /*何をしようとしていたか忘れてしまった。
-        let atom_site_map:HashMap<String,usize> = MMCIFEntry::get_key_index_map(&self.atom_site.0);
-        let pxx:(i64,i64,i64)=(
-            match atom_site_map.get(_ATOM_SITE_CARTN_X){Some(x)=>{*x as i64},None=>{-1}},
-            match atom_site_map.get(_ATOM_SITE_CARTN_Y){Some(x)=>{*x as i64},None=>{-1}},
-            match atom_site_map.get(_ATOM_SITE_CARTN_Z){Some(x)=>{*x as i64},None=>{-1}}
-        );
-        */
-        self.atom_site =(kk,MMCIFEntry::get_key_index_map(&self.atom_site.0),vll);
+        self.atom_site =(kk.clone(),MMCIFEntry::get_key_index_map(&kk),vll);
         self.update_atom_site_index();
     }
 
@@ -344,7 +355,72 @@ impl MMCIFEntry{
     pub fn get_mut_atom_site(&mut self,i:usize)->AtomSite{
         return AtomSite::new(&self.atom_site.1,&self.atom_site.2[i]);
     }
-    
+
+    //keymap のインデクスにそれぞれの要素が入った String のベクトルを返す。
+    pub fn parse_atom_line_pdb(line:&str,model_code:&str,keymap:&HashMap<String,usize>)-> Vec<String>{
+        let mut ret = vec!["".to_owned();keymap.len()];
+
+        let pt:Vec<char> = line.chars().collect();
+        let label = slice_to_string(&pt,0,6);
+        ret[*keymap.get(_ATOM_SITE_GROUP_PDB).unwrap()] = label;
+        
+        let idd = slice_to_string(&pt,6,11);
+        ret[*keymap.get(_ATOM_SITE_ID).unwrap()] = idd;
+
+        let atomid = slice_to_string(&pt,12,16);
+        ret[*keymap.get(_ATOM_SITE_LABEL_ATOM_ID).unwrap()] = atomid.clone();
+        ret[*keymap.get(_ATOM_SITE_AUTH_ATOM_ID).unwrap()] = atomid;
+
+        let altloc = slice_to_string(&pt,16,17);
+        ret[*keymap.get(_ATOM_SITE_LABEL_ALT_ID).unwrap()] = altloc;
+
+        let resname = slice_to_string(&pt,17,20);
+        ret[*keymap.get(_ATOM_SITE_LABEL_COMP_ID).unwrap()] = resname.clone();
+        ret[*keymap.get(_ATOM_SITE_AUTH_COMP_ID).unwrap()] = resname;
+
+        let chainid = slice_to_string(&pt,21,22);
+        ret[*keymap.get(_ATOM_SITE_LABEL_ASYM_ID).unwrap()] = chainid.clone();
+        ret[*keymap.get(_ATOM_SITE_AUTH_ASYM_ID).unwrap()] = chainid;
+
+        let respos = slice_to_string(&pt,22,26);
+        ret[*keymap.get(_ATOM_SITE_LABEL_SEQ_ID).unwrap()] = respos.clone();
+        ret[*keymap.get(_ATOM_SITE_AUTH_SEQ_ID).unwrap()] = respos;
+
+        let icode = slice_to_string(&pt,26,27);
+        ret[*keymap.get(_ATOM_SITE_PDBX_PDB_INS_CODE).unwrap()] = icode;
+
+        let x = slice_to_string(&pt,30,38);
+        ret[*keymap.get(_ATOM_SITE_CARTN_X).unwrap()] = x;
+
+        let y = slice_to_string(&pt,38,46);
+        ret[*keymap.get(_ATOM_SITE_CARTN_Y).unwrap()] = y;
+
+        let z = slice_to_string(&pt,46,54);
+        ret[*keymap.get(_ATOM_SITE_CARTN_Z).unwrap()] = z;
+
+        let occupancy = slice_to_string(&pt,54,60);
+        if occupancy.len() > 0{
+            ret[*keymap.get(_ATOM_SITE_OCCUPANCY).unwrap()] = occupancy;
+        }
+
+        let tempfactor = slice_to_string(&pt,60,66);
+        if tempfactor.len() > 0{
+            ret[*keymap.get(_ATOM_SITE_B_ISO_OR_EQUIV).unwrap()] = tempfactor;
+        }
+
+        let element = slice_to_string(&pt,76,78);
+        if element.len() > 0{
+            ret[*keymap.get(_ATOM_SITE_TYPE_SYMBOL).unwrap()] = element;
+        }
+
+        let charge = slice_to_string(&pt,78,80);
+        if charge.len() > 0{
+            ret[*keymap.get(_ATOM_SITE_PDBX_FORMAL_CHARGE).unwrap()] = charge;
+        }
+        ret[*keymap.get(_ATOM_SITE_PDBX_PDB_MODEL_NUM).unwrap()] = model_code.to_string();
+        
+        return ret;
+    }
 
     //ToDo: use auth 途中
     pub fn load_mmcif(filename:&str,use_auth:bool)->(MMCIFEntry,PDBEntry){
@@ -819,6 +895,80 @@ impl<'a> AtomSite<'a>{
         ;
     }
 }
+
+pub fn load_pdb(filename:&str) ->PDBEntry{
+    let file = File::open(filename).unwrap();
+    let reader = BufReader::new(file);
+    
+    //let mut lcount:i64 = 0;
+    let mut _ret:Vec<Vec<String>> = Vec::new();
+
+    let _noline = Regex::new(r"^[\r\n]*$").unwrap();
+    let mut records:Vec<Vec<String>> = vec![];
+    let mut ligand_records:Vec<Vec<String>> = vec![];
+    let mut terflag:bool = false;
+    let mut possibly_ligand = false;
+    let mut current_model_num:String = "".to_owned();
+    let keyvec:Vec<String> = (vec![
+        _ATOM_SITE_GROUP_PDB,
+        _ATOM_SITE_ID,
+        _ATOM_SITE_LABEL_ATOM_ID,
+        _ATOM_SITE_AUTH_ATOM_ID,
+        _ATOM_SITE_LABEL_ALT_ID,
+        _ATOM_SITE_LABEL_COMP_ID,
+        _ATOM_SITE_AUTH_COMP_ID,
+        _ATOM_SITE_LABEL_ASYM_ID,
+        _ATOM_SITE_AUTH_ASYM_ID,
+        _ATOM_SITE_LABEL_SEQ_ID,
+        _ATOM_SITE_AUTH_SEQ_ID,
+        _ATOM_SITE_PDBX_PDB_INS_CODE,
+        _ATOM_SITE_CARTN_X,
+        _ATOM_SITE_CARTN_Y,
+        _ATOM_SITE_CARTN_Z,
+        _ATOM_SITE_OCCUPANCY,
+        _ATOM_SITE_B_ISO_OR_EQUIV,
+        _ATOM_SITE_TYPE_SYMBOL,
+        _ATOM_SITE_PDBX_FORMAL_CHARGE,
+        _ATOM_SITE_PDBX_PDB_MODEL_NUM,
+        ]).into_iter().map(|m|m.to_string()).collect();
+    let keymap:HashMap<String,usize> = keyvec.iter().enumerate().map(|m|(m.1.clone(),m.0)).collect();
+
+
+
+
+    for (_lcount,line) in reader.lines().enumerate() {
+
+        let sstr = line.unwrap_or_else(|e|panic!("{:?}",e));
+        
+        if start_with(&sstr,"MODEL"){
+            let ppt: Vec<&str> = sstr.split("[\\s;]+").collect();
+            current_model_num = ppt[1].to_owned();
+            terflag = false;
+        }
+        if start_with(&sstr,"ATOM") || start_with(&sstr,"HETATM"){
+            let mut arecord = MMCIFEntry::parse_atom_line_pdb(&sstr,&current_model_num,&keymap);
+            //println!("{:?}",arecord);
+            if terflag{
+                possibly_ligand = true;
+            }
+            records.push(arecord);
+        }else if start_with(&sstr,"TER"){
+            terflag = true;
+        }else{
+
+        }
+    }
+    if possibly_ligand{
+        eprintln!("There are possibly ligand records. ");
+    }
+    let mmcifdata = MMCIFEntry::new();
+
+    mmcifdata.set_atom_site_section(keyvec,records);
+    let mut ret:PDBEntry = PDBEntry::prepare_entry(mmcifdata);
+    return ret;
+}
+
+
 
 
 #[test]

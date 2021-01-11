@@ -6,6 +6,9 @@ use rand::Rng;
 use self::rand::prelude::*;
 use super::geometry::Vector3D;
 
+#[allow(unused_imports)]
+use super::mmcif_process;
+
 
 pub fn drmsd(atoms:&Vec<PDBAtom>,reference_dist:&Vec<Vec<f64>>)->f64{
     let alen:usize = atoms.len();
@@ -203,7 +206,7 @@ pub fn mc_iter_array(atoms:&mut Vec<PDBAtom>,reference_dist:&Vec<Vec<f64>>,itern
 #[test]
 
 fn ca_mc_test(){
-    let pdbb:PDBEntry = load_pdb("D:/dummy/vbox_share/bioo/tbmtest/2r75.pdb");
+    let pdbb:PDBEntry = mmcif_process::load_pdb("D:/dummy/vbox_share/bioo/tbmtest/2r75.pdb");
     let mut ca_atoms:Vec<PDBAtom> = vec![];
     for (_cii,cc) in pdbb.get_model_at(0).get_entity_at(0).iter_asyms().enumerate(){
         for (_rii,rr) in cc.iter_comps().enumerate(){

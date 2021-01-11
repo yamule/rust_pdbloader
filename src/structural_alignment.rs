@@ -1,6 +1,8 @@
 
 use super::matrix_process;
 use super::pdbdata;
+#[allow(unused_imports)]
+use super::mmcif_process;
 #[allow(dead_code,unused_imports)]
 use super::process_3d;
 use super::geometry::Vector3D;
@@ -1304,10 +1306,10 @@ fn aligntest(){
 
 #[test]
 fn domain_splittest(){
-    let mut pdb = pdbdata::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
+    let mut pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
     let mut cas:Vec<Vec<f64>> = vec![];
-    for cc in pdb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
-        for rr in cc.iter_comps_mut(){
+    for cc in pdb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
+        for rr in cc.iter_mut_comps(){
             for aa in rr.iter_mut_atoms(){
                 if aa.atom_code == "CA"{
                     cas.push(vec![aa.get_x(),aa.get_y(),aa.get_z()]);
@@ -1365,8 +1367,8 @@ fn domain_splittest(){
 #[test]
 fn pdbaligntest(){
     
-    let pdb_orig = pdbdata::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6lu7_A.pdb").as_str());
-    let mut pdb = pdbdata::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
+    let pdb_orig = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6lu7_A.pdb").as_str());
+    let mut pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
 
     let mut residues_a:Vec<&pdbdata::PDBComp> = vec![];
     for cc in pdb_orig.get_model_at(0).get_entity_at(0).iter_asyms(){
@@ -1384,8 +1386,8 @@ fn pdbaligntest(){
     let res_:Option<StructuralAlignmentResult> = align_pdb(&residues_b,&residues_a,AlignmentType::SW,0.0);
     let res = res_.unwrap();
     //pdb.save("test/testrot.pdb");
-    for cc in pdb.get_model_at(0).get_entity_at(0).iter_asyms_mut(){
-        for rr in cc.iter_comps_mut(){
+    for cc in pdb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
+        for rr in cc.iter_mut_comps(){
             for aa in rr.iter_mut_atoms(){
                 let mres = matrix_process::matrix_multi(&res.transform_matrix,&vec![vec![aa.get_x()],vec![aa.get_y()],vec![aa.get_z()],vec![1.0]]);
                 aa.set_xyz(mres[0][0],mres[1][0],mres[2][0]);
