@@ -1,4 +1,6 @@
 extern crate regex;
+
+#[allow(unused_imports)]
 use std::fs::File;
 use std::slice::IterMut;
 use std::slice::Iter;
@@ -50,14 +52,7 @@ pub fn try_best_format(f:f64,fulllen:usize,afterpoint:usize)->String{
     }
     return ret;
 }
-fn start_with(target:&str,fragment:&str)-> bool{
-    if let Some(x) = target.find(fragment){
-        if x == 0{
-            return true;
-        }
-    }
-    return false;
-}
+
 
 #[derive(Debug,Clone)]
 pub struct PDBAtom{
@@ -182,12 +177,20 @@ impl PDBAtom{
         //atomname についてはスペース入れたり色々する必要がある。。。Ca と CA の書き分けとか
         
         let ret = format!("{lab:<6}{serial:>5} {atomname:<4}{alt:1}{resname:<3} {chain:1}{pos:>4}{insertion:1}   {x:>8}{y:>8}{z:>8}{occ:>6}{temp:>6}          {symbol:>2}"
-            ,lab=label,serial=self.serial_number,atomname=aname,alt=self.alt_code,resname=res_name,chain=chain_name
-            ,pos=res_pos,insertion=ins_code,x=xx,y=yy,z=zz,
+            ,lab=label,serial=self.serial_number
+            ,atomname=aname
+            ,alt=if self.alt_code == "." || self.alt_code == "?" {" "}else{&self.alt_code}
+            ,resname=res_name
+            ,chain=chain_name
+            ,pos=res_pos
+            ,insertion=if ins_code == "." || ins_code == "?"{" "}else{ins_code}
+            ,x=xx,y=yy,z=zz,
             occ=try_best_format(self.occupancy,6,2),
             temp=try_best_format(self.temp_factor,6,2),symbol=self.atom_symbol);
         if let Some(x) = self.charge.as_ref(){
-            return ret+x.as_str();
+            if x != "." && x != "?"{
+                return ret+x.as_str();
+            }
         }
         return ret;
     }
@@ -246,6 +249,7 @@ pub struct PDBComp{
     pub comp_id:String,
     atoms:Vec<PDBAtom>,
     pub ins_code:String,
+    pub no_label_seq_id:bool//label_seq_id is "."
 }
 impl PDBComp{
     pub fn new()->PDBComp{
@@ -257,7 +261,8 @@ impl PDBComp{
             seq_id:-1,
             comp_id:"UNK".to_string(),
             atoms:vec![],
-            ins_code:"".to_string()
+            ins_code:"".to_string(),
+            no_label_seq_id:false
         };
     }
     pub fn num_atoms(&self)->usize{
@@ -284,7 +289,7 @@ impl PDBComp{
         return "".to_string()+&self.comp_id+&self.get_seq_id().to_string()+&self.get_ins_code();
     }
     
-    pub fn add_atom(&mut self,mut aa:PDBAtom){
+    pub fn add_atom(&mut self,aa:PDBAtom){
         self.atoms.push(aa);
     }
 
@@ -577,7 +582,7 @@ pdb2a45.ent.gz	insertion
         return &mut self.comps[i];
     }
 
-    pub fn add_comp(&mut self,mut a:PDBComp){
+    pub fn add_comp(&mut self,a:PDBComp){
         self.comps.push(a);
     }
 
@@ -649,7 +654,7 @@ impl PDBEntity{
     }
 
     
-    pub fn add_asym(&mut self,mut chain:PDBAsym){
+    pub fn add_asym(&mut self,chain:PDBAsym){
         self.asyms.push(chain);
     } 
 
@@ -699,6 +704,10 @@ impl PDBModel{
 
     pub fn get_mut_entity_at(&mut self, i:usize)->&mut PDBEntity{
         return &mut self.entities[i];
+    }
+
+    pub fn num_entities(&self)->usize{
+        return self.entities.len();
     }
 
     pub fn iter_entities(&self) -> Iter<PDBEntity>{
@@ -833,6 +842,10 @@ impl PDBEntry{
         }
         return ret;
     }
+
+    pub fn num_models(&self)->usize{
+        return self.models.len();
+    }
     pub fn get_model_at(&self, i:usize)->&PDBModel{
         return &self.models[i];
     }
@@ -864,15 +877,17 @@ impl PDBEntry{
         }
     }
 
+    //mmcif から numeric な値の入ったインスタンスを作成する
     pub fn prepare_entry(mmcifdata:MMCIFEntry)->PDBEntry{
         
         let mut ret:PDBEntry = PDBEntry::new();
 
+        //ToDo ソートするか、順序を持っておく
         let models:HashMap<String,Vec<usize>> = mmcifdata.get_model_map(&((0..mmcifdata.get_num_atoms()).into_iter().collect()));
-        for (modk,modv) in models.into_iter(){
+        for (_modk,modv) in models.into_iter(){
             let mut modell = PDBModel::new();
             let entities:HashMap<String,Vec<usize>> = mmcifdata.get_entity_map(&(modv));
-            for (entk,entv) in entities.into_iter(){
+            for (_entk,entv) in entities.into_iter(){
                 let mut entt = PDBEntity::new();
                 let asyms:HashMap<String,Vec<usize>> = mmcifdata.get_asym_map(&(entv));
                 for (asymk,asymv) in asyms.into_iter(){
@@ -884,16 +899,24 @@ impl PDBEntry{
                         }
                         let mut rr:PDBComp = PDBComp{
                             parent_entry:None,
-                                parent_entity:None,
-                                parent_asym:None,
-                                index:-1,
-                                seq_id:mmcifdata.get_atom_site(compv[0]).get_label_seq_id().parse::<i64>().unwrap(),//sequence number
-                                comp_id:mmcifdata.get_atom_site(compv[0]).get_label_seq_id().to_string(),
-                                atoms:vec![],
-                                ins_code:mmcifdata.get_atom_site(compv[0]).get_pdbx_PDB_ins_code().to_string(),
+                            parent_entity:None,
+                            parent_asym:None,
+                            index:-1,
+                            seq_id:mmcifdata.get_atom_site(compv[0]).get_label_seq_id().parse::<i64>().unwrap_or_else(|_e|
+                                if mmcifdata.get_atom_site(compv[0]).get_label_seq_id() == "."{
+                                    NO_SEQ_ID
+                                }else{
+                                    panic!("Can not parse {}!",mmcifdata.get_atom_site(compv[0]).get_label_seq_id());
+                                }
+                            ),
+                            //.unwrap_or_else(|e|panic!("{:?} {}",e,mmcifdata.get_atom_site(compv[0]).get_label_seq_id())),//sequence number
+                            comp_id:mmcifdata.get_atom_site(compv[0]).get_label_comp_id().to_string(),
+                            atoms:vec![],
+                            ins_code:mmcifdata.get_atom_site(compv[0]).get_pdbx_PDB_ins_code().to_string(),
+                            no_label_seq_id:mmcifdata.get_atom_site(compv[0]).get_label_seq_id() == "."
                         };
                         for aa in compv.into_iter(){
-                            let mut att = mmcifdata.get_atom_site(aa).atomsite_to_atom();
+                            let att = mmcifdata.get_atom_site(aa).atomsite_to_atom(false);
                             rr.add_atom(
                                 att
                             );
@@ -969,147 +992,6 @@ pub fn slice_to_string(chrs:&Vec<char>,start:usize,end_pls_one_:usize)->String{
     }
     let ret:String = chrs[start..end_pls_one].iter().fold("".to_string(),|s,m|{s+m.to_string().as_str()});
     return (*REGEX_WS.replace_all(&ret, "")).to_string();
-}
-/**
- * 
-_atom_site.group_PDB 
-_atom_site.id 
-_atom_site.type_symbol 
-_atom_site.label_atom_id 
-_atom_site.label_alt_id 
-_atom_site.label_comp_id 
-_atom_site.label_asym_id 
-_atom_site.label_entity_id 
-_atom_site.label_seq_id 
-_atom_site.pdbx_PDB_ins_code 
-_atom_site.Cartn_x 
-_atom_site.Cartn_y 
-_atom_site.Cartn_z 
-_atom_site.occupancy 
-_atom_site.B_iso_or_equiv 
-_atom_site.pdbx_formal_charge 
-_atom_site.auth_seq_id 
-_atom_site.auth_comp_id 
-_atom_site.auth_asym_id 
-_atom_site.auth_atom_id 
-_atom_site.pdbx_PDB_model_num 
-ATOM   1    N N   . MET A 1 1   ? -17.775 41.398 46.220  1.00 26.26  ? 1   MET A N   1 
-**/
-
-#[derive(Debug)]
-pub struct __AtomSite{
-    index_in_entry:i64,//PDBEntry 内の atom_records 内のインデクス
-    pub group_PDB:String,
-    pub id:String,
-    pub type_symbol:String,
-    pub label_atom_id:String,
-    pub label_alt_id:String,
-    pub label_comp_id:String,
-    pub label_asym_id:String,
-    pub label_entity_id:String,
-    pub label_seq_id:String,
-    pub pdbx_PDB_ins_code:String,
-    pub Cartn_x:String,
-    pub Cartn_y:String,
-    pub Cartn_z:String,
-    pub occupancy:String,
-    pub B_iso_or_equiv:String,
-    pub pdbx_formal_charge:String,
-    pub auth_seq_id:String,
-    pub auth_comp_id:String,
-    pub auth_asym_id:String,
-    pub auth_atom_id:String,
-    pub pdbx_PDB_model_num:String,
-}
-
-impl __AtomSite{
-
-    pub fn set_index(&mut self,i:i64){
-        self.index_in_entry = i;
-    }
-    
-    pub fn get_index(self)-> i64{
-        return self.index_in_entry;
-    }
-    
-    pub fn atomsite_to_atom(&self)->PDBAtom{
-        let ret:PDBAtom = PDBAtom{
-            parent_entry:None,
-            parent_entity:None,
-            parent_asym:None,
-            parent_comp:None,
-            index:-1,
-            serial_number:self.label_atom_id.parse::<i64>().unwrap().clone(),
-            x:self.Cartn_x.parse::<f64>().unwrap().clone(),
-            y:self.Cartn_y.parse::<f64>().unwrap().clone(),
-            z:self.Cartn_z.parse::<f64>().unwrap().clone(),
-            charge:if self.pdbx_formal_charge.len() > 0{Some(self.pdbx_formal_charge.clone())}else{None},
-            occupancy:if self.occupancy.len() > 0{self.occupancy.parse::<f64>().unwrap()}else{1.0},
-            temp_factor:if self.B_iso_or_equiv.len() > 0{self.B_iso_or_equiv.parse::<f64>().unwrap()}else{0.0},
-            atom_symbol:self.type_symbol.clone(),
-            atom_code:self.label_atom_id.clone(),
-            alt_code:self.label_alt_id.clone(),
-            dummy:true,
-            het:self.is_het(),
-            alt:self.is_alt(),
-            is_ligand:false,
-            atom_site_key:self.index_in_entry
-        };//alt_loc は他の Atom も見ないと処理できないと思う
-            
-        return ret;
-    }
-
-    pub fn is_het(&self)->bool{
-        if &self.group_PDB == "ATOM"{
-            return false;
-        }
-        return true;
-    }
-
-    pub fn is_alt(&self)->bool{
-        if &self.label_alt_id == ""
-        || &self.label_alt_id == "."
-        || &self.label_alt_id == "?"
-        || &self.label_alt_id == " "
-        || &self.label_alt_id == "A"{
-            return false;
-        }
-        return true;
-    }
-
-    pub fn new()->__AtomSite{
-        return __AtomSite{
-            index_in_entry:-1,
-            group_PDB:"".to_owned(),
-            id:"".to_owned(),
-            type_symbol:"".to_owned(),
-            label_atom_id:"".to_owned(),
-            label_alt_id:"".to_owned(),
-            label_comp_id:"".to_owned(),
-            label_asym_id:"".to_owned(),
-            label_entity_id:"".to_owned(),
-            label_seq_id:"".to_owned(),
-            pdbx_PDB_ins_code:"".to_owned(),
-            Cartn_x:"".to_owned(),
-            Cartn_y:"".to_owned(),
-            Cartn_z:"".to_owned(),
-            occupancy:"".to_owned(),
-            B_iso_or_equiv:"".to_owned(),
-            pdbx_formal_charge:"".to_owned(),
-            auth_seq_id:"".to_owned(),
-            auth_comp_id:"".to_owned(),
-            auth_asym_id:"".to_owned(),
-            auth_atom_id:"".to_owned(),
-            pdbx_PDB_model_num:"".to_owned(),
-        };
-    }    
-    
-    pub fn get_unique_comp_label(&self)->String{
-        return "".to_string()+self.label_comp_id.as_str()
-        +"#"+self.label_seq_id.as_str()
-        +"#"+self.pdbx_PDB_ins_code.as_str();
-    }
-
 }
 
 

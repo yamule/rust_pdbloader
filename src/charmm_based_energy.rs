@@ -2639,9 +2639,9 @@ fn add_h_test(){
     parr.resi.append(&mut topp.resi);
 
     
-    MDAtom::change_to_charmmnames(&mut pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_mut_comps().map(|m|{*m}).collect());
+    MDAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter_mut_comps().map(|m|{*m}).collect());
     let mut resvec:Vec<pdbdata::PDBComp> = vec![];
-    for rr in pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_mut_comps(){
+    for rr in pdbb.get_all_asyms().iter_mut_comps(){
         let mut ress:pdbdata::PDBComp = pdbdata::PDBComp::new();
         ress.set_comp_id(rr.get_name());
         ress.set_seq_id(rr.get_seq_id());
@@ -2675,8 +2675,8 @@ fn add_h_test(){
 fn check_backbone_dihed(){
     let parr = charmm_param::CHARMMParam::load_chamm19((debug_env::CHARMM_DIR.to_string()+"\\toph19.inp").as_str(),(debug_env::CHARMM_DIR.to_string()+"\\param19.inp").as_str());
     let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/6iws_model1_noh.pdb");
-    MDAtom::change_to_charmmnames(&mut pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_mut_comps().map(|m|*m).collect());
-    let (md_envset,md_varset):(CharmmEnv,CharmmVars) = MDAtom::chain_to_atoms(&vec![pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0)],&parr,true);
+    MDAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter_mut_comps().map(|m|*m).collect());
+    let (md_envset,md_varset):(CharmmEnv,CharmmVars) = MDAtom::chain_to_atoms(&vec![pdbb.get_all_asyms()],&parr,true);
 
     let backbone_dihedrals:Vec<&str> = vec![
         "C#N#CA#C",

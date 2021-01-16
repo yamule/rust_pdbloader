@@ -370,7 +370,7 @@ fn tbm_test(){
     ].iter().map(|m|m.to_string()).collect();
     let pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/1a4w_part.pdb");
 
-    let residues:Vec<&PDBComp> = pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_comps().collect();
+    let residues:Vec<&PDBComp> = pdbb.get_all_asyms().iter().fold(vec![],|mut s,m|{s.append(&mut  m.iter_comps().collect());s}).collect();
     let mut dummystring:Vec<String> = vec![];
     for rr in residues.iter(){
         dummystring.push(AA_3_TO_1.lock().unwrap().get(rr.get_name()).unwrap().clone());

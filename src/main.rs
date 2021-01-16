@@ -186,7 +186,7 @@ fn ss_assign(args:HashMap<String,String>) {
     let pdb = mmcif_process::load_pdb(&infile);
     //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6iws_model1.pdb").as_str());
     
-    for cc in pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
+    for cc in pdb.get_all_asyms().iter(){
         let mut ress:Vec<Vec<&PDBComp>> = vec![];
         let mut rss:Vec<&PDBComp> = vec![];
         for rr in cc.iter_comps(){
@@ -562,7 +562,7 @@ fn make_homo_multimer(args:HashMap<String,String>) {
 
     query_chain.remove("");
     template_chain.remove("");
-    for qcc in query_pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
+    for qcc in query_pdb.get_all_asyms().iter(){
         if query_chain.len() > 0{
             if !query_chain.contains(&qcc.chain_name){
                 continue;
@@ -573,7 +573,7 @@ fn make_homo_multimer(args:HashMap<String,String>) {
             qresidues.push(rr);
         }
         
-        for tcc in template_pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
+        for tcc in template_pdb.get_all_asyms().iter(){
             if template_chain.len() > 0{
                 if !template_chain.contains(&tcc.chain_name){
                     continue;
@@ -857,7 +857,7 @@ fn main_comparative_domain_split(args:HashMap<String,String>) {
         let mut t_chainindex_:i64 = -1;
         
         if query_chain.len() != 0{
-            for cc in query_pdb.get_model_at(0).get_entity_at(0).iter_asyms().enumerate(){
+            for cc in query_pdb.get_all_asyms().iter().enumerate(){
                 if cc.1.chain_name == query_chain{
                     q_chainindex_ = cc.0 as i64;
                 }
@@ -874,7 +874,7 @@ fn main_comparative_domain_split(args:HashMap<String,String>) {
         }
         
         if template_chain.len() != 0{
-            for cc in template_pdb.get_model_at(0).get_entity_at(0).iter_asyms().enumerate(){
+            for cc in template_pdb.get_all_asyms().iter().enumerate(){
                 if cc.1.chain_name == template_chain{
                     t_chainindex_ = cc.0 as i64;
                 }
@@ -1032,7 +1032,7 @@ fn main_str_align(args:HashMap<String,String>) {
 
     let mut qresidues:Vec<&PDBComp> = vec![];
     let mut tresidues:Vec<&PDBComp> = vec![];
-    for cc in query_pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
+    for cc in query_pdb.get_all_asyms().iter(){
         if cc.chain_name == query_chain{
             for rr in cc.iter_comps(){
                 qresidues.push(rr);
@@ -1040,7 +1040,7 @@ fn main_str_align(args:HashMap<String,String>) {
         }
     }
     
-    for cc in template_pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
+    for cc in template_pdb.get_all_asyms().iter(){
         if cc.chain_name == template_chain{
             for rr in cc.iter_comps(){
                 tresidues.push(rr);
@@ -1138,11 +1138,11 @@ fn main_prepare_structure(args:HashMap<String,String>) {
     let mut rgen:StdRng =  SeedableRng::seed_from_u64(random_seed);
 
     let mut lines_all:Vec<String> = vec![];
-    let numchains:usize = pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect().len();
+    let numchains:usize = pdbb.get_all_asyms().iter().map(|m|*m).collect().len();
     for ll in 0..numchains{
-        charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect()[ll].residues);
+        charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter().map(|m|*m).collect()[ll].residues);
     }
-    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect(),&parr,true);
+    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_all_asyms().iter().map(|m|*m).collect(),&parr,true);
     let num_atoms = md_envset.atoms.len();
     charmm_based_energy::estimate_positions_unplaced(&mut md_envset,&md_varset);
     for ii in 0..num_atoms{

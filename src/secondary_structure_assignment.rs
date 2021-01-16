@@ -358,7 +358,7 @@ fn secstr_test(){
     //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6iws_model1.pdb").as_str());
     
     let mut ress:Vec<Vec<&PDBComp>> = vec![];
-    for cc in pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
+    for cc in pdb.get_all_asyms().iter(){
         let mut rss:Vec<&PDBComp> = vec![];
         for rr in cc.iter_comps(){
             if !rr.get_atom_at(0).is_ligand{

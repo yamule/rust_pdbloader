@@ -773,14 +773,14 @@ pub fn dist_aligntest(){
     
     let mut residues_a:Vec<&pdbdata::PDBComp> = vec![];
     
-    for rr in pdb_orig.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_comps(){
+    for rr in pdb_orig.get_all_asyms().iter().fold(vec![],|mut s,m|{s.append(&mut  m.iter_comps().collect());s}){
         residues_a.push(rr);
     }
     
     
     let mut residues_b:Vec<&pdbdata::PDBComp> = vec![];
     
-    for rr in pdb.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_comps(){
+    for rr in pdb.get_all_asyms().iter().fold(vec![],|mut s,m|{s.append(&mut  m.iter_comps().collect());s}){
         residues_b.push(rr);
     }
 

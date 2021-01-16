@@ -802,7 +802,7 @@ pub fn docking(pdbb:pdbdata::PDBEntry
         }
     }
     let parr = charmm_param::CHARMMParam::load_chamm19(topfile,paramfile);
-    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_model_at(0).get_entity_at(0).iter_asyms().collect(),&parr,true);
+    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_all_asyms().iter().collect(),&parr,true);
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(
         &backbone_dihedral_angle_file);
     let (torsion,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,false,true),false);
@@ -1380,7 +1380,7 @@ pub fn refinement(pdbb:pdbdata::PDBEntry
         }
     }
     
-    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|m).collect(),&parr,true);
+    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_all_asyms().iter().map(|m|m).collect(),&parr,true);
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(
         &backbone_dihedral_angle_file);
     let (torsion,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,false,true),false);
@@ -2374,7 +2374,7 @@ pub fn calc_energies(pdbfile:&str
         cc.remove_alt(None);
         charmm_based_energy::MDAtom::change_to_charmmnames(&mut cc.iter_mut_comps().map(|m|*m).collect());
     }
-    let (md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|m).collect(),&parr,true);
+    let (md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_all_asyms().iter().map(|m|m).collect(),&parr,true);
     
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(
         &backbone_dihedral_angle_file);

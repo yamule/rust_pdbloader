@@ -296,10 +296,10 @@ fn ca_mc_md_test(){
 
     let mut ca_atoms_pos:Vec<(usize,(f64,f64,f64))> = vec![];
     
-    charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_comps().map(|m|*m).collect());
+    charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter().fold(vec![],|mut s,m|{s.append(&mut  m.iter_comps().collect());s}).map(|m|*m).collect());
 
     let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars)
-     = charmm_based_energy::MDAtom::chain_to_atoms(&vec![pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0)],&parr,true);
+     = charmm_based_energy::MDAtom::chain_to_atoms(&vec![pdbb.get_all_asyms()],&parr,true);
 
     let mut ca_md:Vec<&charmm_based_energy::MDAtom> = vec![];
     for (_rii,aa) in md_envset.atoms.iter().enumerate(){
@@ -310,7 +310,7 @@ fn ca_mc_md_test(){
     }
 
 
-    for (_rii,rr) in pdbb.get_model_at(0).get_entity_at(0).get_asym_at(0).iter_comps().enumerate(){
+    for (_rii,rr) in pdbb.get_all_asyms().iter().fold(vec![],|mut s,m|{s.append(&mut  m.iter_comps().collect());s}).enumerate(){
         if rr.get_comp_id() == "HOH"{
             continue;
         }

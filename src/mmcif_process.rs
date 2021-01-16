@@ -13,13 +13,15 @@ use super::geometry::Vector3D;
 const IS_MULTILINE:i64 = 0;
 const IS_SINGLELINE:i64 = 1;
 
-const NO_SEQ_ID:i64 = -999;
+
+ここから
+entity_map とかで分けるとき、usize の小さいものが前に来るようにソートして返す
 
 
 const SECTION_NUMLETTER_MAX:usize = 30;//これより長いと複数行モードにされる
 
-
-const __ELEMENT_INDEX:&str = "__element_index";
+pub const NO_SEQ_ID:i64 = -999;
+const __ELEMENT_INDEX:&str = "__element_index";//内部インデクスをひとまとめにして扱うために設定する独自フィールド
 const _ATOM_SITE_GROUP_PDB:&str ="_atom_site.group_PDB";
 const _ATOM_SITE_ID:&str ="_atom_site.id";
 const _ATOM_SITE_TYPE_SYMBOL:&str ="_atom_site.type_symbol";
@@ -248,7 +250,7 @@ pub fn parse_block(block:&Vec<String>)
 pub fn parse_mmcif(filename:&str)->Vec<(Vec<String>,Vec<Vec<String>>)>{
    
     let mut ret:Vec<(Vec<String>,Vec<Vec<String>>)> = vec![];
-    let file = File::open(filename).unwrap();
+    let file = File::open(filename).unwrap_or_else(|e| panic!("Loading {} was failed! {:?}",filename,e));
     let reader = BufReader::new(file);
     let mut buff:Vec<String> = vec![];
     for (_lcount,line_) in reader.lines().enumerate() {
@@ -423,7 +425,7 @@ impl MMCIFEntry{
     }
 
     //ToDo: use auth 途中
-    pub fn load_mmcif(filename:&str,use_auth:bool)->(MMCIFEntry,PDBEntry){
+    pub fn load_mmcif(filename:&str,use_auth:bool)->PDBEntry{
         let mut blocks:Vec<(Vec<String>,Vec<Vec<String>>)> = parse_mmcif(filename);
         let mut atom_site_block_:Option<(Vec<String>,Vec<Vec<Box<String>>>)> = None;
         
@@ -484,13 +486,9 @@ impl MMCIFEntry{
         }
 
 
-        let ret2:PDBEntry = MMCIFEntry::atomsite_to_entry(&ret,false);
-
-
-
-
-
-        return (ret,ret2);
+        //let ret2:PDBEntry = MMCIFEntry::atomsite_to_entry(&ret,use_auth);
+        let ret2:PDBEntry = PDBEntry::prepare_entry(ret);
+        return ret2;
     }
 
     pub fn get_key_index_map(vs:&Vec<String>)->HashMap<String,usize>{
@@ -502,11 +500,6 @@ impl MMCIFEntry{
     }
     pub fn atomsite_to_entry(mmcif:&MMCIFEntry,use_auth:bool)->PDBEntry{
         
-        let mut ret:PDBEntry = PDBEntry::new();
-        let mut chains:HashMap<String,Vec<Vec<&AtomSiteMut>>> = HashMap::new();
-        let mut chains_rindex:HashMap<String,HashMap<String,usize>> = HashMap::new();
-        let atom_site_map:HashMap<String,usize> = MMCIFEntry::get_key_index_map(&mmcif.atom_site.0);
-    
     
         let asym_id_label:String;
         let _atom_id_label:String;//CA とか CB とか atom_name
@@ -524,18 +517,30 @@ impl MMCIFEntry{
             seq_id_label = _ATOM_SITE_LABEL_SEQ_ID.to_string();
         }
         
-        let asym_id_:usize = *atom_site_map.get(&asym_id_label).unwrap_or_else(||panic!("{} is not defined.",asym_id_label));
-        let comp_id_:usize = *atom_site_map.get(&comp_id_label).unwrap_or_else(||panic!("{} is not defined.",comp_id_label));
-        let seq_id_:usize = *atom_site_map.get(&seq_id_label).unwrap_or_else(||panic!("{} is not defined.",seq_id_label));
+        //let asym_id_:usize = *atom_site_map.get(&asym_id_label).unwrap_or_else(||panic!("{} is not defined.",asym_id_label));
+        //let comp_id_:usize = *atom_site_map.get(&comp_id_label).unwrap_or_else(||panic!("{} is not defined.",comp_id_label));
+        //let seq_id_:usize = *atom_site_map.get(&seq_id_label).unwrap_or_else(||panic!("{} is not defined.",seq_id_label));
         //let atom_id_:usize = *atom_site_map.get(&atom_id_label).unwrap_or_else(||panic!("{} is not defined.",atom_id_label));
         let atom_sites:Vec<AtomSiteMut> = vec![];
-        for (_aii,aa) in mmcif.atom_site.2.iter().enumerate(){
-    //かきさし
-            //let asym_id:String = aa.values[asym_id_].clone();
+        
+        let mut ret:PDBEntry = PDBEntry::new();
+        let mut chains:HashMap<String,Vec<Vec<&AtomSiteMut>>> = HashMap::new();
+        let mut chains:HashMap<String,Vec<Vec<&AtomSiteMut>>> = HashMap::new();
+        let mut chains_rindex:HashMap<String,HashMap<String,usize>> = HashMap::new();
+        let atom_site_map:HashMap<String,usize> = MMCIFEntry::get_key_index_map(&mmcif.atom_site.0);
     
+        for (_aii,aa) in mmcif.atom_site.2.iter().enumerate(){
+            let a_site = AtomSite::new(&mmcif.atom_site.1, &aa);
+            let model_id:&str = a_site.get_value_of(_ATOM_SITE_PDBX_PDB_MODEL_NUM);
+            let entity_id:&str = a_site.get_value_of(_ATOM_SITE_LABEL_ENTITY_ID);
+            let asym_id:&str = a_site.get_value_of(&asym_id_label);
+            let comp_id:&str = a_site.get_value_of(&comp_id_label);
+            let seq_id:&str = a_site.get_value_of(&seq_id_label);
+
+
         }
     /*
-        for (cii,cc) in ret.get_model_at(0).get_entity_at(0).iter_asyms().enumerate(){
+        for (cii,cc) in ret.get_all_asyms().iter().enumerate(){
             for (rii,rr) in cc.iter_comps().enumerate(){
                 assert_eq!(cii as i64,rr.parent_chain.unwrap());
                 for (_aii,aa) in rr.iter_atoms().enumerate(){
@@ -654,12 +659,15 @@ pub struct MiscSection{
 pub struct AtomSiteMut<'a>{
     pub keymap:&'a mut HashMap<String,usize>,
     pub values:&'a mut Vec<Box<String>>,
+    pub element_index:i64
 }
 
+#[allow(non_snake_case)]
 impl<'a> AtomSiteMut<'a>{
     
-    pub fn set_index(&mut self,s:i64){
-        self.set_value_of(__ELEMENT_INDEX,s.to_string(),false);
+    pub fn set_index(&mut self,i:i64){
+        //self.set_value_of(__ELEMENT_INDEX,s.to_string(),false);
+        self.element_index = i;
     }
     
 
@@ -676,7 +684,7 @@ impl<'a> AtomSiteMut<'a>{
 
     pub fn new(km:&'a mut HashMap<String,usize>,val:&'a mut Vec<Box<String>>)->AtomSiteMut<'a>{
         return AtomSiteMut{
-            keymap:km,values:val
+            keymap:km,values:val,element_index:-1
         };
     }
 //ToDo
@@ -684,6 +692,7 @@ impl<'a> AtomSiteMut<'a>{
 //get_model_at(0).get_entity_at(0) で Chain を取ろうとしているところは、
 //Get All Chains というような関数を作って Entity から何からまたいだ結果を全部返させる
 
+    
     pub fn set_group_PDB(&mut self,s:String){self.set_value_of(_ATOM_SITE_GROUP_PDB,s,false);} 
     pub fn set_id(&mut self,s:String){self.set_value_of(_ATOM_SITE_ID,s,false);} 
     pub fn set_type_symbol(&mut self,s:String){self.set_value_of(_ATOM_SITE_TYPE_SYMBOL,s,false);} 
@@ -724,37 +733,6 @@ impl<'a> AtomSiteMut<'a>{
         }
         *self.values[*self.keymap.get(k).unwrap()] = v;
     }
-    /*
-    
-    pub fn atomsite_to_atom(&self)->PDBAtom{
-        let ret:PDBAtom = PDBAtom{
-            parent_entry:None,
-            parent_entity:None,
-            parent_asym:None,
-            parent_comp:None,
-            index:-1,
-            serial_number:self.label_atom_id.parse::<i64>().unwrap().clone(),
-            x:self.Cartn_x.parse::<f64>().unwrap().clone(),
-            y:self.Cartn_y.parse::<f64>().unwrap().clone(),
-            z:self.Cartn_z.parse::<f64>().unwrap().clone(),
-            charge:if self.pdbx_formal_charge.len() > 0{Some(self.pdbx_formal_charge.clone())}else{None},
-            occupancy:if self.occupancy.len() > 0{self.occupancy.parse::<f64>().unwrap()}else{1.0},
-            temp_factor:if self.B_iso_or_equiv.len() > 0{self.B_iso_or_equiv.parse::<f64>().unwrap()}else{0.0},
-            atom_symbol:self.type_symbol.clone(),
-            atom_code:self.label_atom_id,
-            alt_code:self.label_alt_id.clone(),
-            dummy:true,
-            het:self.is_het(),
-            alt:self.is_alt(),
-            is_ligand:false,
-            atom_site_key:self.index_in_entry
-        };//alt_loc は他の Atom も見ないと処理できないと思う
-            
-        return ret;
-    }
-
-    */
-    
     
 }
 #[allow(non_snake_case)]
@@ -763,6 +741,7 @@ pub struct AtomSite<'a>{
     pub values:&'a Vec<Box<String>>,
 }
 
+#[allow(non_snake_case)]
 impl<'a> AtomSite<'a>{
     
     
@@ -770,14 +749,14 @@ impl<'a> AtomSite<'a>{
         return self.get_value_of(__ELEMENT_INDEX).parse::<i64>().unwrap_or(-1);
     }
     
-    pub fn atomsite_to_atom(&self)->PDBAtom{
-        let ret:PDBAtom = PDBAtom{
+    pub fn atomsite_to_atom(&self,use_auth:bool)->PDBAtom{
+        let mut ret:PDBAtom = PDBAtom{
             parent_entry:None,
             parent_entity:None,
             parent_asym:None,
             parent_comp:None,
             index:-1,
-            serial_number:self.get_label_atom_id().parse::<i64>().unwrap().clone(),
+            serial_number:self.get_id().parse::<i64>().unwrap().clone(),
             x:self.get_Cartn_x().parse::<f64>().unwrap().clone(),
             y:self.get_Cartn_y().parse::<f64>().unwrap().clone(),
             z:self.get_Cartn_z().parse::<f64>().unwrap().clone(),
@@ -794,6 +773,10 @@ impl<'a> AtomSite<'a>{
             atom_site_key:self.get_index()
         };//alt_loc は他の Atom も見ないと処理できないと思う
             
+        if use_auth{
+            ret.atom_code = self.get_value_of(_ATOM_SITE_AUTH_ATOM_ID).to_string();
+            
+        }
         return ret;
     }
 
@@ -842,57 +825,6 @@ impl<'a> AtomSite<'a>{
     pub fn get_auth_asym_id(&self) -> &str{return self.get_value_of(_ATOM_SITE_AUTH_ASYM_ID);} 
     pub fn get_auth_atom_id(&self) -> &str{return self.get_value_of(_ATOM_SITE_AUTH_ATOM_ID);} 
     pub fn get_pdbx_PDB_model_num(&self) -> &str{return self.get_value_of(_ATOM_SITE_PDBX_PDB_MODEL_NUM);} 
-
-    pub fn atom_site_to_pdbatom(&self,use_auth:bool)->PDBAtom{
-        let mut ret = PDBAtom::new();
-        if self.get_index() < 0{
-            panic!("update_atom_site_index must have been performed at first.");
-        }
-
-        ret.set_atom_site_key(self.get_index());
-        ret.set_xyz(self.get_value_of(_ATOM_SITE_CARTN_X).parse::<f64>().unwrap_or_else(|_|panic!("can not parse x"))
-        ,self.get_value_of(_ATOM_SITE_CARTN_Y).parse::<f64>().unwrap_or_else(|_|panic!("can not parse y"))
-        ,self.get_value_of(_ATOM_SITE_CARTN_Z).parse::<f64>().unwrap_or_else(|_|panic!("can not parse z"))
-        );
-       
-        ret.serial_number = self.get_value_of(_ATOM_SITE_ID).parse::<i64>().expect("Cannot parse atom id.");
-        ret.atom_symbol = self.get_value_of(_ATOM_SITE_TYPE_SYMBOL).to_string();
-        ret.alt_code = self.get_value_of(_ATOM_SITE_LABEL_ALT_ID).to_string();
-        if !self.is_alt(){
-            ret.alt_code = "".to_string();
-        }
-
-        ret.dummy = false;
-        if self.get_value_of(_ATOM_SITE_GROUP_PDB) == "HETATM"{
-            ret.het = true;
-        }else{
-            ret.het = false;
-        }
-        
-        if self.keymap.contains_key(_ATOM_SITE_PDBX_FORMAL_CHARGE){
-            let fcc:String = self.get_value_of(_ATOM_SITE_PDBX_FORMAL_CHARGE).to_string();
-            if fcc == "?" || fcc == "." || fcc == "" {
-                ret.charge = None;
-            }else{
-                ret.charge = Some(fcc);
-            }
-        }
-        if self.keymap.contains_key(_ATOM_SITE_OCCUPANCY){
-            ret.occupancy = self.get_value_of(_ATOM_SITE_OCCUPANCY).parse::<f64>().unwrap();
-        }
-        if self.keymap.contains_key(_ATOM_SITE_B_ISO_OR_EQUIV){
-            ret.temp_factor = self.get_value_of(_ATOM_SITE_B_ISO_OR_EQUIV).parse::<f64>().unwrap();
-        }
-
-        if use_auth{
-            ret.atom_code = self.get_value_of(_ATOM_SITE_AUTH_ATOM_ID).to_string();
-            
-        }else{
-            ret.atom_code = self.get_value_of(_ATOM_SITE_LABEL_ATOM_ID).to_string();
-        }
-        
-        return ret;
-    }
     
     pub fn get_value_of(&self,key:&str)->&str{
         return match self.keymap.get(key){
@@ -922,7 +854,6 @@ pub fn load_pdb(filename:&str) ->PDBEntry{
 
     let _noline = Regex::new(r"^[\r\n]*$").unwrap();
     let mut records:Vec<Vec<Box<String>>> = vec![];
-    let mut ligand_records:Vec<Vec<String>> = vec![];
     let mut terflag:bool = false;
     let mut possibly_ligand = false;
     let mut current_model_num:String = "".to_owned();
@@ -949,9 +880,6 @@ pub fn load_pdb(filename:&str) ->PDBEntry{
         _ATOM_SITE_PDBX_PDB_MODEL_NUM,
         ]).into_iter().map(|m|m.to_string()).collect();
     let keymap:HashMap<String,usize> = keyvec.iter().enumerate().map(|m|(m.1.clone(),m.0)).collect();
-
-
-
 
     for (_lcount,line) in reader.lines().enumerate() {
 
@@ -980,7 +908,7 @@ pub fn load_pdb(filename:&str) ->PDBEntry{
     }
     let mut mmcifdata = MMCIFEntry::new();
     mmcifdata.set_atom_site_section(keyvec,records);
-    let mut ret:PDBEntry = PDBEntry::prepare_entry(mmcifdata);
+    let ret:PDBEntry = PDBEntry::prepare_entry(mmcifdata);
     return ret;
 }
 
@@ -1010,15 +938,15 @@ fn regextest(){
 }
 
 #[test]
-fn mmcifloadtest(){
-    let pdbentry = MMCIFEntry::load_mmcif("example_files/ins_example_1a4w.cif",false);
-    for mm in pdbentry.0.misc_section.iter(){//atom_site を間違うと他でエラーが出ると思う
-        for ii in 0..(mm.1).len(){
+fn mmcif_loadtest(){
+    let mmcifentry = MMCIFEntry::load_mmcif("example_files/ins_example_1a4w.cif",false);
+    for mm in mmcifentry.mmcif_data.as_ref().unwrap().misc_section.iter(){//atom_site を間違うと他でエラーが出ると思う
+        for ii in 0..(mm.2).len(){
             assert_eq!(mm.0.len(),mm.2[ii].len());
         }
     }
-    pdbentry.1.save("test/mmcifout_1a4w.pdb");
-    pdbentry.0.save("test/mmcifout_1a4w.cif");
+    mmcifentry.save("test/mmcifout_1a4w.pdb");
+    //mmcifentry.0.save("test/mmcifout_1a4w.cif");
 }
 
 #[test]
