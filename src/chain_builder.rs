@@ -229,7 +229,7 @@ pub fn build_dirty_chain(aa:&Vec<String>,backbone:&backbone_sample::BackboneSet,
     return ret;
 }
 
-//alignment とテンプレートを与えると作成された PDBResidue と、アラインされたかどうかの Boolean 値が入った配列を返す。
+//alignment とテンプレートを与えると作成された PDBComp と、アラインされたかどうかの Boolean 値が入った配列を返す。
 //smithwaterman で並べるので template_string と template に不一致があってよい
 pub fn build_from_alignment(query_string:&Vec<String>,template_string:&Vec<String>
     ,template:&Vec<&PDBComp>

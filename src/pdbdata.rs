@@ -614,6 +614,12 @@ impl PDBEntity{
             };
     }
     
+    pub fn squeeze_asyms(&mut self)->Vec<PDBAsym>{
+        let mut ret:Vec<PDBAsym> = vec![];
+        ret.append(&mut self.asyms);
+        return ret;
+    }
+
     pub fn num_asyms(&self)->usize{
         return self.asyms.len();
     }
@@ -738,6 +744,44 @@ impl PDBEntry{
         models:vec![]
         };
     }
+    
+
+    pub fn get_all_asyms(&self)->Vec<&PDBAsym>{
+        let mut ret:Vec<&PDBAsym> = vec![];
+        for mm in self.iter_models(){
+            for ee in mm.iter_entities(){
+                for cc in ee.iter_asyms(){
+                    ret.push(cc);
+                }
+            }
+        }
+        return ret;
+    }
+
+
+    pub fn get_mut_all_asyms(&mut self)->Vec<&mut PDBAsym>{
+        let mut ret:Vec<&mut PDBAsym> = vec![];
+        for mm in self.iter_mut_models(){
+            for ee in mm.iter_mut_entities(){
+                for cc in ee.iter_mut_asyms(){
+                    ret.push(cc);
+                }
+            }
+        }
+        return ret;
+    }
+
+
+    pub fn squeeze_asyms(&mut self)->Vec<PDBAsym>{
+        let mut ret:Vec<PDBAsym> = vec![];
+        for mm in self.iter_mut_models(){
+            for ee in mm.iter_mut_entities(){
+                ret.append(&mut ee.squeeze_asyms());
+            }
+        }
+        return ret;
+    }
+
     
     pub fn prepare_base()->PDBEntry{
         let mut ret =  PDBEntry{
@@ -1003,7 +1047,7 @@ impl __AtomSite{
             occupancy:if self.occupancy.len() > 0{self.occupancy.parse::<f64>().unwrap()}else{1.0},
             temp_factor:if self.B_iso_or_equiv.len() > 0{self.B_iso_or_equiv.parse::<f64>().unwrap()}else{0.0},
             atom_symbol:self.type_symbol.clone(),
-            atom_code:self.label_atom_id,
+            atom_code:self.label_atom_id.clone(),
             alt_code:self.label_alt_id.clone(),
             dummy:true,
             het:self.is_het(),

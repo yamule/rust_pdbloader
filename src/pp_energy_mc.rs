@@ -3051,7 +3051,7 @@ pub fn tbm_and_loop_test(){
     ].iter().map(|m|m.to_string()).collect();
     let pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/1a4w_part.pdb");
 
-    let residues:Vec<&pdbdata::PDBResidue> = pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect()[0].iter_comps().collect();
+    let residues:Vec<&pdbdata::PDBComp> = pdbb.get_model_at(0).get_entity_at(0).iter_asyms().map(|m|*m).collect()[0].iter_comps().collect();
     let mut dummystring:Vec<String> = vec![];
     for rr in residues.iter(){
         dummystring.push(rr.get_name().to_string());
@@ -3084,8 +3084,8 @@ pub fn tbm_and_loop_test(){
     }
 
 
-    let ress_and_flag:Vec<(pdbdata::PDBResidue,bool)> = chain_builder::build_from_alignment(&dummyquery,&dummystring,&residues,&bset,&sset);
-    let mut ress:Vec<pdbdata::PDBResidue> = vec![];
+    let ress_and_flag:Vec<(pdbdata::PDBComp,bool)> = chain_builder::build_from_alignment(&dummyquery,&dummystring,&residues,&bset,&sset);
+    let mut ress:Vec<pdbdata::PDBComp> = vec![];
     let mut flags:Vec<bool> = vec![];
     for (rr,ff) in ress_and_flag.into_iter(){
         ress.push(rr);

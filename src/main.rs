@@ -3,7 +3,15 @@ extern crate rust_pdbloader;
 
 use std::fs;
 use std::collections::HashSet;
-use rust_pdbloader::charmm_based_energy;
+//use rust_pdbloader::charmm_based_energy;
+//use rust_pdbloader::charmm_param;
+//use rust_pdbloader::mcprocess_md;
+//use rust_pdbloader::evoef2_energy;
+//#[allow(unused_imports)]
+//use rust_pdbloader::pp_energy;
+//#[allow(unused_imports)]
+//use rust_pdbloader::pp_energy_mc;
+//use rust_pdbloader::template_based_modelling;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::Rng;
@@ -11,21 +19,14 @@ use rand::Rng;
 use self::rand::prelude::*;
 use rust_pdbloader::geometry::Vector3D;
 use rust_pdbloader::pdbdata::*;
-use rust_pdbloader::charmm_param;
 use rust_pdbloader::process_3d;
 use rust_pdbloader::debug_env;
 use rust_pdbloader::structural_alignment;
 #[allow(unused_imports)]
-use rust_pdbloader::mcprocess_md;
-use rust_pdbloader::evoef2_energy;
 use rust_pdbloader::secondary_structure_assignment;
 use rust_pdbloader::sequence_alignment;
 use rust_pdbloader::max_hit_clust;
 use rust_pdbloader::matrix_process;
-#[allow(unused_imports)]
-use rust_pdbloader::pp_energy;
-#[allow(unused_imports)]
-use rust_pdbloader::pp_energy_mc;
 #[allow(unused_imports)]
 use rust_pdbloader::distance_alignment;
 use std::collections::HashMap;
@@ -33,7 +34,7 @@ use regex::Regex;
 use std::env;
 use std::f64::consts::PI;
 use rust_pdbloader::misc_util::*;
-use rust_pdbloader::template_based_modelling;
+use rust_pdbloader::mmcif_process;
 
 #[allow(unused_imports)]
 use std::io::{BufWriter,Write,BufReader,BufRead};
@@ -157,6 +158,8 @@ fn main(){
 }
 
 fn residue_mapping(args:HashMap<String,String>) {
+    panic!("not implemented now");
+    /*
     let infiles:Vec<String> = args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")).split(",").into_iter().map(|m| m.to_string()).collect();
     template_based_modelling::try_mapping(
     &infiles
@@ -164,7 +167,7 @@ fn residue_mapping(args:HashMap<String,String>) {
     , args.get("-backbones").unwrap_or_else(|| panic!("Please specify  -backbones for backbone sample dir."))
     , match args.get("-seed"){Some(x) => {Some(x.parse::<u64>().unwrap())},_=>{None}}
     ,args.get("-out").unwrap_or_else(|| panic!("Please specify  -out for output file.")));
-
+        */
 }
 
 
@@ -180,12 +183,12 @@ fn ss_assign(args:HashMap<String,String>) {
         }
     }
     let infile:String = args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")).to_string();
-    let pdb = load_pdb(&infile);
+    let pdb = mmcif_process::load_pdb(&infile);
     //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6iws_model1.pdb").as_str());
     
     for cc in pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
-        let mut ress:Vec<Vec<&PDBResidue>> = vec![];
-        let mut rss:Vec<&PDBResidue> = vec![];
+        let mut ress:Vec<Vec<&PDBComp>> = vec![];
+        let mut rss:Vec<&PDBComp> = vec![];
         for rr in cc.iter_comps(){
             if !rr.get_atom_at(0).is_ligand{
                 rss.push(rr);
@@ -204,7 +207,8 @@ fn ss_assign(args:HashMap<String,String>) {
 }
 
 fn calc_energies(args:HashMap<String,String>) {
-
+    panic!("not implemented");
+/*
     let evoef2resource:&str = args.get("-resource").unwrap_or_else(|| panic!("Please specify resource dir with -resource"));
     
     let toph19:String = evoef2resource.to_string()+"/toppar_c36_jul18/toppar/toph19.inp";
@@ -220,8 +224,12 @@ fn calc_energies(args:HashMap<String,String>) {
     , match args.get("-cb_dist"){Some(x) => {x},_=>{""}}
     ,args.get("-out").unwrap_or_else(|| panic!("Please specify input file with -out."))
     );
+    */
 }
-fn load_refine_params(paramfile:&str)->Vec<template_based_modelling::RefinementParam>{
+//fn load_refine_params(paramfile:&str)->Vec<template_based_modelling::RefinementParam>{
+    fn load_refine_params(paramfile:&str)->Option<usize>{
+        panic!("not implemented");
+        /*
     let file = File::open(paramfile).unwrap();
     let reader = BufReader::new(file);
     let mut ret:Vec<template_based_modelling::RefinementParam> = vec![];
@@ -283,7 +291,9 @@ fn load_refine_params(paramfile:&str)->Vec<template_based_modelling::RefinementP
         };
         ret.push(parr);
     }
+    
     return ret;
+    */
 }
 
 //refinement template loader
@@ -321,6 +331,8 @@ fn load_template_list(templatefile:&str)->Vec<(String,String,String)>{
 }
 
 fn merge_structures(args:HashMap<String,String>) {
+    panic!("not implemented");
+    /*
     let evoef2resource:&str = args.get("-resource").unwrap_or_else(|| panic!("Please specify resource dir with -resource"));
     
     let toph19:String = evoef2resource.to_string()+"/toppar_c36_jul18/toppar/toph19.inp";
@@ -328,13 +340,13 @@ fn merge_structures(args:HashMap<String,String>) {
     
     let angle:&str = args.get("-angle").unwrap_or_else(|| panic!("Please specify backbone torsion angle file with -angle"));
 
-    let base_:PDBEntry = load_pdb(args.get("-base").unwrap_or_else(|| panic!("Please specify input file with -in.")));
-    let sample_:PDBEntry = load_pdb(args.get("-sample").unwrap_or_else(|| panic!("Please specify input file with -in.")));
+    let base_:PDBEntry = mmcif_process::load_pdb(args.get("-base").unwrap_or_else(|| panic!("Please specify input file with -in.")));
+    let sample_:PDBEntry = mmcif_process::load_pdb(args.get("-sample").unwrap_or_else(|| panic!("Please specify input file with -in.")));
     if base_.chains.len() > 1 || sample_.chains.len() > 1{
         panic!("Number of chains must be one. {} {}",base_.chains.len(),sample_.chains.len());
     }
-    let mut base:Vec<PDBResidue> = vec![];
-    let mut sample:Vec<PDBResidue> = vec![];
+    let mut base:Vec<PDBComp> = vec![];
+    let mut sample:Vec<PDBComp> = vec![];
     let mut chain_name:String = "A".to_owned();
     for mut cc in base_.chains.into_iter(){
         chain_name = cc.chain_name.clone();
@@ -367,8 +379,11 @@ fn merge_structures(args:HashMap<String,String>) {
     ,&outfile
     ,args.get("-top_x").unwrap_or(&("0".to_owned())).parse::<usize>().unwrap()
     );
+    */
 }
 fn refinement(args:HashMap<String,String>) {
+    panic!("not implemented");
+    /*
     let checker:HashSet<String> = vec![
     "-resource",
     "-angle",
@@ -467,11 +482,15 @@ fn refinement(args:HashMap<String,String>) {
         lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
     }
     write_to_file(format!("{}",outfile).as_str(),lines);
+    */
+
 }
 
     
 
 fn docking(args:HashMap<String,String>) {
+    panic!("not implemented");
+    /*
     let evoef2resource:&str = args.get("-resource").unwrap_or_else(|| panic!("Please specify resource dir with -resource"));
     
     let toph19:String = evoef2resource.to_string()+"/toppar_c36_jul18/toppar/toph19.inp";
@@ -508,10 +527,14 @@ fn docking(args:HashMap<String,String>) {
         lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
     }
     write_to_file(format!("{}",outfile).as_str(),lines);
+    */
+
 }
 
     
 fn make_homo_multimer(args:HashMap<String,String>) {
+    panic!("not implemented");
+    /*
     let outfilename:String = args.get("-out").unwrap_or_else(|| panic!("Please specify out file with -out.")).to_string();
     let query_pdb:PDBEntry = load_pdb(args.get("-query").unwrap_or_else(|| panic!("Please specify query file with -query.")));
     let template_pdb:PDBEntry = load_pdb(args.get("-template").unwrap_or_else(|| panic!("Please specify template file with -template.")));
@@ -545,7 +568,7 @@ fn make_homo_multimer(args:HashMap<String,String>) {
                 continue;
             }
         }
-        let mut qresidues:Vec<&PDBResidue> = vec![];
+        let mut qresidues:Vec<&PDBComp> = vec![];
         for rr in qcc.iter_comps(){
             qresidues.push(rr);
         }
@@ -556,7 +579,7 @@ fn make_homo_multimer(args:HashMap<String,String>) {
                     continue;
                 }
             }
-            let mut tresidues:Vec<&PDBResidue> = vec![];
+            let mut tresidues:Vec<&PDBComp> = vec![];
             for rr in tcc.iter_comps(){
                 tresidues.push(rr);
             }
@@ -579,14 +602,17 @@ fn make_homo_multimer(args:HashMap<String,String>) {
     }
     write_to_file(&outfilename,result_string);
     write_to_file(&(outfilename+".chaingroup"),group_string);
+    */
 }
     
 fn calc_phi_psi(args:HashMap<String,String>) {
+    panic!("not implemented");
+    /*
     
     let mut lines:Vec<String> = vec![];
     let mut pdbb:PDBEntry = load_pdb(args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")));
     let outfilename:&str = args.get("-out").unwrap_or_else(|| panic!("Please specify output file with -out."));
-    for cc in pdbb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
+    for cc in pdbb.get_all_asymsmodel_at(0).get_entity_at(0).iter_mut_asyms(){
         cc.remove_alt(None);
         let rnum =cc.residues.len();
         let dist_threshold:f64 = 2.0;
@@ -699,6 +725,7 @@ fn calc_phi_psi(args:HashMap<String,String>) {
         }
     }
     write_to_file(outfilename,lines);
+    */
 }
 
 
@@ -807,6 +834,8 @@ fn main_seq_align(args:HashMap<String,String>) {
 
 }
 fn main_comparative_domain_split(args:HashMap<String,String>) {
+    panic!("not implemented");
+    /*
         if args.contains_key("-h"){
             eprintln!("usage:  rust_pdbloader.exe -comparative_domain_split -query <query_pdb> -template  <template_pdb> [-max_dist <float: default 4.0>] [-min_length <int: default 10>] [-out <output_file>] [-out_pdb <aligned_query_pdb>] [-query_chain <str>] [-template_chain <str>] ");
         }
@@ -925,7 +954,7 @@ fn main_comparative_domain_split(args:HashMap<String,String>) {
                 let mut res_str:Vec<String> = vec![];
                 let slen:usize = ss.len();
                 for s in 0..slen{ 
-                    let r:&PDBResidue = &query_pdb.chains[q_chainindex].residues[query_cas_index[ss[s]]];
+                    let r:&PDBComp = &query_pdb.chains[q_chainindex].residues[query_cas_index[ss[s]]];
                     for aa in r.iter_atoms(){
                         res_str.push(aa.get_pdb_atom_line_string(
                             chainname,
@@ -940,12 +969,14 @@ fn main_comparative_domain_split(args:HashMap<String,String>) {
                 write_to_file(&(outfile_pdb.clone()+"."+&sii.to_string()+".pdb"),res_str);
             }
         }
-        
+    */
 }
 
 
 fn main_str_align(args:HashMap<String,String>) {
     
+    panic!("not implemented");
+    /*
     if args.contains_key("-h"){
         eprintln!("usage:  rust_pdbloader.exe structural_alignment -query <query_pdb> -template  <template_pdb> -type <max, raw, raw_full, sw (default)> [-out <output_file>] [-out_pdb <aligned_query_pdb>]");
     }
@@ -999,8 +1030,8 @@ fn main_str_align(args:HashMap<String,String>) {
     }
 
 
-    let mut qresidues:Vec<&PDBResidue> = vec![];
-    let mut tresidues:Vec<&PDBResidue> = vec![];
+    let mut qresidues:Vec<&PDBComp> = vec![];
+    let mut tresidues:Vec<&PDBComp> = vec![];
     for cc in query_pdb.get_model_at(0).get_entity_at(0).iter_asyms(){
         if cc.chain_name == query_chain{
             for rr in cc.iter_comps(){
@@ -1064,11 +1095,13 @@ fn main_str_align(args:HashMap<String,String>) {
     }
 
     return;
-
+    */
 }
 
 
 fn main_prepare_structure(args:HashMap<String,String>) {
+    panic!("not implemented");
+    /*
     if args.contains_key("-h"){
         eprintln!("usage:  rust_pdbloader.exe prepare_structure -in <pdbfile> -out <outputfile> -resource_dir <directory contains top19.inp & param19.inp> [-random <float value>] [-random_seed <integer value>]");
     }
@@ -1130,4 +1163,5 @@ fn main_prepare_structure(args:HashMap<String,String>) {
     }
     
     write_to_file(outfilename,lines_all);
+    */
 }

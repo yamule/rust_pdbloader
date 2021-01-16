@@ -1308,7 +1308,7 @@ fn aligntest(){
 fn domain_splittest(){
     let mut pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
     let mut cas:Vec<Vec<f64>> = vec![];
-    for cc in pdb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
+    for cc in pdb.get_mut_model_at(0).get_mut_entity_at(0).iter_mut_asyms(){
         for rr in cc.iter_mut_comps(){
             for aa in rr.iter_mut_atoms(){
                 if aa.atom_code == "CA"{
@@ -1386,7 +1386,7 @@ fn pdbaligntest(){
     let res_:Option<StructuralAlignmentResult> = align_pdb(&residues_b,&residues_a,AlignmentType::SW,0.0);
     let res = res_.unwrap();
     //pdb.save("test/testrot.pdb");
-    for cc in pdb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
+    for cc in pdb.get_mut_model_at(0).get_mut_entity_at(0).iter_mut_asyms(){
         for rr in cc.iter_mut_comps(){
             for aa in rr.iter_mut_atoms(){
                 let mres = matrix_process::matrix_multi(&res.transform_matrix,&vec![vec![aa.get_x()],vec![aa.get_y()],vec![aa.get_z()],vec![1.0]]);
