@@ -175,7 +175,7 @@ impl PDBAtom{
         }
 
         //atomname についてはスペース入れたり色々する必要がある。。。Ca と CA の書き分けとか
-        
+        //mmcif は方向性のあるものは seq_id をつけて、ないものは asym でモノマー、Entity でポリマーにするっぽい
         let ret = format!("{lab:<6}{serial:>5} {atomname:<4}{alt:1}{resname:<3} {chain:1}{pos:>4}{insertion:1}   {x:>8}{y:>8}{z:>8}{occ:>6}{temp:>6}          {symbol:>2}"
             ,lab=label,serial=self.serial_number
             ,atomname=aname
@@ -883,16 +883,16 @@ impl PDBEntry{
         let mut ret:PDBEntry = PDBEntry::new();
 
         //ToDo ソートするか、順序を持っておく
-        let models:HashMap<String,Vec<usize>> = mmcifdata.get_model_map(&((0..mmcifdata.get_num_atoms()).into_iter().collect()));
+        let models:Vec<(String,Vec<usize>)> = mmcifdata.get_model_map(&((0..mmcifdata.get_num_atoms()).into_iter().collect()));
         for (_modk,modv) in models.into_iter(){
             let mut modell = PDBModel::new();
-            let entities:HashMap<String,Vec<usize>> = mmcifdata.get_entity_map(&(modv));
+            let entities:Vec<(String,Vec<usize>)> = mmcifdata.get_entity_map(&(modv));
             for (_entk,entv) in entities.into_iter(){
                 let mut entt = PDBEntity::new();
-                let asyms:HashMap<String,Vec<usize>> = mmcifdata.get_asym_map(&(entv));
+                let asyms:Vec<(String,Vec<usize>)> = mmcifdata.get_asym_map(&(entv));
                 for (asymk,asymv) in asyms.into_iter(){
                     let mut asymm = PDBAsym::new(&asymk);
-                    let comps:HashMap<String,Vec<usize>> = mmcifdata.get_comp_map(&(asymv));
+                    let comps:Vec<(String,Vec<usize>)> = mmcifdata.get_comp_map(&(asymv));
                     for (compk,compv) in comps.into_iter(){
                         if compv.len() == 0{
                             panic!("{} has no atom??",compk);

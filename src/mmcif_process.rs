@@ -14,9 +14,6 @@ const IS_MULTILINE:i64 = 0;
 const IS_SINGLELINE:i64 = 1;
 
 
-ここから
-entity_map とかで分けるとき、usize の小さいものが前に来るようにソートして返す
-
 
 const SECTION_NUMLETTER_MAX:usize = 30;//これより長いと複数行モードにされる
 
@@ -299,29 +296,29 @@ impl MMCIFEntry{
     }
 
     //与えられたインデックスのリストを Entity ごとに分ける
-    pub fn get_entity_map(&self,atom_records:&Vec<usize>)->HashMap<String,Vec<usize>>{
+    pub fn get_entity_map(&self,atom_records:&Vec<usize>)->Vec<(String,Vec<usize>)>{
         return self.get_map(atom_records,StructureHierarchyLevel::Entity);
     }
     
     //与えられたインデックスのリストを Model ごとに分ける
-    pub fn get_model_map(&self,atom_records:&Vec<usize>)->HashMap<String,Vec<usize>>{
+    pub fn get_model_map(&self,atom_records:&Vec<usize>)->Vec<(String,Vec<usize>)>{
         return self.get_map(atom_records,StructureHierarchyLevel::Model);
     }
     
     //与えられたインデックスのリストを asym ごとに分ける
-    pub fn get_asym_map(&self,atom_records:&Vec<usize>)->HashMap<String,Vec<usize>>{
+    pub fn get_asym_map(&self,atom_records:&Vec<usize>)->Vec<(String,Vec<usize>)>{
         return self.get_map(atom_records,StructureHierarchyLevel::Asym);
     }
     
     
     //与えられたインデックスのリストを comp ごとに分ける
-    pub fn get_comp_map(&self,atom_records:&Vec<usize>)->HashMap<String,Vec<usize>>{
+    pub fn get_comp_map(&self,atom_records:&Vec<usize>)->Vec<(String,Vec<usize>)>{
         return self.get_map(atom_records,StructureHierarchyLevel::Comp);
     }
 
     //インデックスのリストを分割する関数の本体
-    pub fn get_map(&self,atom_records:&Vec<usize>,lev:StructureHierarchyLevel)->HashMap<String,Vec<usize>>{
-        let mut ret:HashMap<String,Vec<usize>> = HashMap::new();
+    pub fn get_map(&self,atom_records:&Vec<usize>,lev:StructureHierarchyLevel)->Vec<(String,Vec<usize>)>{
+        let mut ret_:HashMap<String,Vec<usize>> = HashMap::new();
         for aa in atom_records.iter(){
             let ak:String = match lev{
                 StructureHierarchyLevel::Model => self.get_atom_site(*aa).get_pdbx_PDB_model_num().to_string(),
@@ -330,11 +327,16 @@ impl MMCIFEntry{
                 StructureHierarchyLevel::Comp => self.get_atom_site(*aa).get_unique_residue_label(),
                 _=> panic!("{:?} is not allowed in this function.",lev)
             };
-            if !ret.contains_key(&ak){
-                ret.insert(ak.clone(),vec![]);
+            if !ret_.contains_key(&ak){
+                ret_.insert(ak.clone(),vec![]);
             }
-            ret.get_mut(&ak).unwrap().push(*aa);
+            ret_.get_mut(&ak).unwrap().push(*aa);
         }
+        let mut ret:Vec<(String,Vec<usize>)> = ret_.into_iter().collect();
+        for rr in ret.iter_mut(){
+            rr.1.sort_by(|a,b| self.get_atom_site(*a).get_index().cmp(&self.get_atom_site(*b).get_index()));
+        }
+        ret.sort_by(|a,b|self.get_atom_site(a.1[0]).get_index().cmp(&self.get_atom_site(b.1[0]).get_index()));
         return ret;
     }
     
@@ -425,7 +427,7 @@ impl MMCIFEntry{
     }
 
     //ToDo: use auth 途中
-    pub fn load_mmcif(filename:&str,use_auth:bool)->PDBEntry{
+    pub fn load_mmcif(filename:&str)->PDBEntry{
         let mut blocks:Vec<(Vec<String>,Vec<Vec<String>>)> = parse_mmcif(filename);
         let mut atom_site_block_:Option<(Vec<String>,Vec<Vec<Box<String>>>)> = None;
         
@@ -472,12 +474,14 @@ impl MMCIFEntry{
             misc_section:misc_section
         };
         if let Some(x) = atom_site_block_{
-            let (keys,values) = x;
+            let (mut keys,values) = x;
+            keys.push(__ELEMENT_INDEX.to_string());
             let mut atoms:Vec<Vec<Box<String>>> = vec![];
-            for vv in values.into_iter(){
+            for (lcou,mut vv) in values.into_iter().enumerate(){
                 if vv.len() == 0{
                     continue;
                 }
+                vv.push(Box::new(lcou.to_string()));//インデクスの設定
                 atoms.push(vv);
             }
             ret.set_atom_site_section(keys,atoms);
@@ -657,17 +661,16 @@ pub struct MiscSection{
 
 #[allow(non_snake_case)]
 pub struct AtomSiteMut<'a>{
-    pub keymap:&'a mut HashMap<String,usize>,
-    pub values:&'a mut Vec<Box<String>>,
-    pub element_index:i64
+    pub keymap:&'a HashMap<String,usize>,
+    pub values:&'a mut Vec<Box<String>>
 }
 
 #[allow(non_snake_case)]
 impl<'a> AtomSiteMut<'a>{
     
     pub fn set_index(&mut self,i:i64){
-        //self.set_value_of(__ELEMENT_INDEX,s.to_string(),false);
-        self.element_index = i;
+        self.set_value_of(__ELEMENT_INDEX,i.to_string(),false);
+        //self.element_index = i;
     }
     
 
@@ -682,9 +685,9 @@ impl<'a> AtomSiteMut<'a>{
         }
     }
 
-    pub fn new(km:&'a mut HashMap<String,usize>,val:&'a mut Vec<Box<String>>)->AtomSiteMut<'a>{
+    pub fn new(km:&'a HashMap<String,usize>,val:&'a mut Vec<Box<String>>)->AtomSiteMut<'a>{
         return AtomSiteMut{
-            keymap:km,values:val,element_index:-1
+            keymap:km,values:val
         };
     }
 //ToDo
@@ -858,6 +861,7 @@ pub fn load_pdb(filename:&str) ->PDBEntry{
     let mut possibly_ligand = false;
     let mut current_model_num:String = "".to_owned();
     let keyvec:Vec<String> = (vec![
+        __ELEMENT_INDEX,
         _ATOM_SITE_GROUP_PDB,
         _ATOM_SITE_ID,
         _ATOM_SITE_LABEL_ATOM_ID,
@@ -891,12 +895,13 @@ pub fn load_pdb(filename:&str) ->PDBEntry{
             terflag = false;
         }
         if start_with(&sstr,"ATOM") || start_with(&sstr,"HETATM"){
-            let arecord = MMCIFEntry::parse_atom_line_pdb(&sstr,&current_model_num,&keymap);
+            let mut arecord:Vec<Box<String>> = MMCIFEntry::parse_atom_line_pdb(&sstr,&current_model_num,&keymap).into_iter().map(|m|Box::new(m)).collect();
             //println!("{:?}",arecord);
             if terflag{
                 possibly_ligand = true;
             }
-            records.push(arecord.into_iter().map(|m|Box::new(m)).collect());
+            AtomSiteMut::new(&keymap,&mut arecord).set_index(_lcount as i64);
+            records.push(arecord);
         }else if start_with(&sstr,"TER"){
             terflag = true;
         }else{
@@ -939,7 +944,7 @@ fn regextest(){
 
 #[test]
 fn mmcif_loadtest(){
-    let mmcifentry = MMCIFEntry::load_mmcif("example_files/ins_example_1a4w.cif",false);
+    let mmcifentry = MMCIFEntry::load_mmcif("example_files/ins_example_1a4w.cif");
     for mm in mmcifentry.mmcif_data.as_ref().unwrap().misc_section.iter(){//atom_site を間違うと他でエラーが出ると思う
         for ii in 0..(mm.2).len(){
             assert_eq!(mm.0.len(),mm.2[ii].len());
