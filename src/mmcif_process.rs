@@ -489,8 +489,6 @@ impl MMCIFEntry{
             panic!("can not find _atom_site. block!");
         }
 
-
-        //let ret2:PDBEntry = MMCIFEntry::atomsite_to_entry(&ret,use_auth);
         let ret2:PDBEntry = PDBEntry::prepare_entry(ret);
         return ret2;
     }
@@ -502,62 +500,6 @@ impl MMCIFEntry{
         }
         return ret;
     }
-    pub fn atomsite_to_entry(mmcif:&MMCIFEntry,use_auth:bool)->PDBEntry{
-        
-    
-        let asym_id_label:String;
-        let _atom_id_label:String;//CA とか CB とか atom_name
-        let comp_id_label:String;
-        let seq_id_label:String;
-        if use_auth{
-            asym_id_label = _ATOM_SITE_AUTH_ASYM_ID.to_string();
-            comp_id_label = _ATOM_SITE_AUTH_COMP_ID.to_string();
-            _atom_id_label = _ATOM_SITE_AUTH_ATOM_ID.to_string();
-            seq_id_label = _ATOM_SITE_AUTH_SEQ_ID.to_string();
-        }else{
-            asym_id_label = _ATOM_SITE_LABEL_ASYM_ID.to_string();
-            comp_id_label = _ATOM_SITE_LABEL_COMP_ID.to_string();
-            _atom_id_label = _ATOM_SITE_LABEL_ATOM_ID.to_string();
-            seq_id_label = _ATOM_SITE_LABEL_SEQ_ID.to_string();
-        }
-        
-        //let asym_id_:usize = *atom_site_map.get(&asym_id_label).unwrap_or_else(||panic!("{} is not defined.",asym_id_label));
-        //let comp_id_:usize = *atom_site_map.get(&comp_id_label).unwrap_or_else(||panic!("{} is not defined.",comp_id_label));
-        //let seq_id_:usize = *atom_site_map.get(&seq_id_label).unwrap_or_else(||panic!("{} is not defined.",seq_id_label));
-        //let atom_id_:usize = *atom_site_map.get(&atom_id_label).unwrap_or_else(||panic!("{} is not defined.",atom_id_label));
-        let atom_sites:Vec<AtomSiteMut> = vec![];
-        
-        let mut ret:PDBEntry = PDBEntry::new();
-        let mut chains:HashMap<String,Vec<Vec<&AtomSiteMut>>> = HashMap::new();
-        let mut chains:HashMap<String,Vec<Vec<&AtomSiteMut>>> = HashMap::new();
-        let mut chains_rindex:HashMap<String,HashMap<String,usize>> = HashMap::new();
-        let atom_site_map:HashMap<String,usize> = MMCIFEntry::get_key_index_map(&mmcif.atom_site.0);
-    
-        for (_aii,aa) in mmcif.atom_site.2.iter().enumerate(){
-            let a_site = AtomSite::new(&mmcif.atom_site.1, &aa);
-            let model_id:&str = a_site.get_value_of(_ATOM_SITE_PDBX_PDB_MODEL_NUM);
-            let entity_id:&str = a_site.get_value_of(_ATOM_SITE_LABEL_ENTITY_ID);
-            let asym_id:&str = a_site.get_value_of(&asym_id_label);
-            let comp_id:&str = a_site.get_value_of(&comp_id_label);
-            let seq_id:&str = a_site.get_value_of(&seq_id_label);
-
-
-        }
-    /*
-        for (cii,cc) in ret.get_all_asyms().iter().enumerate(){
-            for (rii,rr) in cc.iter_comps().enumerate(){
-                assert_eq!(cii as i64,rr.parent_chain.unwrap());
-                for (_aii,aa) in rr.iter_atoms().enumerate(){
-                    assert_eq!(cii as i64,aa.parent_chain.unwrap());
-                    assert_eq!(rii as i64,aa.parent_residue.unwrap());
-                    //println!("{} {} {} {} {} {} ",cc.chain_name,rr.get_comp_id(),aa.atom_code,aa.get_x(),aa.get_y(),aa.get_z());
-                }
-            }
-        }
-    */
-        return ret;
-    }
-    
 
     //それぞれのセクションが持っているのは
     //(Vec<key>,Vec<Vec<value>>) というタプルであるべきで、それを MMCIF フォーマットに整形する。
