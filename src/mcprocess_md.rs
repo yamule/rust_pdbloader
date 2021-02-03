@@ -115,7 +115,7 @@ pub fn random_movement(envv:&mut charmm_based_energy::CharmmEnv,maxval:f64,targe
         );
     }
 }
-pub fn copy_xyz_tmp_to_atom(src:&Vec<(f64,f64,f64)>,dest:&mut Vec<charmm_based_energy::MDAtom>){
+pub fn copy_xyz_tmp_to_atom(src:&Vec<(f64,f64,f64)>,dest:&mut Vec<charmm_based_energy::FFAtom>){
 
     for (ii,aa) in src.iter().enumerate(){
         dest[ii].set_x(aa.0);
@@ -124,7 +124,7 @@ pub fn copy_xyz_tmp_to_atom(src:&Vec<(f64,f64,f64)>,dest:&mut Vec<charmm_based_e
     }
 }
 
-pub fn copy_xyz_atom_to_tmp(src:& Vec<charmm_based_energy::MDAtom>,dest:&mut Vec<(f64,f64,f64)>){
+pub fn copy_xyz_atom_to_tmp(src:& Vec<charmm_based_energy::FFAtom>,dest:&mut Vec<(f64,f64,f64)>){
 
     for (ii,aa) in src.iter().enumerate(){
         dest[ii].0 = aa.get_x();
@@ -136,7 +136,7 @@ pub fn copy_xyz_atom_to_tmp(src:& Vec<charmm_based_energy::MDAtom>,dest:&mut Vec
 
 
 //原子ごとに評価して、原子ごとに MH 基準で採択する
-pub fn mc_iter_array(md_envset:&mut charmm_based_energy::CharmmEnv
+pub fn mc_iter_array(ff_envset:&mut charmm_based_energy::CharmmEnv
     ,md_varset:&mut charmm_based_energy::CharmmVars
     ,reference_dist:&Vec<Vec<f64>>
     ,distatom_indices:&Vec<usize>
@@ -158,21 +158,21 @@ pub fn mc_iter_array(md_envset:&mut charmm_based_energy::CharmmEnv
     let mut tmpatoms:Vec<(f64,f64,f64)> =vec![];
     let mut tmpatoms_prevpos:Vec<(f64,f64,f64)> =vec![];
 
-    for aa in md_envset.atoms.iter(){
+    for aa in ff_envset.atoms.iter(){
         tmpatoms.push((aa.get_x(),aa.get_y(),aa.get_z()));
         tmpatoms_prevpos.push((aa.get_x(),aa.get_y(),aa.get_z()));
     }
 
 
 
-    let mut current_drmsds:Vec<f64> = vec![std::f64::NEG_INFINITY;md_envset.atoms.len()];
-    let mut prev_scores:Vec<f64> = vec![std::f64::NEG_INFINITY;md_envset.atoms.len()];
-    let mut current_scores:Vec<f64> = vec![std::f64::NEG_INFINITY;md_envset.atoms.len()];
+    let mut current_drmsds:Vec<f64> = vec![std::f64::NEG_INFINITY;ff_envset.atoms.len()];
+    let mut prev_scores:Vec<f64> = vec![std::f64::NEG_INFINITY;ff_envset.atoms.len()];
+    let mut current_scores:Vec<f64> = vec![std::f64::NEG_INFINITY;ff_envset.atoms.len()];
 
-    let mut mov_weight:Vec<f64> = vec![1.0;md_envset.atoms.len()];
+    let mut mov_weight:Vec<f64> = vec![1.0;ff_envset.atoms.len()];
     let mut unplacedflag:bool = false;
-    for ii in 0.. md_envset.atoms.len(){
-        if md_envset.atoms[ii].unplaced{
+    for ii in 0.. ff_envset.atoms.len(){
+        if ff_envset.atoms[ii].unplaced{
             unplacedflag = true;
             break;
         }
@@ -197,40 +197,40 @@ pub fn mc_iter_array(md_envset:&mut charmm_based_energy::CharmmEnv
         }
         
         if unplacedflag && (_ii as f64) < iternum as f64*0.25{ 
-            for ii in 0.. md_envset.atoms.len(){
-                if md_envset.atoms[ii].unplaced{
+            for ii in 0.. ff_envset.atoms.len(){
+                if ff_envset.atoms[ii].unplaced{
                     mov_weight[ii] = 1.0;
                 }else{
                     mov_weight[ii] = 0.0;
                 }
             }
         }else{
-            for ii in 0.. md_envset.atoms.len(){
+            for ii in 0.. ff_envset.atoms.len(){
                 mov_weight[ii] = 1.0;
                
             }
         }
-        for ii in 0.. md_envset.atoms.len(){
-            tmpatoms_prevpos[ii].0 = md_envset.atoms[ii].get_x();
-            tmpatoms_prevpos[ii].1 = md_envset.atoms[ii].get_y();
-            tmpatoms_prevpos[ii].2 = md_envset.atoms[ii].get_z();
+        for ii in 0.. ff_envset.atoms.len(){
+            tmpatoms_prevpos[ii].0 = ff_envset.atoms[ii].get_x();
+            tmpatoms_prevpos[ii].1 = ff_envset.atoms[ii].get_y();
+            tmpatoms_prevpos[ii].2 = ff_envset.atoms[ii].get_z();
         }
-        random_movement(md_envset,mov,num_moveatom,& mut rgen,&mov_weight);
+        random_movement(ff_envset,mov,num_moveatom,& mut rgen,&mov_weight);
 
-        drmsd_array_sparse(md_envset, reference_dist,&distatom_indices,&mut current_drmsds);
+        drmsd_array_sparse(ff_envset, reference_dist,&distatom_indices,&mut current_drmsds);
         
         //println!("Calculated drmsd.");
-        let current_drmsd = drmsd_sparse(md_envset, reference_dist,&distatom_indices);
+        let current_drmsd = drmsd_sparse(ff_envset, reference_dist,&distatom_indices);
         
         //この段階では高い方が良くない値が current_scores に入る
-        let scoresum = charmm_based_energy::calc_energy(md_envset,md_varset,&mut current_scores);
+        let scoresum = charmm_based_energy::calc_energy(ff_envset,md_varset,&mut current_scores);
         
         //println!("Calculated energy.");
         println!("iter: {} drmsd: {} energy:{:?}",_ii,current_drmsd,scoresum);
         
         //高い方が良い値に変換する
         for uu in 0..current_scores.len(){
-            current_scores[uu] = 1.0/(current_scores[uu] +1000.0*md_envset.atoms.len() as f64);
+            current_scores[uu] = 1.0/(current_scores[uu] +1000.0*ff_envset.atoms.len() as f64);
         }
         for ii in 0..distatom_indices.len(){
             let sparseidx:usize = distatom_indices[ii];
@@ -254,7 +254,7 @@ pub fn mc_iter_array(md_envset:&mut charmm_based_energy::CharmmEnv
                 }
             }else{
                 for ii in 0..current_scores.len(){
-                        md_envset.atoms[ii].set_xyz(tmpatoms_prevpos[ii].0,tmpatoms_prevpos[ii].1,tmpatoms_prevpos[ii].2);
+                        ff_envset.atoms[ii].set_xyz(tmpatoms_prevpos[ii].0,tmpatoms_prevpos[ii].1,tmpatoms_prevpos[ii].2);
                 }
             }
         }else{
@@ -272,7 +272,7 @@ pub fn mc_iter_array(md_envset:&mut charmm_based_energy::CharmmEnv
                     prev_scores[ii] = current_score;
                 }else{
                     //前の状態に戻す
-                    md_envset.atoms[ii].set_xyz(tmpatoms_prevpos[ii].0,tmpatoms_prevpos[ii].1,tmpatoms_prevpos[ii].2);
+                    ff_envset.atoms[ii].set_xyz(tmpatoms_prevpos[ii].0,tmpatoms_prevpos[ii].1,tmpatoms_prevpos[ii].2);
                 }
             }
         }
@@ -280,7 +280,7 @@ pub fn mc_iter_array(md_envset:&mut charmm_based_energy::CharmmEnv
             break;
         }
     }
-    let current_drmsd = drmsd_sparse(&md_envset, reference_dist,&distatom_indices);
+    let current_drmsd = drmsd_sparse(&ff_envset, reference_dist,&distatom_indices);
     println!("result: {}",current_drmsd);
 }
 
@@ -296,13 +296,13 @@ fn ca_mc_md_test(){
 
     let mut ca_atoms_pos:Vec<(usize,(f64,f64,f64))> = vec![];
     
-    charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter().fold(vec![],|mut s,m|{s.append(&mut  m.iter_comps().collect());s}).map(|m|*m).collect());
+    charmm_based_energy::FFAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter().fold(vec![],|mut s,m|{s.append(&mut  m.iter_comps().collect());s}).map(|m|*m).collect());
 
-    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars)
-     = charmm_based_energy::MDAtom::chain_to_atoms(&vec![pdbb.get_all_asyms()],&parr,true);
+    let (mut ff_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars)
+     = charmm_based_energy::FFAtom::chain_to_atoms(&vec![pdbb.get_all_asyms()],&parr,true);
 
-    let mut ca_md:Vec<&charmm_based_energy::MDAtom> = vec![];
-    for (_rii,aa) in md_envset.atoms.iter().enumerate(){
+    let mut ca_md:Vec<&charmm_based_energy::FFAtom> = vec![];
+    for (_rii,aa) in ff_envset.atoms.iter().enumerate(){
         if aa.atom_name == "CA"{
         //後のステップでCA が全ての AA について 1 つずつ存在し、Residue 順に Vector に加えられているとみなしている。
             ca_md.push(aa);
@@ -340,11 +340,11 @@ fn ca_mc_md_test(){
         }
     }
 
-    let num_atoms = md_envset.atoms.len();
+    let num_atoms = ff_envset.atoms.len();
     println!("Params were loaded.");
-    mc_iter_array(&mut md_envset,&mut md_varset,&ref_dist,&ca_indices,10,Some(123),num_atoms);
+    mc_iter_array(&mut ff_envset,&mut md_varset,&ref_dist,&ca_indices,10,Some(123),num_atoms);
     let mut lines:Vec<String> = vec![];
-    for aa in md_envset.atoms.iter(){
+    for aa in ff_envset.atoms.iter(){
         let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
         lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
     }

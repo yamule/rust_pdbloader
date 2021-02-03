@@ -261,7 +261,7 @@ pub fn try_mapping(fastafiles:&Vec<String>,backbonedir:&str,rotamerdir:&str,rand
 }
 
 
-pub fn load_missing_and_freezed_atoms(flag_file:&str,atoms:&Vec<charmm_based_energy::MDAtom>)->(HashSet<usize>,HashSet<usize>){
+pub fn load_missing_and_freezed_atoms(flag_file:&str,atoms:&Vec<charmm_based_energy::FFAtom>)->(HashSet<usize>,HashSet<usize>){
     let file = File::open(flag_file).unwrap();
     let reader = BufReader::new(file);
     let lines:Vec<String> = reader.lines().into_iter().map(|m| m.unwrap().to_string()).collect();
@@ -311,7 +311,7 @@ pub fn load_missing_and_freezed_atoms(flag_file:&str,atoms:&Vec<charmm_based_ene
 }
 
 
-pub fn load_group_atoms(flag_file:&str,atoms:&Vec<charmm_based_energy::MDAtom>)->Vec<Vec<usize>>{
+pub fn load_group_atoms(flag_file:&str,atoms:&Vec<charmm_based_energy::FFAtom>)->Vec<Vec<usize>>{
     let file = File::open(flag_file).unwrap();
     let reader = BufReader::new(file);
     let lines:Vec<String> = reader.lines().into_iter().map(|m| m.unwrap().to_string()).collect();
@@ -370,7 +370,7 @@ pub fn load_group_atoms(flag_file:&str,atoms:&Vec<charmm_based_energy::MDAtom>)-
     }
     return ret;
 }
-pub fn make_residue_group(atoms:&Vec<charmm_based_energy::MDAtom>)->Vec<Vec<usize>>{
+pub fn make_residue_group(atoms:&Vec<charmm_based_energy::FFAtom>)->Vec<Vec<usize>>{
     let mut hss:HashMap<String,Vec<usize>> = HashMap::new();
     for (aii,aa) in atoms.iter().enumerate(){
         let chain_resnum:String = aa.chain_name.to_string()+"#"+aa.residue_number.to_string().as_str();
@@ -422,7 +422,7 @@ pub fn make_residue_group(atoms:&Vec<charmm_based_energy::MDAtom>)->Vec<Vec<usiz
     return ret;
 }
 
-pub fn get_sidechain_atoms(atoms:&Vec<charmm_based_energy::MDAtom>)->HashSet<usize>{
+pub fn get_sidechain_atoms(atoms:&Vec<charmm_based_energy::FFAtom>)->HashSet<usize>{
     let mut ret:HashSet<usize> = HashSet::new();    
     for (aii,aa) in atoms.iter().enumerate(){
         if aa.atom_name == "CA"
@@ -435,7 +435,7 @@ pub fn get_sidechain_atoms(atoms:&Vec<charmm_based_energy::MDAtom>)->HashSet<usi
     }
     return ret;
 }
-pub fn get_backbone_atoms(atoms:&Vec<charmm_based_energy::MDAtom>)->HashSet<usize>{
+pub fn get_backbone_atoms(atoms:&Vec<charmm_based_energy::FFAtom>)->HashSet<usize>{
     let mut ret:HashSet<usize> = HashSet::new();    
     for (aii,aa) in atoms.iter().enumerate(){
         if aa.atom_name == "CA"
@@ -542,7 +542,7 @@ pub fn fit_to_chain_template(sub_energyset:&mut PPEnergySet,sub_chain:&Vec<Vec<u
             
             let mut rvec:Vec<&mut dyn Vector3D> = vec![];
             let hss:HashSet<usize> = avv[q_idx[qq]].iter().map(|m|*m).collect();
-            for (zii,z) in sub_energyset.evoef2_env.md_envset.atoms.iter_mut().enumerate(){
+            for (zii,z) in sub_energyset.evoef2_env.ff_envset.atoms.iter_mut().enumerate(){
                 if hss.contains(&zii){
                     rvec.push(z);
                 }
@@ -621,7 +621,7 @@ pub fn load_contact_file(filename:&str)->Vec<(String,String,f64)>{
     return ret;
 }
 
-pub fn get_md_residue_key_from_atom(atom:&charmm_based_energy::MDAtom)->(String,i64){
+pub fn get_md_residue_key_from_atom(atom:&charmm_based_energy::FFAtom)->(String,i64){
     return (atom.chain_name.clone(),atom.residue_index_in_chain);
 }
 
@@ -739,7 +739,7 @@ pub fn merge_structure(
             ,random_seed.clone()
             ,0
             ,outfile);
-        let mdatomnum = res.evoef2_env.md_envset.atoms.len();
+        let mdatomnum = res.evoef2_env.ff_envset.atoms.len();
         let mut atom_level_energy:Vec<f64> = vec![0.0;mdatomnum];
         let ene:f64 = res.calc_energy(&mut atom_level_energy);
         if top_x > 0{
@@ -802,18 +802,18 @@ pub fn docking(pdbb:pdbdata::PDBEntry
         }
     }
     let parr = charmm_param::CHARMMParam::load_chamm19(topfile,paramfile);
-    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_all_asyms().iter().collect(),&parr,true);
+    let (mut ff_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::FFAtom::chain_to_atoms(&pdbb.get_all_asyms().iter().collect(),&parr,true);
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(
         &backbone_dihedral_angle_file);
-    let (torsion,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,false,true),false);
+    let (torsion,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&ff_envset,(false,false,true),false);
 
     let mut distbe:Vec<distance_energy::AtomBinnedDistanceEnergy> = vec![];
     if cb_distance_file.len() > 0{
         let dist_bvvec:Vec<(String,usize,String,usize,distance_energy::AtomBinnedDistanceEnergy)> = distance_energy::AtomBinnedDistanceEnergy::load_name_mapped(cb_distance_file);
-        distbe = distance_energy::AtomBinnedDistanceEnergy::assign_atom_ids(&md_envset,dist_bvvec);
+        distbe = distance_energy::AtomBinnedDistanceEnergy::assign_atom_ids(&ff_envset,dist_bvvec);
     }
-    let mut dummy:Vec<f64> = vec![0.0;md_envset.atoms.len()];
-    let scoresum = charmm_based_energy::calc_energy(&mut md_envset,&md_varset,&mut dummy);
+    let mut dummy:Vec<f64> = vec![0.0;ff_envset.atoms.len()];
+    let scoresum = charmm_based_energy::calc_energy(&mut ff_envset,&md_varset,&mut dummy);
     println!("energy:{:?}",scoresum);
    
     //dihed が重複して計算されているのでウェイトをつける。今は適当に 0.5
@@ -824,7 +824,7 @@ pub fn docking(pdbb:pdbdata::PDBEntry
     }
 
     let mut ppenergyset = PPEnergySet{
-        evoef2_env:evoef2_energy::EvoEF2Env::new(md_envset,md_varset,evoefdir,false),
+        evoef2_env:evoef2_energy::EvoEF2Env::new(ff_envset,md_varset,evoefdir,false),
         backbone_energy_omega:omegas_general,
         backbone_energy_phi_psi:torsion,
         atom_distance_energy:vec![],
@@ -840,9 +840,9 @@ pub fn docking(pdbb:pdbdata::PDBEntry
     ppenergyset.weights.backbone_energy_omega = 1.0;
 
 
-    let sorted_atoms:HashMap<String,Vec<Vec<usize>>> = pp_energy_mc::make_sorted_residue_group(&ppenergyset.evoef2_env.md_envset.atoms);
+    let sorted_atoms:HashMap<String,Vec<Vec<usize>>> = pp_energy_mc::make_sorted_residue_group(&ppenergyset.evoef2_env.ff_envset.atoms);
     let mut groupatoms:Vec<Vec<usize>> = if let Some(x) = groupfile.as_ref(){
-        load_group_atoms(&x,&ppenergyset.evoef2_env.md_envset.atoms)
+        load_group_atoms(&x,&ppenergyset.evoef2_env.ff_envset.atoms)
     }else{
         panic!("This mode needs group!");
     };
@@ -851,7 +851,7 @@ pub fn docking(pdbb:pdbdata::PDBEntry
     groupatoms.reverse();
     
     let mut residue_label_to_indexinchain:HashMap<String,(String,i64)> = HashMap::new();
-    for aa in ppenergyset.evoef2_env.md_envset.atoms.iter(){
+    for aa in ppenergyset.evoef2_env.ff_envset.atoms.iter(){
         let label:String = aa.chain_name.clone()+"#"+&(aa.residue_number.to_string())+"#"+&aa.residue_ins_code;
         if !residue_label_to_indexinchain.contains_key(&label){
             //println!("{:?}",(aa.chain_name.clone(),aa.residue_index_in_chain));
@@ -939,7 +939,7 @@ pub fn docking(pdbb:pdbdata::PDBEntry
             base.insert(mm);
         }
         let mut lines:Vec<String> = vec![];
-        for (_,aa) in ppenergyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+        for (_,aa) in ppenergyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
             let  (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
             lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
         }
@@ -1303,8 +1303,8 @@ pub fn zatsuna_docking(ppenergyset:&mut PPEnergySet
     for ii in 0..num_subatom{
         sub_energyset.get_atom_mut(ii).set_xyz(min_pos[ii].0+base_center.0,min_pos[ii].1+base_center.1,min_pos[ii].2+base_center.2);
     }
-    charmm_based_energy::CharmmEnv::accept_subenv_atom(&mut ppenergyset.evoef2_env.md_envset
-        ,&sub_energyset.evoef2_env.md_envset,&submapper);
+    charmm_based_energy::CharmmEnv::accept_subenv_atom(&mut ppenergyset.evoef2_env.ff_envset
+        ,&sub_energyset.evoef2_env.ff_envset,&submapper);
 }
 
 pub struct RebuildParam{
@@ -1380,21 +1380,21 @@ pub fn refinement(pdbb:pdbdata::PDBEntry
         }
     }
     
-    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_all_asyms().iter().map(|m|m).collect(),&parr,true);
+    let (mut ff_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::FFAtom::chain_to_atoms(&pdbb.get_all_asyms().iter().map(|m|m).collect(),&parr,true);
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(
         &backbone_dihedral_angle_file);
-    let (torsion,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,false,true),false);
+    let (torsion,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&ff_envset,(false,false,true),false);
 
     let mut distbe:Vec<distance_energy::AtomBinnedDistanceEnergy> = vec![];
     if cb_distance_file.len() > 0{
         let dist_bvvec:Vec<(String,usize,String,usize,distance_energy::AtomBinnedDistanceEnergy)> = distance_energy::AtomBinnedDistanceEnergy::load_name_mapped(cb_distance_file);
-        distbe = distance_energy::AtomBinnedDistanceEnergy::assign_atom_ids(&md_envset,dist_bvvec);
+        distbe = distance_energy::AtomBinnedDistanceEnergy::assign_atom_ids(&ff_envset,dist_bvvec);
     }
 
 
-    let mut dummy:Vec<f64> = vec![0.0;md_envset.atoms.len()];
-    md_envset.update_distance();
-    let scoresum = charmm_based_energy::calc_energy(&mut md_envset,&md_varset,&mut dummy);
+    let mut dummy:Vec<f64> = vec![0.0;ff_envset.atoms.len()];
+    ff_envset.update_distance();
+    let scoresum = charmm_based_energy::calc_energy(&mut ff_envset,&md_varset,&mut dummy);
     println!("energy:{:?}",scoresum);
    
     //dihed が重複して計算されているのでウェイトをつける。今は適当に 0.5
@@ -1405,9 +1405,9 @@ pub fn refinement(pdbb:pdbdata::PDBEntry
     }
 
     //対象の全原子数
-    let num_atoms:usize = md_envset.atoms.len();
+    let num_atoms:usize = ff_envset.atoms.len();
     let mut ppenergyset = PPEnergySet{
-        evoef2_env:evoef2_energy::EvoEF2Env::new(md_envset,md_varset,evoefdir,false),
+        evoef2_env:evoef2_energy::EvoEF2Env::new(ff_envset,md_varset,evoefdir,false),
         backbone_energy_omega:omegas_general,
         backbone_energy_phi_psi:torsion,
         atom_distance_energy:vec![],
@@ -1431,7 +1431,7 @@ pub fn refinement(pdbb:pdbdata::PDBEntry
     let mut residue_fixed:HashMap<String,HashSet<i64>> = HashMap::new();
     let mut residue_missing:HashMap<String,HashSet<usize>> = HashMap::new();
     if let Some(x) = flagfile{
-        let (missing,freezed) = load_missing_and_freezed_atoms(&x,&ppenergyset.evoef2_env.md_envset.atoms);
+        let (missing,freezed) = load_missing_and_freezed_atoms(&x,&ppenergyset.evoef2_env.ff_envset.atoms);
         for ii in 0..num_atoms{
             if !residue_fixed.contains_key(&ppenergyset.get_atom(ii).chain_name){
                 residue_fixed.insert(ppenergyset.get_atom(ii).chain_name.clone(),HashSet::new());
@@ -1461,17 +1461,17 @@ pub fn refinement(pdbb:pdbdata::PDBEntry
     //}
     
 
-    let sorted_atoms:HashMap<String,Vec<Vec<usize>>> = pp_energy_mc::make_sorted_residue_group(&ppenergyset.evoef2_env.md_envset.atoms);
+    let sorted_atoms:HashMap<String,Vec<Vec<usize>>> = pp_energy_mc::make_sorted_residue_group(&ppenergyset.evoef2_env.ff_envset.atoms);
     
 
     let groupatoms:Vec<Vec<usize>> = if let Some(x) = groupfile.as_ref(){
-        load_group_atoms(&x,&ppenergyset.evoef2_env.md_envset.atoms)
+        load_group_atoms(&x,&ppenergyset.evoef2_env.ff_envset.atoms)
     }else{
         vec![]
     };
 
     let mut residue_label_to_indexinchain:HashMap<String,(String,i64)> = HashMap::new();
-    for aa in ppenergyset.evoef2_env.md_envset.atoms.iter(){
+    for aa in ppenergyset.evoef2_env.ff_envset.atoms.iter(){
         let label:String = aa.chain_name.clone()+"#"+&(aa.residue_number.to_string())+"#"+&aa.residue_ins_code;
         if !residue_label_to_indexinchain.contains_key(&label){
             //println!("{:?}",(aa.chain_name.clone(),aa.residue_index_in_chain));
@@ -1700,7 +1700,7 @@ pub fn refinement(pdbb:pdbdata::PDBEntry
                 
                 let rss:u64 = rgen.gen_range(0,std::u64::MAX);
                 ppenergyset.update_edges(prr.inv_edge.max(4)+1);
-                let res_in_chain:HashMap<String,Vec<Vec<usize>>> = pp_energy_mc::make_sorted_residue_group(&ppenergyset.evoef2_env.md_envset.atoms);
+                let res_in_chain:HashMap<String,Vec<Vec<usize>>> = pp_energy_mc::make_sorted_residue_group(&ppenergyset.evoef2_env.ff_envset.atoms);
 
                 if templates.len() > 0 && para.use_template{
                     for tt in templates.iter(){
@@ -1752,7 +1752,7 @@ pub fn refinement(pdbb:pdbdata::PDBEntry
                     println!("improve: {}",ediff);
                     if checkpoint > 0 && check_count%checkpoint == 0{
                         let mut lines:Vec<String> = vec![];
-                        for (aii,aa) in ppenergyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+                        for (aii,aa) in ppenergyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
                             let  (chainid,(resname,resnum,altcode),mut att) = aa.to_pdbatom();
                             att.temp_factor = atom_based_energies[aii].max(0.0).min(999.0);
                             lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
@@ -1805,8 +1805,8 @@ pub fn build_missing(ppenergyset:&mut PPEnergySet
     ){
     
     let normal_distribution:Normal<f64> = Normal::new(0.0,sigma).unwrap();
-    let anum:usize = ppenergyset.evoef2_env.md_envset.atoms.len();
-    let orig_pos:Vec<(f64,f64,f64)> = ppenergyset.evoef2_env.md_envset.atoms.iter().map(|m|m.get_xyz()).collect();
+    let anum:usize = ppenergyset.evoef2_env.ff_envset.atoms.len();
+    let orig_pos:Vec<(f64,f64,f64)> = ppenergyset.evoef2_env.ff_envset.atoms.iter().map(|m|m.get_xyz()).collect();
     let mut n_ca_c_cb:HashMap<String,Vec<(i64,i64,i64,i64)>> = HashMap::new();
     let mut residue_placed:HashMap<String,HashSet<usize>> = HashMap::new();
 
@@ -2228,7 +2228,7 @@ pub fn build_missing(ppenergyset:&mut PPEnergySet
 
                 /*
                 let mut lines:Vec<String> = vec![];
-                for (aii,aa) in sub_energyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+                for (aii,aa) in sub_energyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
                     let  (chainid,(resname,resnum,altcode),mut att) = aa.to_pdbatom();
                     att.temp_factor = subatom_based_energies[aii].max(0.0).min(999.0);
                     lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
@@ -2372,29 +2372,29 @@ pub fn calc_energies(pdbfile:&str
     let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb(pdbfile);
     for cc in pdbb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
         cc.remove_alt(None);
-        charmm_based_energy::MDAtom::change_to_charmmnames(&mut cc.iter_mut_comps().map(|m|*m).collect());
+        charmm_based_energy::FFAtom::change_to_charmmnames(&mut cc.iter_mut_comps().map(|m|*m).collect());
     }
-    let (md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_all_asyms().iter().map(|m|m).collect(),&parr,true);
+    let (ff_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::FFAtom::chain_to_atoms(&pdbb.get_all_asyms().iter().map(|m|m).collect(),&parr,true);
     
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(
         &backbone_dihedral_angle_file);
-    let (torsion,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,true,false),false);
+    let (torsion,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&ff_envset,(false,true,false),false);
     
     let mut distbe:Vec<distance_energy::AtomBinnedDistanceEnergy> = vec![];
     let masked:Vec<usize> = peptide_backbone_dihedral_energy::get_overwrapping_dihed(&md_varset.dihedvec,&torsion,&omegas_general);
 
     if cb_distance_file.len() > 0{
         let dist_bvvec:Vec<(String,usize,String,usize,distance_energy::AtomBinnedDistanceEnergy)> = distance_energy::AtomBinnedDistanceEnergy::load_name_mapped("test/6F3H_B.cbdistbin.dat");
-        distbe = distance_energy::AtomBinnedDistanceEnergy::assign_atom_ids(&md_envset,dist_bvvec);
+        distbe = distance_energy::AtomBinnedDistanceEnergy::assign_atom_ids(&ff_envset,dist_bvvec);
     }
 
     let mut weight_dihed = vec![1.0;md_varset.dihedvec.len()];
     for ii in masked.into_iter(){
         weight_dihed[ii] = 0.0;
     }
-    let num_atoms:usize = md_envset.atoms.len();
+    let num_atoms:usize = ff_envset.atoms.len();
     let mut ppenergyset = PPEnergySet{
-        evoef2_env:evoef2_energy::EvoEF2Env::new(md_envset,md_varset,evoefdir,false),
+        evoef2_env:evoef2_energy::EvoEF2Env::new(ff_envset,md_varset,evoefdir,false),
         backbone_energy_omega:omegas_general,
         backbone_energy_phi_psi:torsion,
         atom_distance_energy:vec![],
@@ -2411,7 +2411,7 @@ pub fn calc_energies(pdbfile:&str
     let mut atom_based_energies:Vec<f64> = vec![0.0;num_atoms];
     let pres = ppenergyset.calc_energy(&mut atom_based_energies);
     println!("energy:{}",pres);
-    for (aii,aa) in ppenergyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+    for (aii,aa) in ppenergyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
         let  (chainid,(resname,resnum,altcode),mut att) = aa.to_pdbatom();
         att.temp_factor = atom_based_energies[aii].max(0.0).min(999.0);
         lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
@@ -2420,7 +2420,7 @@ pub fn calc_energies(pdbfile:&str
 
 
     let mut sparse_atoms:Vec<usize> = vec![];
-    for (aii,aa) in ppenergyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+    for (aii,aa) in ppenergyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
         if aa.atom_name == "CA"
         || aa.atom_name == "CB" 
         || aa.atom_name == "C" 
@@ -2455,7 +2455,7 @@ pub fn calc_energies(pdbfile:&str
     let mut subatom_based_energies:Vec<f64> = vec![0.0;subatomnum];             
     let pres = sub_energyset.calc_energy(&mut subatom_based_energies);
     let mut lines:Vec<String> = vec![];
-    for (aii,aa) in sub_energyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+    for (aii,aa) in sub_energyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
         let  (chainid,(resname,resnum,altcode),mut att) = aa.to_pdbatom();
         att.temp_factor = subatom_based_energies[aii].max(0.0).min(999.0);
         lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));

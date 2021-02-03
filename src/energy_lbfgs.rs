@@ -364,14 +364,14 @@ fn calc_enegy_with_beta(
 	for ii in 0..betas.len(){
 		let prevval:f64;
 		if betas[ii].2 == X{
-			prevval = energyset.evoef2_env.md_envset.atoms[betas[ii].1].get_x();
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_x(prevval+betas[ii].0);
+			prevval = energyset.evoef2_env.ff_envset.atoms[betas[ii].1].get_x();
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_x(prevval+betas[ii].0);
 		}else if betas[ii].2 == Y{
-			prevval = energyset.evoef2_env.md_envset.atoms[betas[ii].1].get_y();
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_y(prevval+betas[ii].0);
+			prevval = energyset.evoef2_env.ff_envset.atoms[betas[ii].1].get_y();
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_y(prevval+betas[ii].0);
 		}else{
-			prevval = energyset.evoef2_env.md_envset.atoms[betas[ii].1].get_z();
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_z(prevval+betas[ii].0);
+			prevval = energyset.evoef2_env.ff_envset.atoms[betas[ii].1].get_z();
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_z(prevval+betas[ii].0);
 		}
 		buff_array[ii] = prevval;
 	}
@@ -380,11 +380,11 @@ fn calc_enegy_with_beta(
 
 	for ii in 0..betas.len(){
 		if betas[ii].2 == X{
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_x(buff_array[ii]);
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_x(buff_array[ii]);
 		}else if betas[ii].2 == Y{
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_y(buff_array[ii]);
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_y(buff_array[ii]);
 		}else{
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_z(buff_array[ii]);
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_z(buff_array[ii]);
 		}
 	}
 	energyset.update_distance();
@@ -404,24 +404,24 @@ fn calc_fprime(betas:&Vec<(f64,usize,usize)>
 	for ii in 0..betas.len(){
 		let prevval:f64;
 		if betas[ii].2 == X{
-			prevval = energyset.evoef2_env.md_envset.atoms[betas[ii].1].get_x();
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_x(prevval+betas[ii].0+FPRIME_EPSILON);
+			prevval = energyset.evoef2_env.ff_envset.atoms[betas[ii].1].get_x();
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_x(prevval+betas[ii].0+FPRIME_EPSILON);
 		}else if betas[ii].2 == Y{
-			prevval = energyset.evoef2_env.md_envset.atoms[betas[ii].1].get_y();
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_y(prevval+betas[ii].0+FPRIME_EPSILON);
+			prevval = energyset.evoef2_env.ff_envset.atoms[betas[ii].1].get_y();
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_y(prevval+betas[ii].0+FPRIME_EPSILON);
 		}else{
-			prevval = energyset.evoef2_env.md_envset.atoms[betas[ii].1].get_z();
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_z(prevval+betas[ii].0+FPRIME_EPSILON);
+			prevval = energyset.evoef2_env.ff_envset.atoms[betas[ii].1].get_z();
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_z(prevval+betas[ii].0+FPRIME_EPSILON);
 		}
 		energyset.update_distance_one(betas[ii].1);
 		let ff:f64 = energyset.calc_energy(atom_level_energy);
 
 		if betas[ii].2 == X{
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_x(prevval+betas[ii].0-FPRIME_EPSILON);
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_x(prevval+betas[ii].0-FPRIME_EPSILON);
 		}else if betas[ii].2 == Y{
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_y(prevval+betas[ii].0-FPRIME_EPSILON);
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_y(prevval+betas[ii].0-FPRIME_EPSILON);
 		}else{
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_z(prevval+betas[ii].0-FPRIME_EPSILON);
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_z(prevval+betas[ii].0-FPRIME_EPSILON);
 		}
 		energyset.update_distance_one(betas[ii].1);
 		let ff2:f64 = energyset.calc_energy(atom_level_energy);
@@ -437,11 +437,11 @@ fn calc_fprime(betas:&Vec<(f64,usize,usize)>
 		}
 		
 		if betas[ii].2 == X{
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_x(prevval);
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_x(prevval);
 		}else if betas[ii].2 == Y{
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_y(prevval);
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_y(prevval);
 		}else{
-			energyset.evoef2_env.md_envset.atoms[betas[ii].1].set_z(prevval);
+			energyset.evoef2_env.ff_envset.atoms[betas[ii].1].set_z(prevval);
 		}
 		energyset.update_distance_one(betas[ii].1);
 	}
@@ -477,7 +477,7 @@ pub fn run_lbfgs(
 ,penalty_func:&Option<Box<dyn LinearRegressionPenalty>>
 )->LBFGSResult{
 	let num_betas:usize = atom_indices.len()*3;
-	let num_atoms:usize = energyset.evoef2_env.md_envset.atoms.len();
+	let num_atoms:usize = energyset.evoef2_env.ff_envset.atoms.len();
 	let mut atom_level_energy:Vec<f64> = vec![0.0;num_atoms];
 
 	let mut betas:Vec<(f64,usize,usize)> = vec![(0.0,0,0);num_betas];
@@ -508,7 +508,7 @@ pub fn run_lbfgs(
 
 	let mut preddiff_sum_prev:f64 = 100000.0;
 
-	//println!("original:{}",calc_enegy_with_beta(&betas,&mut buff_array, md_envset, energyset,&mut atom_level_energy));
+	//println!("original:{}",calc_enegy_with_beta(&betas,&mut buff_array, ff_envset, energyset,&mut atom_level_energy));
 
 	for ii in 0..direc_current.len(){
 		direc_current[ii] = 0.0;

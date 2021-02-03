@@ -56,6 +56,11 @@ const DEGREE_TO_RADIAN2:f64 = PI/180.0*PI/180.0;
 pub const EPSILON:f64 = 1.0e-20;
 
 
+
+
+
+
+
 /*
 pub struct OpenFFEnergy{
     pub bondvec:Vec<BondVars>,

@@ -50,7 +50,7 @@ Bioinformatics (2019).
 */
 
 pub struct EvoEF2Env{
-   pub md_envset:charmm_based_energy::CharmmEnv,
+   pub ff_envset:charmm_based_energy::CharmmEnv,
    pub charmm_vars:charmm_based_energy::CharmmVars,
    pub is_backbone:Vec<bool>,
    pub solvparam:Vec<SolvParam>,
@@ -135,7 +135,7 @@ impl EvoEF2Env{
         }
 
         let mut ret:EvoEF2Env = EvoEF2Env{
-            md_envset:mdd,
+            ff_envset:mdd,
             charmm_vars:mdv,
             is_backbone:vec![],
             solvparam:vec![],
@@ -156,8 +156,8 @@ impl EvoEF2Env{
         //charmm 22
         //let batoms:HashSet<String> = (vec!["N","HN","CA","HA1","HA","C","O"]).iter().map(|m|m.to_string()).collect();
         let batoms:HashSet<String> = (vec!["N","H","CA","C","O"]).iter().map(|m|m.to_string()).collect();
-        self.is_backbone = vec![false;self.md_envset.atoms.len()];
-        for (aii,aa) in self.md_envset.atoms.iter().enumerate(){
+        self.is_backbone = vec![false;self.ff_envset.atoms.len()];
+        for (aii,aa) in self.ff_envset.atoms.iter().enumerate(){
             if batoms.contains(&aa.atom_name){
                 self.is_backbone[aii] = true;
             }
@@ -165,7 +165,7 @@ impl EvoEF2Env{
     }
     
     pub fn assign_sp2_charmm19(&mut self,sp2atoms:&HashSet<(String,String)>){
-        for aa in self.md_envset.atoms.iter_mut(){
+        for aa in self.ff_envset.atoms.iter_mut(){
             let code = (aa.residue_name.clone(),aa.atom_name.clone());
             if sp2atoms.contains(&code){
                 aa.hybrid_orbit = charmm_based_energy::HybridOrbit::SP2;
@@ -240,9 +240,9 @@ impl EvoEF2Env{
             dgfree:0.0,
             correllen:0.0,
             polar:false
-        };self.md_envset.atoms.len()];
+        };self.ff_envset.atoms.len()];
 
-        for (aii,aa) in self.md_envset.atoms.iter().enumerate(){
+        for (aii,aa) in self.ff_envset.atoms.iter().enumerate(){
             if v_dgfree.contains_key(&aa.atom_type){
                 let vdgf:(f64,f64) = *v_dgfree.get(&aa.atom_type).unwrap();
                 self.solvparam[aii].volume = vdgf.0;
@@ -320,7 +320,7 @@ impl EvoEF2Env{
             }
         }
     }
-    pub fn is_sp2(atom:&charmm_based_energy::MDAtom)->bool{
+    pub fn is_sp2(atom:&charmm_based_energy::FFAtom)->bool{
         match atom.hybrid_orbit{
             charmm_based_energy::HybridOrbit::SP2=>{return true;},
             _=>{return false;}
@@ -331,7 +331,7 @@ impl EvoEF2Env{
 #[allow(non_snake_case)]
 pub fn calcEvdw(evoenv:&EvoEF2Env,atom_level_energy:&mut Vec<f64>,weights:&Vec<f64>)
 ->Vec<f64>{
-    let mdenv = &evoenv.md_envset;
+    let mdenv = &evoenv.ff_envset;
     let num_atoms:usize = mdenv.atoms.len();
     let mut _ulj = 0.0;//善合計
 
@@ -455,7 +455,7 @@ pub fn calcEvdw(evoenv:&EvoEF2Env,atom_level_energy:&mut Vec<f64>,weights:&Vec<f
 #[allow(non_snake_case)]
 pub fn calcEelec(evoenv:&EvoEF2Env,atom_level_energy:&mut Vec<f64>,weight:f64)
 ->f64{
-    let mdenv = &evoenv.md_envset; 
+    let mdenv = &evoenv.ff_envset; 
     let num_atoms:usize = mdenv.atoms.len();
     let mut uelec = 0.0;
     for aa in 0..num_atoms-1{
@@ -510,7 +510,7 @@ pub fn calcEhb(evoenv:&EvoEF2Env
 
     for aa in evoenv.charmm_vars.hb_acceptors.iter(){
         for dd in evoenv.charmm_vars.hb_donors.iter(){
-            if evoenv.md_envset.num_edges[aa.0][dd.0] < 3{
+            if evoenv.ff_envset.num_edges[aa.0][dd.0] < 3{
             }else{
                 let mut pairtype:PairType =  PairType::SS;
                 if evoenv.is_backbone[aa.0]
@@ -521,7 +521,7 @@ pub fn calcEhb(evoenv:&EvoEF2Env
                     pairtype = PairType::SB;
                 }
                 
-                let ddis = evoenv.md_envset.dist[aa.0][dd.0];
+                let ddis = evoenv.ff_envset.dist[aa.0][dd.0];
                 if ddis > dmax{
                     continue;
                 }
@@ -535,9 +535,9 @@ pub fn calcEhb(evoenv:&EvoEF2Env
                 }
 
                 let mut etheta_dha = 0.0;
-                let dangle:f64 =  charmm_based_energy::calc_angle(&evoenv.md_envset.atoms[dd.1],
-                    &evoenv.md_envset.atoms[dd.0],
-                    &evoenv.md_envset.atoms[aa.0]
+                let dangle:f64 =  charmm_based_energy::calc_angle(&evoenv.ff_envset.atoms[dd.1],
+                    &evoenv.ff_envset.atoms[dd.0],
+                    &evoenv.ff_envset.atoms[aa.0]
                 );
                 if dangle >= 90.0{
                     etheta_dha = (dangle/180.0*PI).cos().powf(4.0)*-1.0;
@@ -545,13 +545,13 @@ pub fn calcEhb(evoenv:&EvoEF2Env
                 
                 let mut ephi_hab:f64 = 0.0;
                 let bangle:f64 =  charmm_based_energy::calc_angle(
-                    &evoenv.md_envset.atoms[dd.0],
-                    &evoenv.md_envset.atoms[aa.0],
-                    &evoenv.md_envset.atoms[aa.1]
+                    &evoenv.ff_envset.atoms[dd.0],
+                    &evoenv.ff_envset.atoms[aa.0],
+                    &evoenv.ff_envset.atoms[aa.1]
                 );
                 if bangle >= 80.0{
                     if (evoenv.is_backbone[dd.1] && evoenv.is_backbone[dd.0])
-                    || EvoEF2Env::is_sp2(&evoenv.md_envset.atoms[aa.0]){
+                    || EvoEF2Env::is_sp2(&evoenv.ff_envset.atoms[aa.0]){
                         ephi_hab = ((bangle-150.0)/180.0*PI).cos().powf(4.0)*-1.0;
                     }else{
                         ephi_hab = ((bangle-135.0)/180.0*PI).cos().powf(4.0)*-1.0;
@@ -611,14 +611,14 @@ pub fn calcEdesolv(evoenv:&EvoEF2Env,atom_level_energy:&mut Vec<f64>,weight_pola
 ->(f64,f64){
     let mut solvenergy_all_polar:f64 = 0.0;
     let mut solvenergy_all_nonpolar:f64 = 0.0;
-    let num_atoms = evoenv.md_envset.atoms.len();
+    let num_atoms = evoenv.ff_envset.atoms.len();
     for aa in 0..num_atoms-1{
         for bb in (aa+1)..num_atoms{
             
-            if evoenv.md_envset.num_edges[aa][bb] < 3{
+            if evoenv.ff_envset.num_edges[aa][bb] < 3{
                 continue;
             }
-            let ddis = evoenv.md_envset.dist[aa][bb].max(evoenv.md_envset.atoms[aa].nb_r1_2+evoenv.md_envset.atoms[bb].nb_r1_2);
+            let ddis = evoenv.ff_envset.dist[aa][bb].max(evoenv.ff_envset.atoms[aa].nb_r1_2+evoenv.ff_envset.atoms[bb].nb_r1_2);
             if ddis >= 6.0{
                 continue;
             }
@@ -630,16 +630,16 @@ pub fn calcEdesolv(evoenv:&EvoEF2Env,atom_level_energy:&mut Vec<f64>,weight_pola
             *evoenv.solvparam[aa].dgfree
             /(2.0*(*PI_3_2)*evoenv.solvparam[aa].correllen*ddis2)
             *(-1.0*
-                ((ddis-evoenv.md_envset.atoms[aa].nb_r1_2)/evoenv.solvparam[aa].correllen)
-                *((ddis-evoenv.md_envset.atoms[aa].nb_r1_2)/evoenv.solvparam[aa].correllen)
+                ((ddis-evoenv.ff_envset.atoms[aa].nb_r1_2)/evoenv.solvparam[aa].correllen)
+                *((ddis-evoenv.ff_envset.atoms[aa].nb_r1_2)/evoenv.solvparam[aa].correllen)
             ).exp();
             
             let mut dsol2 = -1.0*evoenv.solvparam[aa].volume
             *evoenv.solvparam[bb].dgfree
             /(2.0*(*PI_3_2)*evoenv.solvparam[bb].correllen*ddis2)
             *(-1.0*
-                ((ddis-evoenv.md_envset.atoms[bb].nb_r1_2)/evoenv.solvparam[bb].correllen)
-                *((ddis-evoenv.md_envset.atoms[bb].nb_r1_2)/evoenv.solvparam[bb].correllen)
+                ((ddis-evoenv.ff_envset.atoms[bb].nb_r1_2)/evoenv.solvparam[bb].correllen)
+                *((ddis-evoenv.ff_envset.atoms[bb].nb_r1_2)/evoenv.solvparam[bb].correllen)
             ).exp()
             ;
             
@@ -685,8 +685,8 @@ pub fn calcEss(evoenv:&EvoEF2Env,atom_level_energy:&mut Vec<f64>,weight:f64)
             let mut e_ss:f64 = 0.0;
             let c2:&CysAtoms = &evoenv.cys_atoms[ss2];
             
-            let ssdist = evoenv.md_envset.atoms[c1.sg_index]
-            .distance(&evoenv.md_envset.atoms[c2.sg_index]);
+            let ssdist = evoenv.ff_envset.atoms[c1.sg_index]
+            .distance(&evoenv.ff_envset.atoms[c2.sg_index]);
             if (ssdist -1.95)*(ssdist -2.15) >= 0.0{
                 continue;
             }
@@ -695,13 +695,13 @@ pub fn calcEss(evoenv:&EvoEF2Env,atom_level_energy:&mut Vec<f64>,weight:f64)
                 )*0.8;
             e_ss += e_dis;
 
-            let thetaij = charmm_based_energy::calc_angle(&evoenv.md_envset.atoms[c1.cb_index],
-                &evoenv.md_envset.atoms[c1.sg_index],
-                &evoenv.md_envset.atoms[c2.sg_index]
+            let thetaij = charmm_based_energy::calc_angle(&evoenv.ff_envset.atoms[c1.cb_index],
+                &evoenv.ff_envset.atoms[c1.sg_index],
+                &evoenv.ff_envset.atoms[c2.sg_index]
             );
-            let thetaji = charmm_based_energy::calc_angle(&evoenv.md_envset.atoms[c2.cb_index],
-                &evoenv.md_envset.atoms[c2.sg_index],
-                &evoenv.md_envset.atoms[c1.sg_index]
+            let thetaji = charmm_based_energy::calc_angle(&evoenv.ff_envset.atoms[c2.cb_index],
+                &evoenv.ff_envset.atoms[c2.sg_index],
+                &evoenv.ff_envset.atoms[c1.sg_index]
             );
 
             //これと後の二つ個別にウエイトを考える必要があると思う
@@ -711,10 +711,10 @@ pub fn calcEss(evoenv:&EvoEF2Env,atom_level_energy:&mut Vec<f64>,weight:f64)
 
 
             let dihed1 = charmm_based_energy::calc_dihedral_angle_radian(
-                &evoenv.md_envset.atoms[c1.cb_index],
-                &evoenv.md_envset.atoms[c1.sg_index],
-                &evoenv.md_envset.atoms[c2.sg_index],
-                &evoenv.md_envset.atoms[c2.cb_index]
+                &evoenv.ff_envset.atoms[c1.cb_index],
+                &evoenv.ff_envset.atoms[c1.sg_index],
+                &evoenv.ff_envset.atoms[c2.sg_index],
+                &evoenv.ff_envset.atoms[c2.cb_index]
             );
 
             //ウエイト検討の余地あり
@@ -722,17 +722,17 @@ pub fn calcEss(evoenv:&EvoEF2Env,atom_level_energy:&mut Vec<f64>,weight:f64)
             e_ss += e_dihed1;
 
             let dihed2 = charmm_based_energy::calc_dihedral_angle_radian(
-                &evoenv.md_envset.atoms[c1.ca_index],
-                &evoenv.md_envset.atoms[c1.cb_index],
-                &evoenv.md_envset.atoms[c1.sg_index],
-                &evoenv.md_envset.atoms[c2.sg_index]
+                &evoenv.ff_envset.atoms[c1.ca_index],
+                &evoenv.ff_envset.atoms[c1.cb_index],
+                &evoenv.ff_envset.atoms[c1.sg_index],
+                &evoenv.ff_envset.atoms[c2.sg_index]
             )+PI/1.5;//abs は必要だろうか
             
             let dihed3 = charmm_based_energy::calc_dihedral_angle_radian(
-                &evoenv.md_envset.atoms[c2.ca_index],
-                &evoenv.md_envset.atoms[c2.cb_index],
-                &evoenv.md_envset.atoms[c2.sg_index],
-                &evoenv.md_envset.atoms[c1.sg_index]
+                &evoenv.ff_envset.atoms[c2.ca_index],
+                &evoenv.ff_envset.atoms[c2.cb_index],
+                &evoenv.ff_envset.atoms[c2.sg_index],
+                &evoenv.ff_envset.atoms[c1.sg_index]
             )+PI/1.5;
 
             let e_dihed23 = 1.25*dihed2.sin()-1.75

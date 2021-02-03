@@ -13,7 +13,7 @@ use std::fs::File;
 #[allow(unused_imports)]
 use super::debug_env;
 #[allow(unused_imports)]
-use super::md_env;
+use super::ff_env;
 #[allow(unused_imports)]
 use super::geometry::Vector3D;
 #[allow(unused_imports)]
@@ -32,7 +32,7 @@ use std::f64::consts::PI;
 //-180~180
 //opposite direction with charmm
 pub fn calc_dihedral_angle(v0:&dyn Vector3D,v1:&dyn Vector3D,v2:&dyn Vector3D,v3:&dyn Vector3D)->f64{
-    return md_env::calc_dihedral_angle(v0, v1, v2, v3)*-1.0;
+    return ff_env::calc_dihedral_angle(v0, v1, v2, v3)*-1.0;
 }
 
 pub fn validate_angle(vv:f64)->f64{
@@ -205,7 +205,7 @@ pub fn get_linear_interpolated_value_dihed(bbin:&dyn Binning,val:f64,bins:&Vec<f
 } 
 
 impl EnergyFunction for AnglePhiPsi{
-    /*fn calc_energy(&self,mdenv:&md_env::MDEnv,atom_level_energy:&mut Vec<f64>,weight:f64)->f64{
+    /*fn calc_energy(&self,mdenv:&ff_env::FFEnv,atom_level_energy:&mut Vec<f64>,weight:f64)->f64{
         
         let phi:f64 = calc_dihedral_angle(&mdenv.atoms[self.atoms.0], &mdenv.atoms[self.atoms.1],&mdenv.atoms[self.atoms.2],&mdenv.atoms[self.atoms.3]);
         let psi:f64 = calc_dihedral_angle(&mdenv.atoms[self.atoms.1], &mdenv.atoms[self.atoms.2],&mdenv.atoms[self.atoms.3],&mdenv.atoms[self.atoms.4]);
@@ -221,7 +221,7 @@ impl EnergyFunction for AnglePhiPsi{
         atom_level_energy[self.atoms.4] += dsc/5.0;
         return dsc;
     }*/
-    fn calc_energy(&self,mdenv:&md_env::MDEnv,atom_level_energy:&mut Vec<f64>,weight:f64)->f64{
+    fn calc_energy(&self,mdenv:&ff_env::FFEnv,atom_level_energy:&mut Vec<f64>,weight:f64)->f64{
         
         let phi:f64 = calc_dihedral_angle(&mdenv.atoms[self.atoms.0], &mdenv.atoms[self.atoms.1],&mdenv.atoms[self.atoms.2],&mdenv.atoms[self.atoms.3]);
         let psi:f64 = calc_dihedral_angle(&mdenv.atoms[self.atoms.1], &mdenv.atoms[self.atoms.2],&mdenv.atoms[self.atoms.3],&mdenv.atoms[self.atoms.4]);
@@ -314,7 +314,7 @@ impl Binning for AngleDihed{
 }
 
 impl EnergyFunction for AngleDihed{
-    fn calc_energy(&self,mdenv:&md_env::MDEnv,atom_level_energy:&mut Vec<f64>,weight:f64)->f64{
+    fn calc_energy(&self,mdenv:&ff_env::FFEnv,atom_level_energy:&mut Vec<f64>,weight:f64)->f64{
         
         let phi:f64 = calc_dihedral_angle(&mdenv.atoms[self.atoms.0], &mdenv.atoms[self.atoms.1],&mdenv.atoms[self.atoms.2],&mdenv.atoms[self.atoms.3]);
         let mut dsc:f64 = get_linear_interpolated_value_dihed(self,phi,&self.dihed);
@@ -427,7 +427,7 @@ impl PlainDistribution{
         self.next_omega.as_mut().unwrap()[px] = (val,has_value);
     }
 
-    pub fn match_with(&self,a:&md_env::MDAtom)->bool{
+    pub fn match_with(&self,a:&ff_env::FFAtom)->bool{
         if let Some(x) = self.residue_name.as_ref(){
             if *x != a.residue_name{
                 return false;
@@ -555,10 +555,10 @@ impl PlainDistribution{
     //mdenv に入った atom をソートして、Chain 毎に分割し、タンパク質の Backbone にあたる原子のみ抽出、Phi psi, omega を形成する原子のインデクスを持った
     //それぞれのインスタンスを作成する
     pub fn create_energy_instance(distribution:&HashMap<String,PlainDistribution>
-        ,mdenv:& md_env::MDEnv
+        ,mdenv:& ff_env::FFEnv
         ,_keycheck:(bool,bool,bool)//chain name, residue name, residue_index_in_chain どの値が distribution のキーに使用されているかを指定する。古い
         ,fix_omega:bool)->(Vec<AnglePhiPsi>,Vec<AngleDihed>){
-        let mut chains:HashMap<String,Vec<&md_env::MDAtom>> = HashMap::new();
+        let mut chains:HashMap<String,Vec<&ff_env::FFAtom>> = HashMap::new();
         let mut ret_phi_psi:Vec<AnglePhiPsi> = vec![];
         let mut ret_omega:Vec<AngleDihed> = vec![];
 
@@ -574,9 +574,9 @@ impl PlainDistribution{
             if avec.len() <= 1{
                 continue;
             }
-            let mut atom_n:Vec<&md_env::MDAtom> = vec![];
-            let mut atom_ca:Vec<&md_env::MDAtom> = vec![];
-            let mut atom_c:Vec<&md_env::MDAtom> = vec![];
+            let mut atom_n:Vec<&ff_env::FFAtom> = vec![];
+            let mut atom_ca:Vec<&ff_env::FFAtom> = vec![];
+            let mut atom_c:Vec<&ff_env::FFAtom> = vec![];
             for aa in avec.iter(){
                 if aa.atom_name == "N"{
                     atom_n.push(aa);
@@ -672,7 +672,7 @@ impl PlainDistribution{
 
 
 //作成したエネルギーユニットと既にあるユニットで見ている角度が重複している DihedVars を返す
-pub fn get_overwrapping_dihed(dihedvec:&Vec<md_env::DihedralVars>
+pub fn get_overwrapping_dihed(dihedvec:&Vec<ff_env::DihedralVars>
     ,phi_psi:&Vec<AnglePhiPsi>,omegas:&Vec<AngleDihed>)->Vec<usize>{
     let from_md:i64 = 0;
     let from_phipshi:i64 = 1;

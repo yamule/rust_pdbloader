@@ -11,7 +11,9 @@ const DEGREE_TO_RADIAN2:f64 = PI/180.0*PI/180.0;
 pub const EPSILON:f64 = 1.0e-20;
 
 
-impl Vector3D for MDAtom{
+
+
+impl Vector3D for FFAtom{
 
     fn get_xyz(&self)-> (f64,f64,f64){
         return (self.get_x(),self.get_y(),self.get_z());
@@ -59,16 +61,23 @@ impl Vector3D for MDAtom{
 }
 
 
+pub struct FFBond{
+    pub bond_order:usize,
+    pub atoms:(usize,usize),
+}
+
 #[derive(Debug,Clone)]
-pub struct MDAtom{
+pub struct FFAtom{
     pub atom_type:String,
     pub atom_name:String,
+    
+    //この辺消す予定
     pub chain_name:String,
     pub residue_name:String,
     pub residue_number:i64,
     pub residue_ins_code:String,
-    
     pub residue_index_in_chain:i64,
+    
     pub atom_index:usize,
     
     pub x:f64,
@@ -76,8 +85,8 @@ pub struct MDAtom{
     pub z:f64,
     pub mass:f64,
     pub charge:f64,
-    pub created:bool,
-    pub unplaced:bool,
+    pub created:bool,//最初の状態からくわえられたものか
+    pub unplaced:bool,//ファイルから座標が読まれたか
 
     pub nb_epsilon:f64,
     pub nb_r1_2:f64,//Rmin1/2
@@ -93,12 +102,14 @@ pub struct MDAtom{
 
 
 
-pub struct MDEnv{
-    pub atoms:Vec<MDAtom>,
-    pub dist:Vec<Vec<f64>>,
-    pub num_edges:Vec<Vec<u64>>,//ある原子とある原子の最短距離（存在するエッジの数）。一定数以上についてはカウントしない。今はその一定数は 5。
+pub struct FFEnv{
+    pub atoms:Vec<FFAtom>,
+    pub bonds:Vec<FFBond>,
+    pub dist:Vec<Vec<f64>>,//ある原子とある原子の距離
+    pub num_edges:Vec<Vec<u64>>,//ある原子とある原子の最短経路（間に存在するエッジの数）。一定数以上についてはカウントしない。今はその一定数は 5。
 }
-impl MDEnv{
+impl FFEnv{
+
 }
 
 
@@ -195,7 +206,7 @@ pub struct DihedralVars{
     debug_string:String
 }
 impl energy_function::EnergyFunction for DihedralVars{
-    fn calc_energy(&self,mdenv:&MDEnv, atom_level_energy: &mut Vec<f64>,weight:f64)->f64{
+    fn calc_energy(&self,mdenv:&FFEnv, atom_level_energy: &mut Vec<f64>,weight:f64)->f64{
 
         let phi:f64 = calc_dihedral_angle(&mdenv.atoms[self.atoms.0], &mdenv.atoms[self.atoms.1],&mdenv.atoms[self.atoms.2],&mdenv.atoms[self.atoms.3]);
         let dsc:f64 = self.kchi*(1.0+((self.n*phi-self.delta)/180.0*PI).cos())*weight;
@@ -217,7 +228,7 @@ pub struct IMPRVars{
 }
 
 impl energy_function::EnergyFunction for IMPRVars{
-    fn calc_energy(&self,mdenv:&MDEnv, atom_level_energy: &mut Vec<f64>,weight:f64)->f64{
+    fn calc_energy(&self,mdenv:&FFEnv, atom_level_energy: &mut Vec<f64>,weight:f64)->f64{
         let psi = calc_dihedral_angle(
             &mdenv.atoms[self.atoms.0]
             ,&mdenv.atoms[self.atoms.1]
@@ -243,7 +254,7 @@ pub struct CMAPVars{
 impl energy_function::EnergyFunction for CMAPVars{
     
 #[allow(unused_variables)]
-    fn calc_energy(&self,mdenv:&MDEnv, atom_level_energy: &mut Vec<f64>,weight:f64)->f64{
+    fn calc_energy(&self,mdenv:&FFEnv, atom_level_energy: &mut Vec<f64>,weight:f64)->f64{
         //CMAP は別の方法使った方が良いと思う
         panic!("not implemented yet");
     }

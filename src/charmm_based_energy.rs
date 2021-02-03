@@ -70,7 +70,7 @@ pub enum HybridOrbit{
 }
 
 
-impl Vector3D for MDAtom{
+impl Vector3D for FFAtom{
 
     fn get_xyz(&self)-> (f64,f64,f64){
         return (self.get_x(),self.get_y(),self.get_z());
@@ -920,7 +920,7 @@ impl CharmmVars{
 
 //うーん
 pub struct CharmmEnv{
-    pub atoms:Vec<MDAtom>,
+    pub atoms:Vec<FFAtom>,
     pub dist:Vec<Vec<f64>>,
     pub num_edges:Vec<Vec<u64>>,//ある原子とある原子の最短距離（存在するエッジの数）。一定数以上についてはカウントしない。今はその一定数は 5。
 }
@@ -982,7 +982,7 @@ impl CharmmEnv{
             }
         }
         
-        MDAtom::mask_connection(bondvec,&mut self.num_edges,maxcon);
+        FFAtom::mask_connection(bondvec,&mut self.num_edges,maxcon);
     }
     
     pub fn gen_pseudo_edges(&mut self,conn:u64){
@@ -1007,7 +1007,7 @@ impl CharmmEnv{
 
 
 #[derive(Debug,Clone)]
-pub struct MDAtom{
+pub struct FFAtom{
     pub atom_type:String,
     pub atom_name:String,
     pub chain_name:String,
@@ -1039,9 +1039,9 @@ pub struct MDAtom{
 }
 
 
-impl MDAtom{
-    pub fn dummy()->MDAtom{
-        return MDAtom{
+impl FFAtom{
+    pub fn dummy()->FFAtom{
+        return FFAtom{
             atom_type:"C".to_string(),
             atom_name:"C".to_string(),
             chain_name:"A".to_string(),
@@ -1180,8 +1180,8 @@ impl MDAtom{
 
 
 
-        //MD に使うのはおそらく MDAtom.atom_type
-        let mut mdatoms_all:Vec<MDAtom> = vec![];
+        //MD に使うのはおそらく FFAtom.atom_type
+        let mut mdatoms_all:Vec<FFAtom> = vec![];
         let mut bondvec:Vec<BondVars> = vec![];
         let mut anglevec:Vec<AngleVars> = vec![];
         let mut ubvec:Vec<UBVars> = vec![];
@@ -1239,12 +1239,12 @@ impl MDAtom{
             for rr in parr.mass.iter(){
                 masmap.insert(rr.atom_name.clone(),rr.mass);
             }
-            //Residue 順の、atom_name->MDAtom のハッシュ
+            //Residue 順の、atom_name->FFAtom のハッシュ
             let mut residue_atomname_to_indexinmdatoms_all:Vec<HashMap<String,usize>> = vec![];
             let resnum = chain.num_comps();
             for (rii,rr) in chain.iter_comps().enumerate(){
 
-                let mut ratoms:HashMap<String,MDAtom> = HashMap::new();
+                let mut ratoms:HashMap<String,FFAtom> = HashMap::new();
                 let resi:&charmm_param::Param_RESI_merged = &resi_merged_vec[rii];
 
                 //atom_name->AtomResiParam のマップ
@@ -1262,7 +1262,7 @@ impl MDAtom{
                     if ljparam.tanford_kirkwood{
                         panic!("tanford_kirkwood is not supported.");
                     }
-                    let mut att = MDAtom{
+                    let mut att = FFAtom{
                         atom_type:atype.clone(),
                         atom_name:aa.atom_code.clone(),
                         chain_name:chain.chain_name.clone(),
@@ -1312,7 +1312,7 @@ impl MDAtom{
                         if ljparam.tanford_kirkwood{
                             panic!("tanford_kirkwood is not supported.");
                         }
-                        let mut att = MDAtom{
+                        let mut att = FFAtom{
                             atom_type:vv.atom_type.clone(),
                             atom_name:kk.clone(),
                             chain_name:chain.chain_name.clone(),
@@ -1348,11 +1348,11 @@ impl MDAtom{
                 }
                 //println!("{:?}",ratoms);
 
-                //作成した MDAtom エントリを、一つのベクトルにまとめ、
+                //作成した FFAtom エントリを、一つのベクトルにまとめ、
                 //Residue の情報は residue_atomname_to_indexinmdatoms_all として保持する
                 //Residue-> Atom へのアクセスは residue_atomname_to_indexinmdatoms_all からインデックスを抽出する
                 let mut rvatoms:HashMap<String,usize> = HashMap::new();
-                let mut rratoms:Vec<(String,MDAtom)> = ratoms.into_iter().collect();
+                let mut rratoms:Vec<(String,FFAtom)> = ratoms.into_iter().collect();
                 rratoms.sort_by(|a,b|a.0.cmp(&b.0));//ToDo もっと綺麗に並べる
                 rratoms.reverse();
                 for (kk,vv) in rratoms.into_iter(){
@@ -1509,16 +1509,16 @@ impl MDAtom{
                         continue;
                     }
                     //前後の残基を含むのでこういうことをする必要がある
-                    let atom0:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res0 as usize].get(&icc.atoms.0.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res0 as usize).get_comp_id()
+                    let atom0:&FFAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res0 as usize].get(&icc.atoms.0.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res0 as usize).get_comp_id()
                     ,residue_atomname_to_indexinmdatoms_all[res0 as usize],icc.atoms.0).as_str())];
                     
-                    let atom1:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res1 as usize].get(&icc.atoms.1.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res1 as usize).get_comp_id()
+                    let atom1:&FFAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res1 as usize].get(&icc.atoms.1.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res1 as usize).get_comp_id()
                     ,residue_atomname_to_indexinmdatoms_all[res1 as usize],icc.atoms.1).as_str())];
                     
-                    let atom2:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res2 as usize].get(&icc.atoms.2.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res2 as usize).get_comp_id()
+                    let atom2:&FFAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res2 as usize].get(&icc.atoms.2.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res2 as usize).get_comp_id()
                     ,residue_atomname_to_indexinmdatoms_all[res2 as usize],icc.atoms.2).as_str())];
                     
-                    let atom3:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res3 as usize].get(&icc.atoms.3.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res3 as usize).get_comp_id()
+                    let atom3:&FFAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res3 as usize].get(&icc.atoms.3.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res3 as usize).get_comp_id()
                     ,residue_atomname_to_indexinmdatoms_all[res3 as usize],icc.atoms.3).as_str())];
                     
                     let mut l01_or_02:f64 = icc.length01_or_02;
@@ -1684,8 +1684,8 @@ impl MDAtom{
                         continue;
                     }
                     //前後の残基を含むのでこういうことをする必要がある
-                    let atom0:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res0 as usize].get(&bb.0.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res0 as usize).get_comp_id(),residue_atomname_to_indexinmdatoms_all[res0 as usize],bb.0).as_str())];
-                    let atom1:&MDAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res1 as usize].get(&bb.1.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res1 as usize).get_comp_id(),residue_atomname_to_indexinmdatoms_all[res1 as usize],bb.1).as_str())];
+                    let atom0:&FFAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res0 as usize].get(&bb.0.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res0 as usize).get_comp_id(),residue_atomname_to_indexinmdatoms_all[res0 as usize],bb.0).as_str())];
+                    let atom1:&FFAtom = &mdatoms_all[*residue_atomname_to_indexinmdatoms_all[res1 as usize].get(&bb.1.atom_name).expect(format!("Can not find atom. {} {:?} {:?} ",chain.get_comp_at(res1 as usize).get_comp_id(),residue_atomname_to_indexinmdatoms_all[res1 as usize],bb.1).as_str())];
                     max_bondorder[atom0.atom_index] = max_bondorder[atom0.atom_index].max(bb.2);
                     max_bondorder[atom1.atom_index] = max_bondorder[atom1.atom_index].max(bb.2);
                     let mut okflag:bool = false;
@@ -1722,7 +1722,7 @@ impl MDAtom{
                     ,atom_relativepos(&bb[2].ex_code)+ii as i64
                     ,atom_relativepos(&bb[3].ex_code)+ii as i64
                     ];
-                    let mut mdavec:Vec<&MDAtom> = vec![];
+                    let mut mdavec:Vec<&FFAtom> = vec![];
                     let mut obflag:bool = false;
                     for (zii,zz) in rz.into_iter().enumerate(){
                         if zz < 0 || zz > residue_atomname_to_indexinmdatoms_all.len() as i64 -1 {
@@ -1823,9 +1823,9 @@ impl MDAtom{
             for acc in all3.iter(){
                 //原子番号が rev の場合 0 は true
                 let mut zvec:Vec<(bool,&charmm_param::Param_ANGLE)> = vec![];
-                let a0:&MDAtom = &mdatoms_all[acc[0]];
-                let a1:&MDAtom = &mdatoms_all[acc[1]];
-                let a2:&MDAtom = &mdatoms_all[acc[2]];
+                let a0:&FFAtom = &mdatoms_all[acc[0]];
+                let a1:&FFAtom = &mdatoms_all[acc[1]];
+                let a2:&FFAtom = &mdatoms_all[acc[2]];
                 let ccode = format!("#{}\t{}\t{}#",a0.atom_type,a1.atom_type,a2.atom_type);
                 let ccode_rev = format!("#{}\t{}\t{}#",a2.atom_type,a1.atom_type,a0.atom_type);
                 let mut hitflag:bool = false;
@@ -1890,10 +1890,10 @@ impl MDAtom{
             for acc in all4.iter(){
                 //原子番号が rev の場合 0 は true
                 let mut zvec:Vec<(bool,&charmm_param::Param_DIHEDRAL)> = vec![];
-                let a0:&MDAtom = &mdatoms_all[acc[0]];
-                let a1:&MDAtom = &mdatoms_all[acc[1]];
-                let a2:&MDAtom = &mdatoms_all[acc[2]];
-                let a3:&MDAtom = &mdatoms_all[acc[3]];
+                let a0:&FFAtom = &mdatoms_all[acc[0]];
+                let a1:&FFAtom = &mdatoms_all[acc[1]];
+                let a2:&FFAtom = &mdatoms_all[acc[2]];
+                let a3:&FFAtom = &mdatoms_all[acc[3]];
                 let ccode = format!("#{}\t{}\t{}\t{}#",a0.atom_type,a1.atom_type,a2.atom_type,a3.atom_type);
                 let ccode_rev = format!("#{}\t{}\t{}\t{}#",a3.atom_type,a2.atom_type,a1.atom_type,a0.atom_type);
                 let mut hitflag:bool = false;
@@ -1969,7 +1969,7 @@ impl MDAtom{
         let mxval:u64 = mdatoms_all.len() as u64 +1000;
         let mut num_edges:Vec<Vec<u64>> = vec![vec![mxval;mlen];mlen];
         
-        MDAtom::mask_connection(&bondvec,&mut num_edges,5);//間にある結合が少ない近隣原子についてはウエイトをかけることがあるので 5 くらいまで距離を計算する
+        FFAtom::mask_connection(&bondvec,&mut num_edges,5);//間にある結合が少ない近隣原子についてはウエイトをかけることがあるので 5 くらいまで距離を計算する
         let dist = vec![vec![0.0;mdatoms_all.len()];mdatoms_all.len()];
         let electrostatic_energy_calculator:ElectrostaticEnergyCalculator = ElectrostaticEnergyCalculator{
             nboption:parr.nonbonded.option_param.clone()
@@ -2321,68 +2321,6 @@ pub fn calc_dihedral_angle(v0:&dyn Vector3D,v1:&dyn Vector3D,v2:&dyn Vector3D,v3
 }
 
 
-//原子と原子を繋ぐ Bonds の配列と原子数を渡すと
-//原子数分 Bond で繋がる原子のパスをすべて返す
-//逆方向順方向はチェックし、同じパスが既にある場合は含めない
-//同じ原子を二回通るパスは含めない
-pub fn autogenerate_connection(bonds:&Vec<BondVars>,num_nodes:usize)->Vec<Vec<usize>>{
-    let mut edges:HashMap<usize,Vec<usize>> = HashMap::new();
-    for bb in bonds.iter(){
-        if !edges.contains_key(&bb.atoms.0){
-            edges.insert(bb.atoms.0.clone(),vec![]);
-        }
-        if !edges.contains_key(&bb.atoms.1){
-            edges.insert(bb.atoms.1.clone(),vec![]);
-        }
-        edges.get_mut(&bb.atoms.0).unwrap().push(bb.atoms.1.clone());
-        edges.get_mut(&bb.atoms.1).unwrap().push(bb.atoms.0.clone());
-    }
-    let allstart:Vec<usize> = edges.iter().map(|m|*m.0).collect();
-    let mut res:Vec<Vec<usize>> = vec![];
-    for a in allstart.iter(){
-        let rr = get_all_path(&edges,&vec![*a],num_nodes);
-        for r in rr.into_iter(){
-            let mut dupcheck:bool = false;
-            for rii in 0..r.len()-1{
-                for rjj in (rii+1)..r.len(){
-                    if r[rii] == r[rjj]{
-                        dupcheck = true;
-                    }
-                }
-            }
-            if dupcheck{
-                continue;
-            }
-            if r[0] < r[r.len()-1]{//全部チェックするので、必ず順方向逆方向二つある
-                res.push(r);
-            }
-        }
-    }
-    return res;
-}
-
-pub fn get_all_path(next_atoms:&HashMap<usize,Vec<usize>>
-    ,path:& Vec<usize>,maxlength:usize)->Vec<Vec<usize>>{
-    
-    let current = path[path.len()-1].clone();
-    let next:&Vec<usize> = next_atoms.get(&current).as_ref().unwrap_or_else(||panic!("Can not find next atom! {} ",current));
-    let mut ret:Vec<Vec<usize>> = vec![];
-
-    for nn in next.iter(){
-        if path.contains(&nn){
-        }else{
-            let mut ppath:Vec<usize> = path.iter().map(|m| m.clone()).collect();
-            ppath.push(*nn);
-            if ppath.len() >= maxlength{
-                ret.push(ppath);
-            }else{
-                ret.append(&mut get_all_path(next_atoms,&ppath, maxlength));
-            }
-        }
-    }
-    return ret;
-}
-
 
 //0,1,2 の原子が分かっているときに 3 の原子の位置を見積もる
 pub fn estimate_3_dihed(
@@ -2614,8 +2552,8 @@ fn mdprepare_test(){
         chain.add_comp(rr);
     }
 
-    MDAtom::change_to_charmmnames(&mut chain.iter_mut_comps().map(|m|*m).collect());
-    let (res,_cvars):(CharmmEnv,CharmmVars) = MDAtom::chain_to_atoms(&vec![&chain],&parr,true);
+    FFAtom::change_to_charmmnames(&mut chain.iter_mut_comps().map(|m|*m).collect());
+    let (res,_cvars):(CharmmEnv,CharmmVars) = FFAtom::chain_to_atoms(&vec![&chain],&parr,true);
     let mut lines:Vec<String> = vec![];
     let mut sp3_lines:Vec<String> = vec![];
     for aa in res.atoms.iter(){
@@ -2639,7 +2577,7 @@ fn add_h_test(){
     parr.resi.append(&mut topp.resi);
 
     
-    MDAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter_mut_comps().map(|m|{*m}).collect());
+    FFAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter_mut_comps().map(|m|{*m}).collect());
     let mut resvec:Vec<pdbdata::PDBComp> = vec![];
     for rr in pdbb.get_all_asyms().iter_mut_comps(){
         let mut ress:pdbdata::PDBComp = pdbdata::PDBComp::new();
@@ -2657,10 +2595,10 @@ fn add_h_test(){
     for rr in resvec.into_iter(){
         dchain.add_comp(rr);
     }
-    let (md_envset,_md_varset):(CharmmEnv,CharmmVars) = MDAtom::chain_to_atoms(&vec![&dchain],&parr,true);
+    let (ff_envset,_md_varset):(CharmmEnv,CharmmVars) = FFAtom::chain_to_atoms(&vec![&dchain],&parr,true);
     
     let mut lines:Vec<String> = vec![];
-    for aa in md_envset.atoms.iter(){
+    for aa in ff_envset.atoms.iter(){
         let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
         lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
     }
@@ -2675,8 +2613,8 @@ fn add_h_test(){
 fn check_backbone_dihed(){
     let parr = charmm_param::CHARMMParam::load_chamm19((debug_env::CHARMM_DIR.to_string()+"\\toph19.inp").as_str(),(debug_env::CHARMM_DIR.to_string()+"\\param19.inp").as_str());
     let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/6iws_model1_noh.pdb");
-    MDAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter_mut_comps().map(|m|*m).collect());
-    let (md_envset,md_varset):(CharmmEnv,CharmmVars) = MDAtom::chain_to_atoms(&vec![pdbb.get_all_asyms()],&parr,true);
+    FFAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter_mut_comps().map(|m|*m).collect());
+    let (ff_envset,md_varset):(CharmmEnv,CharmmVars) = FFAtom::chain_to_atoms(&vec![pdbb.get_all_asyms()],&parr,true);
 
     let backbone_dihedrals:Vec<&str> = vec![
         "C#N#CA#C",
@@ -2692,17 +2630,17 @@ fn check_backbone_dihed(){
     for aa in md_varset.dihedvec.iter(){
 
         let acode:String = format!("{}#{}#{}#{}",
-        md_envset.atoms[aa.atoms.0].atom_name
-        ,md_envset.atoms[aa.atoms.1].atom_name
-        ,md_envset.atoms[aa.atoms.2].atom_name
-        ,md_envset.atoms[aa.atoms.3].atom_name);
+        ff_envset.atoms[aa.atoms.0].atom_name
+        ,ff_envset.atoms[aa.atoms.1].atom_name
+        ,ff_envset.atoms[aa.atoms.2].atom_name
+        ,ff_envset.atoms[aa.atoms.3].atom_name);
         for vv in backbone_dihedrals.iter(){
             if *vv == acode{
                 let rescode:String = format!("{}#{}#{}#{}"
-                ,md_envset.atoms[aa.atoms.2].chain_name
-                ,md_envset.atoms[aa.atoms.2].residue_name
-                ,md_envset.atoms[aa.atoms.2].residue_number
-                ,md_envset.atoms[aa.atoms.2].residue_ins_code);
+                ,ff_envset.atoms[aa.atoms.2].chain_name
+                ,ff_envset.atoms[aa.atoms.2].residue_name
+                ,ff_envset.atoms[aa.atoms.2].residue_number
+                ,ff_envset.atoms[aa.atoms.2].residue_ins_code);
                 println!("{}",rescode);
             }
             

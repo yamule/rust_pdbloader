@@ -41,7 +41,7 @@ use super::pp_energy::PPEnergySet;
 //axisvec を軸として radian 度 回転する
 //axisvec は standardize されている必要がある
 //https://ja.wikipedia.org/wiki/%E3%83%AD%E3%83%89%E3%83%AA%E3%82%B2%E3%82%B9%E3%81%AE%E5%9B%9E%E8%BB%A2%E5%85%AC%E5%BC%8F
-pub fn rotate_atom_3d(target:&mut Vec<charmm_based_energy::MDAtom>,atom_idx:&Vec<usize>,axisvec:&dyn Vector3D,radian:f64){
+pub fn rotate_atom_3d(target:&mut Vec<charmm_based_energy::FFAtom>,atom_idx:&Vec<usize>,axisvec:&dyn Vector3D,radian:f64){
     let cc = radian.cos();
     let ss = radian.sin();
     let nx = axisvec.get_x();
@@ -67,7 +67,7 @@ pub fn rotate_atom_3d(target:&mut Vec<charmm_based_energy::MDAtom>,atom_idx:&Vec
 }
 
 
-pub fn random_group_rotate(atoms:&mut Vec<charmm_based_energy::MDAtom>
+pub fn random_group_rotate(atoms:&mut Vec<charmm_based_energy::FFAtom>
     ,group:&Vec<Vec<usize>>,degree_max:f64,mov_max:f64,num_movgroup:usize,rgen:&mut StdRng){
     for _ in 0..num_movgroup{
         let mut dvec:Point3D = Point3D::new(rgen.gen_range(-1.0,1.0),rgen.gen_range(-1.0,1.0),rgen.gen_range(-1.0,1.0));
@@ -80,7 +80,7 @@ pub fn random_group_rotate(atoms:&mut Vec<charmm_based_energy::MDAtom>
 
 //group として与えられた index の原子を回転および移動する
 pub fn mov_group(
-    atoms:&mut Vec<charmm_based_energy::MDAtom>
+    atoms:&mut Vec<charmm_based_energy::FFAtom>
     ,group:&Vec<usize>
     ,degree_max:f64
     ,mov_max:f64
@@ -227,7 +227,7 @@ pub fn mc_iter_group(
     ){
     let mut rgen:StdRng;
     let mut ffloating:Vec<usize> = vec![];
-    for ii in 0..energyset.evoef2_env.md_envset.atoms.len(){
+    for ii in 0..energyset.evoef2_env.ff_envset.atoms.len(){
         if !atoms_fixed.contains(&ii){
             ffloating.push(ii);
         }
@@ -249,12 +249,12 @@ pub fn mc_iter_group(
     let mut tmpatoms_prevpos:Vec<(f64,f64,f64)> =vec![];
     let mut tmpatoms_checkpoint:Vec<(f64,f64,f64)> =vec![];
 
-    for aa in energyset.evoef2_env.md_envset.atoms.iter(){
+    for aa in energyset.evoef2_env.ff_envset.atoms.iter(){
         tmpatoms_prevpos.push((aa.get_x(),aa.get_y(),aa.get_z()));
         tmpatoms_checkpoint.push((aa.get_x(),aa.get_y(),aa.get_z()));
     }
 
-    let num_atoms:usize = energyset.evoef2_env.md_envset.atoms.len();
+    let num_atoms:usize = energyset.evoef2_env.ff_envset.atoms.len();
  
     let mut checkpoint_energies:Vec<f64> = vec![0.0;num_atoms];
     let mut prev_energies:Vec<f64> = vec![0.0;num_atoms];
@@ -263,7 +263,7 @@ pub fn mc_iter_group(
     let mut minenergy_pos:Vec<(f64,f64,f64)> =vec![(0.0,0.0,0.0);num_atoms];
     let mut min_energy:f64;
     fix_group_bond(
-        &mut energyset.evoef2_env.md_envset.atoms
+        &mut energyset.evoef2_env.ff_envset.atoms
     ,atoms_group
     ,bond_restrictor
     ,bond_attractor
@@ -306,20 +306,20 @@ pub fn mc_iter_group(
         let mut idxx:Vec<usize> = (0..num_atoms).into_iter().collect();
         idxx.shuffle(&mut rgen);
         
-        for ii in 0.. energyset.evoef2_env.md_envset.atoms.len(){
+        for ii in 0.. energyset.evoef2_env.ff_envset.atoms.len(){
             tmpatoms_prevpos[ii].0 = energyset.get_atom(ii).get_x();
             tmpatoms_prevpos[ii].1 = energyset.get_atom(ii).get_y();
             tmpatoms_prevpos[ii].2 = energyset.get_atom(ii).get_z();
         }
 
-        random_group_rotate(&mut energyset.evoef2_env.md_envset.atoms
+        random_group_rotate(&mut energyset.evoef2_env.ff_envset.atoms
             ,atoms_group
             ,deg
             ,mov
             ,num_movgroup
             ,&mut rgen);
         fix_group_bond(
-             &mut energyset.evoef2_env.md_envset.atoms
+             &mut energyset.evoef2_env.ff_envset.atoms
             ,atoms_group
             ,bond_restrictor
             ,bond_attractor
@@ -328,7 +328,7 @@ pub fn mc_iter_group(
             ,0.2
             ,atoms_group.len()*10
         );
-        energyset.evoef2_env.md_envset.update_distance();
+        energyset.evoef2_env.ff_envset.update_distance();
         
         for ii in 0..num_atoms{
             current_energies[ii] = 0.0;
@@ -414,7 +414,7 @@ pub fn mc_iter_group(
 /*
 chain ごとに残基順に並んだ原子の ID をグループ化して返す
 */
-pub fn make_sorted_residue_group(atoms:&Vec<charmm_based_energy::MDAtom>)->HashMap<String,Vec<Vec<usize>>>{
+pub fn make_sorted_residue_group(atoms:&Vec<charmm_based_energy::FFAtom>)->HashMap<String,Vec<Vec<usize>>>{
     let mut ret:HashMap<String,Vec<Vec<usize>>> = HashMap::new();
     let mut hss:HashMap<(String,i64),Vec<usize>> = HashMap::new();
 
@@ -516,7 +516,7 @@ pub fn mc_iter_array(
     let mut tmpatoms_prevpos:Vec<(f64,f64,f64)> =vec![];
     let mut tmpatoms_checkpoint:Vec<(f64,f64,f64)> =vec![];
 
-    for aa in energyset.evoef2_env.md_envset.atoms.iter(){
+    for aa in energyset.evoef2_env.ff_envset.atoms.iter(){
         tmpatoms_prevpos.push((aa.get_x(),aa.get_y(),aa.get_z()));
         tmpatoms_checkpoint.push((aa.get_x(),aa.get_y(),aa.get_z()));
     }
@@ -525,7 +525,7 @@ pub fn mc_iter_array(
     let (groups_,rot_max,mov_max):(Vec<Vec<usize>>,f64,f64) = 
     if let Some(x) = group_rotate {
         if x.1 > -0.5{
-            //(make_sorted_residue_group(&energyset.evoef2_env.md_envset.atoms),x.1,movement_max)
+            //(make_sorted_residue_group(&energyset.evoef2_env.ff_envset.atoms),x.1,movement_max)
             (x.0.clone(),x.1,movement_max)
         }else{
             (vec![],-1.0,-1.0)
@@ -554,7 +554,7 @@ pub fn mc_iter_array(
         eprintln!("All groups are fixed!");
         return (std::f64::INFINITY,0);
     }
-    let num_atoms:usize = energyset.evoef2_env.md_envset.atoms.len();
+    let num_atoms:usize = energyset.evoef2_env.ff_envset.atoms.len();
 
     assert!(num_atoms > atoms_fixed.len());
     
@@ -568,14 +568,14 @@ pub fn mc_iter_array(
     let ignores:Vec<usize> = vec![];
     let mut floatings:Vec<usize> = vec![];
     //ToDo multi chain 対応//loop 中にも同じコードがあるので注意
-    for ff in 0..energyset.evoef2_env.md_envset.atoms.len(){
+    for ff in 0..energyset.evoef2_env.ff_envset.atoms.len(){
         if atoms_fixed.contains(&ff){
             continue;
         }
         floatings.push(ff);
     }
-    if floatings.len() == energyset.evoef2_env.md_envset.atoms.len(){
-        let remover:usize = rgen.gen_range(0,energyset.evoef2_env.md_envset.atoms.len());
+    if floatings.len() == energyset.evoef2_env.ff_envset.atoms.len(){
+        let remover:usize = rgen.gen_range(0,energyset.evoef2_env.ff_envset.atoms.len());
         floatings.remove(remover);
     }
     
@@ -585,7 +585,7 @@ pub fn mc_iter_array(
     if bond_restrictor.len()+bond_upper_bound.len() > 0{
         if groups.len() == 0{
         assign_floating_atoms(
-            &mut energyset.evoef2_env.md_envset.atoms
+            &mut energyset.evoef2_env.ff_envset.atoms
             ,bond_restrictor
             ,bond_upper_bound
             ,&floatings
@@ -659,8 +659,8 @@ pub fn mc_iter_array(
                         //mov_weight[sorter[ii].0] = 1.0*(num_moveatom as f64-scou as f64)/(num_moveatom as f64);
                         mov_weight[sorter[ii].0] = 1.0;
                         for pp in 0..num_atoms{
-                            if energyset.evoef2_env.md_envset.dist[sii][pp] < involution_factor.0
-                            || energyset.evoef2_env.md_envset.num_edges[sii][pp] < involution_factor.1 {
+                            if energyset.evoef2_env.ff_envset.dist[sii][pp] < involution_factor.0
+                            || energyset.evoef2_env.ff_envset.num_edges[sii][pp] < involution_factor.1 {
                                 mov_weight[pp] = 1.0;
                             }
                         }
@@ -688,8 +688,8 @@ pub fn mc_iter_array(
                     if scou < num_moveatom{
                         mov_weight[sii] = 1.0;
                         for pp in 0..num_atoms{
-                            if energyset.evoef2_env.md_envset.dist[sii][pp] < involution_factor.0
-                            || energyset.evoef2_env.md_envset.num_edges[sii][pp] < involution_factor.1 {
+                            if energyset.evoef2_env.ff_envset.dist[sii][pp] < involution_factor.0
+                            || energyset.evoef2_env.ff_envset.num_edges[sii][pp] < involution_factor.1 {
                                 mov_weight[pp] = 1.0;
                             }
                         }
@@ -706,7 +706,7 @@ pub fn mc_iter_array(
             }
         }
         
-        for ii in 0.. energyset.evoef2_env.md_envset.atoms.len(){
+        for ii in 0.. energyset.evoef2_env.ff_envset.atoms.len(){
             tmpatoms_prevpos[ii].0 = energyset.get_atom(ii).get_x();
             tmpatoms_prevpos[ii].1 = energyset.get_atom(ii).get_y();
             tmpatoms_prevpos[ii].2 = energyset.get_atom(ii).get_z();
@@ -727,25 +727,25 @@ pub fn mc_iter_array(
                 movedgroup_prev_energies.push(sc);
             }
             for mm in moved_groups.iter(){
-                mov_group(&mut energyset.evoef2_env.md_envset.atoms,&mm.0,rot_max,mov_max,&mut rgen,mm.1,mm.2);
+                mov_group(&mut energyset.evoef2_env.ff_envset.atoms,&mm.0,rot_max,mov_max,&mut rgen,mm.1,mm.2);
             }
         }else{
-            random_movement(&mut energyset.evoef2_env.md_envset,mov,num_moveatom,&mut rgen,&mov_weight);
+            random_movement(&mut energyset.evoef2_env.ff_envset,mov,num_moveatom,&mut rgen,&mov_weight);
         }
         let ignores:Vec<usize> = vec![];
         let mut floatings:Vec<usize> = vec![];
         //ToDo multi chain 対応
-        for ff in 0..energyset.evoef2_env.md_envset.atoms.len(){
+        for ff in 0..energyset.evoef2_env.ff_envset.atoms.len(){
             if atoms_fixed.contains(&ff){
                 continue;
             }
             floatings.push(ff);
         }
-        if floatings.len() == energyset.evoef2_env.md_envset.atoms.len(){
-            let remover:usize = rgen.gen_range(0,energyset.evoef2_env.md_envset.atoms.len());
+        if floatings.len() == energyset.evoef2_env.ff_envset.atoms.len(){
+            let remover:usize = rgen.gen_range(0,energyset.evoef2_env.ff_envset.atoms.len());
             floatings.remove(remover);
         }
-        let fxfloating = |m:&mut Vec<charmm_based_energy::MDAtom>|{
+        let fxfloating = |m:&mut Vec<charmm_based_energy::FFAtom>|{
             if groups.len() == 0{
                 assign_floating_atoms(
                 m
@@ -755,7 +755,7 @@ pub fn mc_iter_array(
                 ,&ignores,0.2);
             }
         };
-        fxfloating(&mut energyset.evoef2_env.md_envset.atoms);
+        fxfloating(&mut energyset.evoef2_env.ff_envset.atoms);
         energyset.update_distance();
         
 
@@ -815,11 +815,11 @@ pub fn mc_iter_array(
                                     ,tmpatoms_prevpos[*aa].1
                                     ,tmpatoms_prevpos[*aa].2);
                             }
-                            mov_group(&mut energyset.evoef2_env.md_envset.atoms,&mm.0,rot_max*dratio,mov_max*dratio,&mut rgen,mm.1,mm.2);
+                            mov_group(&mut energyset.evoef2_env.ff_envset.atoms,&mm.0,rot_max*dratio,mov_max*dratio,&mut rgen,mm.1,mm.2);
                         }
                     }
                     
-                    fxfloating(&mut energyset.evoef2_env.md_envset.atoms);
+                    fxfloating(&mut energyset.evoef2_env.ff_envset.atoms);
                     energyset.update_distance();
                     for ii in 0..num_atoms{
                         current_energies[ii] = 0.0;
@@ -857,7 +857,7 @@ pub fn mc_iter_array(
                             }
                         }
                     
-                        fxfloating(&mut energyset.evoef2_env.md_envset.atoms);
+                        fxfloating(&mut energyset.evoef2_env.ff_envset.atoms);
                         energyset.update_distance();
                 
                         for ii in 0..num_atoms{
@@ -953,7 +953,7 @@ pub fn mc_iter_array(
 
 pub fn get_fixed_point(fl:usize
     ,fixed_idx_attractorflag:&Vec<(usize,bool,f64)>
-    ,atoms:&Vec<charmm_based_energy::MDAtom>
+    ,atoms:&Vec<charmm_based_energy::FFAtom>
     ,ffixed:&HashSet<usize>
     ,tolerance:f64)->((f64,f64,f64),bool){
     let mut next_pos:Vec<(f64,f64,f64)> = vec![];
@@ -1020,7 +1020,7 @@ pub fn get_fixed_point(fl:usize
 
 //他 group と結合しているのは、最初の原子か最後の原子である必要がある。
 pub fn fix_group_bond(
-    atoms:&mut Vec<charmm_based_energy::MDAtom>
+    atoms:&mut Vec<charmm_based_energy::FFAtom>
     ,group:&Vec<Vec<usize>>
     ,restrictor_:&Vec<charmm_based_energy::BondVars>
     ,attractor_:&Vec<charmm_based_energy::BondVars>
@@ -1351,7 +1351,7 @@ pub fn fix_group_bond(
 
 
 pub fn assign_floating_atoms(
-    atoms:&mut Vec<charmm_based_energy::MDAtom>
+    atoms:&mut Vec<charmm_based_energy::FFAtom>
     ,restrictor:&Vec<charmm_based_energy::BondVars>
     ,attractor:&Vec<charmm_based_energy::BondVars>
     ,ffloating_:&Vec<usize>
@@ -1482,7 +1482,7 @@ pub fn assign_floating_atoms(
 }
 
 
-pub fn atom_nelder_mead(md_envset:&mut charmm_based_energy::CharmmEnv
+pub fn atom_nelder_mead(ff_envset:&mut charmm_based_energy::CharmmEnv
     ,energyset:&PPEnergySet
     ,target_atom_index:Vec<usize>
     ,iternum:usize
@@ -1504,23 +1504,23 @@ pub fn atom_nelder_mead(md_envset:&mut charmm_based_energy::CharmmEnv
         betas[pp*3+2].0[pp*3+2] = lambda;
     }
 
-    let mut dummy:Vec<f64> = vec![0.0;md_envset.atoms.len()];
+    let mut dummy:Vec<f64> = vec![0.0;ff_envset.atoms.len()];
     let mut calc_energy_tmp = |tmpbeta:&Vec<f64>|{
         let mut prevval:Vec<f64> = vec![0.0;num_variables];
         for (ii,tt) in target_atom_index.iter().enumerate(){
-            prevval[ii*3] = md_envset.atoms[*tt].get_x();
-            prevval[ii*3+1] = md_envset.atoms[*tt].get_y();
-            prevval[ii*3+2] = md_envset.atoms[*tt].get_z();
-            md_envset.atoms[*tt].set_xyz(
+            prevval[ii*3] = ff_envset.atoms[*tt].get_x();
+            prevval[ii*3+1] = ff_envset.atoms[*tt].get_y();
+            prevval[ii*3+2] = ff_envset.atoms[*tt].get_z();
+            ff_envset.atoms[*tt].set_xyz(
                 tmpbeta[ii*3]+prevval[ii*3],
                 tmpbeta[ii*3+1]+prevval[ii*3+1],
                 tmpbeta[ii*3+2]+prevval[ii*3+2]
             );
         }
-        md_envset.update_distance();
+        ff_envset.update_distance();
         let ret = energyset.calc_energy(&mut dummy);
         for (ii,tt) in target_atom_index.iter().enumerate(){
-            md_envset.atoms[*tt].set_xyz(
+            ff_envset.atoms[*tt].set_xyz(
                 prevval[ii*3],
                 prevval[ii*3+1],
                 prevval[ii*3+2]
@@ -1622,7 +1622,7 @@ pub fn make_straight_split_group(num_atoms:usize)
     return ret;
 }
 //Peptide 結合からなる Chain について、Bond 回転できるようにグループを作る
-pub fn make_peptide_atom_groups(atoms_:&Vec<charmm_based_energy::MDAtom>,bonds:&Vec<&charmm_based_energy::BondVars>)
+pub fn make_peptide_atom_groups(atoms_:&Vec<charmm_based_energy::FFAtom>,bonds:&Vec<&charmm_based_energy::BondVars>)
 ->Vec<Vec<usize>>{
     let mut chains:HashMap<String,Vec<usize>> = HashMap::new();
     for (aii,aa) in atoms_.iter().enumerate(){
@@ -1940,7 +1940,7 @@ pub fn random_movement(envv:&mut charmm_based_energy::CharmmEnv,maxval:f64,targe
         }
     }
 }
-pub fn copy_xyz_tmp_to_atom(src:&Vec<(f64,f64,f64)>,dest:&mut Vec<charmm_based_energy::MDAtom>){
+pub fn copy_xyz_tmp_to_atom(src:&Vec<(f64,f64,f64)>,dest:&mut Vec<charmm_based_energy::FFAtom>){
 
     for (ii,aa) in src.iter().enumerate(){
         dest[ii].set_x(aa.0);
@@ -1949,7 +1949,7 @@ pub fn copy_xyz_tmp_to_atom(src:&Vec<(f64,f64,f64)>,dest:&mut Vec<charmm_based_e
     }
 }
 
-pub fn copy_xyz_atom_to_tmp(src:& Vec<charmm_based_energy::MDAtom>,dest:&mut Vec<(f64,f64,f64)>){
+pub fn copy_xyz_atom_to_tmp(src:& Vec<charmm_based_energy::FFAtom>,dest:&mut Vec<(f64,f64,f64)>){
     for (ii,aa) in src.iter().enumerate(){
         dest[ii].0 = aa.get_x();
         dest[ii].1 = aa.get_y();
@@ -1966,18 +1966,18 @@ fn test_aa(){
     //let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("test/test_lys_nohz3.pdb");
     let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("test/lys_mdd.pdb");
     //let mut pdbb:pdbdata::PDBEntry = mmcif_process::load_pdb("test/lys_changed.pdb");
-    charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter_mut_comps().map(|m|*m).collect());
-    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_all_asyms(),&parr,true);
-    let (torsion,omegas) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,true,false),false);
+    charmm_based_energy::FFAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter_mut_comps().map(|m|*m).collect());
+    let (mut ff_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::FFAtom::chain_to_atoms(&pdbb.get_all_asyms(),&parr,true);
+    let (torsion,omegas) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&ff_envset,(false,true,false),false);
     let masked:Vec<usize> = peptide_backbone_dihedral_energy::get_overwrapping_dihed(&mut md_varset.dihedvec,&torsion,&omegas);
 
     let mut lines:Vec<String> = vec![];
-    for aa in md_envset.atoms.iter(){
+    for aa in ff_envset.atoms.iter(){
         let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
         lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
     }
-    let mut dummy:Vec<f64> = vec![0.0;md_envset.atoms.len()];
-    let scoresum = charmm_based_energy::calc_energy(&mut md_envset,&md_varset,&mut dummy);
+    let mut dummy:Vec<f64> = vec![0.0;ff_envset.atoms.len()];
+    let scoresum = charmm_based_energy::calc_energy(&mut ff_envset,&md_varset,&mut dummy);
         
     println!("energy:{:?}",scoresum);
     
@@ -1991,15 +1991,15 @@ fn test_aa(){
     }
 
     for dd in md_varset.anglevec.iter(){
-        eprintln!("{} {} {}",&md_envset.atoms[dd.atoms.0].atom_name
-        ,&md_envset.atoms[dd.atoms.1].atom_name
-        ,&md_envset.atoms[dd.atoms.2].atom_name
+        eprintln!("{} {} {}",&ff_envset.atoms[dd.atoms.0].atom_name
+        ,&ff_envset.atoms[dd.atoms.1].atom_name
+        ,&ff_envset.atoms[dd.atoms.2].atom_name
         );
     }
   
-    let anum:usize = md_envset.atoms.len();
+    let anum:usize = ff_envset.atoms.len();
     let mut ppenergyset = PPEnergySet{
-        evoef2_env:evoef2_energy::EvoEF2Env::new(md_envset,md_varset,debug_env::RESOURCE_DIR,false),
+        evoef2_env:evoef2_energy::EvoEF2Env::new(ff_envset,md_varset,debug_env::RESOURCE_DIR,false),
         backbone_energy_omega:omegas,
         backbone_energy_phi_psi:torsion,
         atom_distance_energy:vec![],
@@ -2027,7 +2027,7 @@ fn test_aa(){
     }
 
     let mut lines:Vec<String> = vec![];
-    for aa in ppenergyset.evoef2_env.md_envset.atoms.iter(){
+    for aa in ppenergyset.evoef2_env.ff_envset.atoms.iter(){
         let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
         lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
     }
@@ -2047,35 +2047,35 @@ fn subgroup_assign_test(){
     }
 
     let mut ress:Vec<pdbdata::PDBComp> = chain_builder::build_dirty_chain(&chain_builder::convert_aa_1_to_3(&allaa_),&bset,&sset);
-    charmm_based_energy::MDAtom::change_to_charmmnames(&mut ress);
+    charmm_based_energy::FFAtom::change_to_charmmnames(&mut ress);
     
     let mut chain:pdbdata::PDBAsym = pdbdata::PDBAsym::new("A");
     for rr in ress.into_iter(){
         chain.add_comp(rr);
     }
 
-    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&vec![&chain],&parr,true);
+    let (mut ff_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::FFAtom::chain_to_atoms(&vec![&chain],&parr,true);
     
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(&(debug_env::RESOURCE_DIR.to_string()+"/"+"angle_distribution_energy.dat"));
-    let (_,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,true,false),false);
+    let (_,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&ff_envset,(false,true,false),false);
     
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped("test/6F3H_B.dihed.dat");
-    let (torsion,_) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,false,true),false);
+    let (torsion,_) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&ff_envset,(false,false,true),false);
     
     let dist_vvec:Vec<(String,usize,String,usize,distance_energy::AtomDistanceEnergy)> = distance_energy::AtomDistanceEnergy::load_name_mapped("test/6F3H_B.cbdist.dat");
-    let diste:Vec<distance_energy::AtomDistanceEnergy> = distance_energy::AtomDistanceEnergy::assign_atom_ids(&md_envset,dist_vvec);
+    let diste:Vec<distance_energy::AtomDistanceEnergy> = distance_energy::AtomDistanceEnergy::assign_atom_ids(&ff_envset,dist_vvec);
 
     let masked:Vec<usize> = peptide_backbone_dihedral_energy::get_overwrapping_dihed(&mut md_varset.dihedvec,&torsion,&omegas_general);
 
-    let mut dummy:Vec<f64> = vec![0.0;md_envset.atoms.len()];
-    let _scoresum = charmm_based_energy::calc_energy(&mut md_envset,&md_varset,&mut dummy);
+    let mut dummy:Vec<f64> = vec![0.0;ff_envset.atoms.len()];
+    let _scoresum = charmm_based_energy::calc_energy(&mut ff_envset,&md_varset,&mut dummy);
         
     let mut weight_dihed = vec![1.0;md_varset.dihedvec.len()];
     for ii in masked.into_iter(){
         weight_dihed[ii] = 0.2;
     }
     let mut ppenergyset = PPEnergySet{
-        evoef2_env:evoef2_energy::EvoEF2Env::new(md_envset,md_varset,debug_env::RESOURCE_DIR,false),
+        evoef2_env:evoef2_energy::EvoEF2Env::new(ff_envset,md_varset,debug_env::RESOURCE_DIR,false),
         backbone_energy_omega:omegas_general,
         backbone_energy_phi_psi:torsion,
         atom_distance_energy:diste,
@@ -2089,7 +2089,7 @@ fn subgroup_assign_test(){
     eprintln!("{}",ppenergyset.calc_energy(&mut dummy));
     
     let mut sparse_atoms:Vec<usize> = vec![];
-    for (aii,aa) in ppenergyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+    for (aii,aa) in ppenergyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
         //let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
         if aa.atom_name == "CA"
          || aa.atom_name == "CB" 
@@ -2103,12 +2103,12 @@ fn subgroup_assign_test(){
 
     let (mut sub_energyset,_mapper):(PPEnergySet,Vec<i64>) = ppenergyset.make_set_for_subenv(&sparse_atoms);
     sub_energyset.update_distance();
-    sub_energyset.evoef2_env.md_envset.update_edges(&sub_energyset.evoef2_env.charmm_vars.bondvec,5);
-    let mut subdummy:Vec<f64> = vec![0.0;sub_energyset.evoef2_env.md_envset.atoms.len()];
+    sub_energyset.evoef2_env.ff_envset.update_edges(&sub_energyset.evoef2_env.charmm_vars.bondvec,5);
+    let mut subdummy:Vec<f64> = vec![0.0;sub_energyset.evoef2_env.ff_envset.atoms.len()];
     let score1 = sub_energyset.calc_energy(&mut subdummy);
 
     let mut sparse_atoms:Vec<usize> = vec![];
-    for (aii,aa) in sub_energyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+    for (aii,aa) in sub_energyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
         //let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
         if aa.atom_name == "CA"
          || aa.atom_name == "CB" 
@@ -2122,7 +2122,7 @@ fn subgroup_assign_test(){
 
     let (mut sub_energyset,_mapper) = sub_energyset.make_set_for_subenv(&sparse_atoms);
     sub_energyset.update_distance();
-    let mut subdummy2:Vec<f64> = vec![0.0;sub_energyset.evoef2_env.md_envset.atoms.len()];
+    let mut subdummy2:Vec<f64> = vec![0.0;sub_energyset.evoef2_env.ff_envset.atoms.len()];
     let score2 = sub_energyset.calc_energy(&mut subdummy2);
     assert_eq!(score1,score2);
 }
@@ -2159,7 +2159,7 @@ pub fn build_test(){
     }
 
     let mut ress:Vec<pdbdata::PDBComp> = chain_builder::build_dirty_chain(&chain_builder::convert_aa_1_to_3(&allaa_),&bset,&sset);
-    charmm_based_energy::MDAtom::change_to_charmmnames(&mut ress);
+    charmm_based_energy::FFAtom::change_to_charmmnames(&mut ress);
     
     let mut chain:pdbdata::PDBAsym = pdbdata::PDBAsym::new("A");
     for rr in ress.into_iter(){
@@ -2167,24 +2167,24 @@ pub fn build_test(){
     }
 
 
-    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&vec![&chain],&parr,true);
+    let (mut ff_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::FFAtom::chain_to_atoms(&vec![&chain],&parr,true);
     
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(&(debug_env::RESOURCE_DIR.to_string()+"/"+"angle_distribution_energy.dat"));
-    let (_,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,true,false),false);
+    let (_,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&ff_envset,(false,true,false),false);
     
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped("test/6F3H_B.dihed.dat");
-    let (torsion,_) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,false,true),false);
+    let (torsion,_) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&ff_envset,(false,false,true),false);
     
     //let dist_vvec:Vec<(String,usize,String,usize,distance_energy::AtomDistanceEnergy)> = distance_energy::AtomDistanceEnergy::load_name_mapped("test/6F3H_B.cbdist.dat");
-    //let diste:Vec<distance_energy::AtomDistanceEnergy> = distance_energy::AtomDistanceEnergy::assign_atom_ids(&md_envset,dist_vvec);
+    //let diste:Vec<distance_energy::AtomDistanceEnergy> = distance_energy::AtomDistanceEnergy::assign_atom_ids(&ff_envset,dist_vvec);
 
     let dist_bvvec:Vec<(String,usize,String,usize,distance_energy::AtomBinnedDistanceEnergy)> = distance_energy::AtomBinnedDistanceEnergy::load_name_mapped("test/6F3H_B.cbdistbin.dat");
-    let distbe:Vec<distance_energy::AtomBinnedDistanceEnergy> = distance_energy::AtomBinnedDistanceEnergy::assign_atom_ids(&md_envset,dist_bvvec);
+    let distbe:Vec<distance_energy::AtomBinnedDistanceEnergy> = distance_energy::AtomBinnedDistanceEnergy::assign_atom_ids(&ff_envset,dist_bvvec);
 
     let masked:Vec<usize> = peptide_backbone_dihedral_energy::get_overwrapping_dihed(&mut md_varset.dihedvec,&torsion,&omegas_general);
 
-    let mut dummy:Vec<f64> = vec![0.0;md_envset.atoms.len()];
-    let scoresum = charmm_based_energy::calc_energy(&mut md_envset,&md_varset,&mut dummy);
+    let mut dummy:Vec<f64> = vec![0.0;ff_envset.atoms.len()];
+    let scoresum = charmm_based_energy::calc_energy(&mut ff_envset,&md_varset,&mut dummy);
         
     println!("energy:{:?}",scoresum);
    
@@ -2194,7 +2194,7 @@ pub fn build_test(){
     }
     
     let mut ppenergyset = PPEnergySet{
-        evoef2_env:evoef2_energy::EvoEF2Env::new(md_envset,md_varset,debug_env::RESOURCE_DIR,false),
+        evoef2_env:evoef2_energy::EvoEF2Env::new(ff_envset,md_varset,debug_env::RESOURCE_DIR,false),
         backbone_energy_omega:omegas_general,
         backbone_energy_phi_psi:torsion,
         atom_distance_energy:vec![],
@@ -2210,7 +2210,7 @@ pub fn build_test(){
     eprintln!("{}",ppenergyset.calc_energy(&mut dummy));
     
     let mut sparse_atoms:Vec<usize> = vec![];
-    for (aii,aa) in ppenergyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+    for (aii,aa) in ppenergyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
         if aa.atom_name == "CA"
         || aa.atom_name == "CB" 
         || aa.atom_name == "C" 
@@ -2223,13 +2223,13 @@ pub fn build_test(){
     let subatomnum:usize = sparse_atoms.len();
     let (mut sub_energyset,_submapper):(PPEnergySet,Vec<i64>) = ppenergyset.make_set_for_subenv(&sparse_atoms);
 
-    ditribute_atoms_globular(&mut sub_energyset.evoef2_env.md_envset,50.0,Some(1234_u64));
+    ditribute_atoms_globular(&mut sub_energyset.evoef2_env.ff_envset,50.0,Some(1234_u64));
     sub_energyset.update_distance();
     sub_energyset.update_edges(5);
 
 
     let mut cbatoms:Vec<usize> = vec![];
-    for (aii,aa) in sub_energyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+    for (aii,aa) in sub_energyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
         if aa.residue_name == "GLY" && aa.atom_name == "CA"{
             cbatoms.push(aii);
             continue;
@@ -2243,14 +2243,14 @@ pub fn build_test(){
     let cbatomnum:usize = cbatoms.len();
     let (mut cb_energyset,cbmapper):(PPEnergySet,Vec<i64>) = sub_energyset.make_set_for_subenv(&cbatoms);
     let mut cbdummy:Vec<f64> = vec![0.0;cbatomnum];
-    ditribute_atoms_globular(&mut cb_energyset.evoef2_env.md_envset,50.0,Some(1234_u64));
+    ditribute_atoms_globular(&mut cb_energyset.evoef2_env.ff_envset,50.0,Some(1234_u64));
     cb_energyset.update_distance();
     cb_energyset.gen_pseudo_edges(5);
     let mut cb_pseudobond:Vec<charmm_based_energy::BondVars> = vec![];
     
     for ii in 0..(cbatomnum-1){
-        if cb_energyset.evoef2_env.md_envset.atoms[ii+1].chain_name == cb_energyset.get_atom(ii).chain_name 
-        && cb_energyset.evoef2_env.md_envset.atoms[ii+1].residue_index_in_chain - cb_energyset.get_atom(ii).residue_index_in_chain == 1{
+        if cb_energyset.evoef2_env.ff_envset.atoms[ii+1].chain_name == cb_energyset.get_atom(ii).chain_name 
+        && cb_energyset.evoef2_env.ff_envset.atoms[ii+1].residue_index_in_chain - cb_energyset.get_atom(ii).residue_index_in_chain == 1{
             cb_pseudobond.push(
                 charmm_based_energy::BondVars{
                     atoms:(ii,ii+1),
@@ -2263,22 +2263,22 @@ pub fn build_test(){
 
     let ignores:Vec<usize> = vec![];
     let mut lines:Vec<String> = vec![];
-    for aa in sub_energyset.evoef2_env.md_envset.atoms.iter(){
+    for aa in sub_energyset.evoef2_env.ff_envset.atoms.iter(){
         let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
         lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
     }
     write_to_file((format!("test/6F3H_B_d1_built_cb_mc_start1_b.pdb")).as_str(),lines);
     let sub_bond_restrictor:Vec<charmm_based_energy::BondVars> = sub_energyset.evoef2_env.charmm_vars.bondvec.clone();
-    assign_floating_atoms(&mut sub_energyset.evoef2_env.md_envset.atoms,&sub_bond_restrictor,&vec![],&((1..subatomnum).into_iter().collect()),&ignores,0.5);
+    assign_floating_atoms(&mut sub_energyset.evoef2_env.ff_envset.atoms,&sub_bond_restrictor,&vec![],&((1..subatomnum).into_iter().collect()),&ignores,0.5);
     sub_energyset.update_distance();
 
     let mut lines:Vec<String> = vec![];
-    for aa in sub_energyset.evoef2_env.md_envset.atoms.iter(){
+    for aa in sub_energyset.evoef2_env.ff_envset.atoms.iter(){
         let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
         lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
     }
     write_to_file((format!("test/6F3H_B_d1_built_cb_mc_start_b.pdb")).as_str(),lines);
-    let mut subdummy:Vec<f64> = vec![0.0;sub_energyset.evoef2_env.md_envset.atoms.len()];
+    let mut subdummy:Vec<f64> = vec![0.0;sub_energyset.evoef2_env.ff_envset.atoms.len()];
     let fixedatoms:HashSet<usize> = HashSet::new();
 
     eprintln!("!!!{}",sub_energyset.calc_energy(&mut subdummy));
@@ -2328,7 +2328,7 @@ pub fn build_test(){
                             for cbb in 0..loopnum{
                                 let mut cb_partial_atoms:Vec<usize> = vec![];
                                 let mut fixedatoms_partial:HashSet<usize> = HashSet::new();
-                                for (aii_,_aa) in cb_energyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+                                for (aii_,_aa) in cb_energyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
                                     if cbb < loopnum-1{
                                         if cb_partial_atoms.len() > (cbb+1)*(cbatomnum/loopnum+1){
                                             break;
@@ -2435,7 +2435,7 @@ pub fn build_test(){
                                     ,&cb_partial_pseudobond
                                     );
 
-                                charmm_based_energy::CharmmEnv::accept_subenv_atom(&mut cb_energyset.evoef2_env.md_envset,&cb_partial_energyset.evoef2_env.md_envset,&cb_partial_mapper);
+                                charmm_based_energy::CharmmEnv::accept_subenv_atom(&mut cb_energyset.evoef2_env.ff_envset,&cb_partial_energyset.evoef2_env.ff_envset,&cb_partial_mapper);
                                 for pp in cb_partial_atoms.into_iter(){
                                     prevatoms.insert(pp);
                                 }
@@ -2456,11 +2456,11 @@ pub fn build_test(){
                                 }
                             }
                         }
-                        charmm_based_energy::CharmmEnv::accept_subenv_atom(&mut cb_energyset.evoef2_env.md_envset,&cb_partial_minset.unwrap().evoef2_env.md_envset,&minmapper);
+                        charmm_based_energy::CharmmEnv::accept_subenv_atom(&mut cb_energyset.evoef2_env.ff_envset,&cb_partial_minset.unwrap().evoef2_env.ff_envset,&minmapper);
                         
 
                         let mut lines:Vec<String> = vec![];
-                        for aa in cb_energyset.evoef2_env.md_envset.atoms.iter(){
+                        for aa in cb_energyset.evoef2_env.ff_envset.atoms.iter(){
                             let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
                             lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
                         }
@@ -2493,7 +2493,7 @@ pub fn build_test(){
                 }
                             
                 let mut lines:Vec<String> = vec![];
-                for aa in cb_energyset.evoef2_env.md_envset.atoms.iter(){
+                for aa in cb_energyset.evoef2_env.ff_envset.atoms.iter(){
                     let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
                     lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
                 }
@@ -2510,7 +2510,7 @@ pub fn build_test(){
                         cbfix.insert(cii);
                     }
                 }
-                charmm_based_energy::CharmmEnv::accept_subenv_atom(&mut sub_energyset.evoef2_env.md_envset,&cb_energyset.evoef2_env.md_envset,&cbmapper);
+                charmm_based_energy::CharmmEnv::accept_subenv_atom(&mut sub_energyset.evoef2_env.ff_envset,&cb_energyset.evoef2_env.ff_envset,&cbmapper);
 
                 //sub_energyset.atom_distance_energy.1 = 1.0/(1.0+kkk as f64/2.0);
                 mc_iter_array(&mut sub_energyset
@@ -2555,7 +2555,7 @@ pub fn build_test(){
                 }
                 
                 let mut lines:Vec<String> = vec![];
-                for aa in sub_energyset.evoef2_env.md_envset.atoms.iter(){
+                for aa in sub_energyset.evoef2_env.ff_envset.atoms.iter(){
                     let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
                     lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
                 }
@@ -2592,7 +2592,7 @@ pub fn build_test(){
                 }
                 println!("->: {}",currentenergy);
                 let mut lines:Vec<String> = vec![];
-                for aa in sub_energyset.evoef2_env.md_envset.atoms.iter(){
+                for aa in sub_energyset.evoef2_env.ff_envset.atoms.iter(){
                     let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
                     lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
                 }
@@ -2604,7 +2604,7 @@ pub fn build_test(){
                 
             }
             let mut lines:Vec<String> = vec![];
-            for aa in sub_energyset.evoef2_env.md_envset.atoms.iter(){
+            for aa in sub_energyset.evoef2_env.ff_envset.atoms.iter(){
                 let (chainid,(resname,resnum,altcode),att) = aa.to_pdbatom();
                 lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
             }
@@ -2619,13 +2619,13 @@ pub fn build_test(){
 #[test]
 fn group_fit_test(){//エラーが起きないか見るだけ
     for tt in 100..101{
-        let mut atoms:Vec<charmm_based_energy::MDAtom> = vec![];
-        let atom1 = charmm_based_energy::MDAtom::dummy();
+        let mut atoms:Vec<charmm_based_energy::FFAtom> = vec![];
+        let atom1 = charmm_based_energy::FFAtom::dummy();
         atoms.push(atom1);
         let mut rgen:StdRng = SeedableRng::seed_from_u64(123);
         let randx:(f64,f64,f64) = (rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0));
         for ii in 0..10{
-            atoms.push(charmm_based_energy::MDAtom{
+            atoms.push(charmm_based_energy::FFAtom{
                 atom_type:"C".to_string(),
                 atom_name:"C".to_string(),
                 chain_name:"A".to_string(),
@@ -2655,7 +2655,7 @@ fn group_fit_test(){//エラーが起きないか見るだけ
         
         let randx:(f64,f64,f64) = (rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0));
         for ii in 0..10{
-            atoms.push(charmm_based_energy::MDAtom{
+            atoms.push(charmm_based_energy::FFAtom{
                 atom_type:"C".to_string(),
                 atom_name:"C".to_string(),
                 chain_name:"A".to_string(),
@@ -2686,7 +2686,7 @@ fn group_fit_test(){//エラーが起きないか見るだけ
         
         let randx:(f64,f64,f64) = (rgen.gen_range(-10.0,10.0),rgen.gen_range(-10.0,10.0),rgen.gen_range(-10.0,10.0));
         for ii in 0..1{
-            atoms.push(charmm_based_energy::MDAtom{
+            atoms.push(charmm_based_energy::FFAtom{
                 atom_type:"C".to_string(),
                 atom_name:"C".to_string(),
                 chain_name:"A".to_string(),
@@ -2714,7 +2714,7 @@ fn group_fit_test(){//エラーが起きないか見るだけ
             });
         }
 
-        let atom_last = charmm_based_energy::MDAtom{
+        let atom_last = charmm_based_energy::FFAtom{
             atom_type:"C".to_string(),
             atom_name:"C".to_string(),
             chain_name:"A".to_string(),
@@ -2843,28 +2843,28 @@ fn group_connection_test(){
 #[test]
 fn peptide_group_test(){
     let mut bonds_all:Vec<charmm_based_energy::BondVars> = vec![];
-    let mut atoms_all:Vec<charmm_based_energy::MDAtom> = vec![];
+    let mut atoms_all:Vec<charmm_based_energy::FFAtom> = vec![];
     let mut lastatomnum:usize = 0;
     for ll in 0..3{
         let mut bonds:Vec<charmm_based_energy::BondVars> = vec![];
-        let mut atoms:Vec<charmm_based_energy::MDAtom> = vec![];
+        let mut atoms:Vec<charmm_based_energy::FFAtom> = vec![];
         for aa in 0..5 as usize{
-            let mut n = charmm_based_energy::MDAtom::dummy();
+            let mut n = charmm_based_energy::FFAtom::dummy();
             n.atom_name = "N".to_owned();
 
-            let mut ca = charmm_based_energy::MDAtom::dummy();
+            let mut ca = charmm_based_energy::FFAtom::dummy();
             ca.atom_name = "CA".to_owned();
 
-            let mut c = charmm_based_energy::MDAtom::dummy();
+            let mut c = charmm_based_energy::FFAtom::dummy();
             c.atom_name = "C".to_owned();
             
-            let mut o = charmm_based_energy::MDAtom::dummy();
+            let mut o = charmm_based_energy::FFAtom::dummy();
             o.atom_name = "O".to_owned();
             
-            let mut h = charmm_based_energy::MDAtom::dummy();
+            let mut h = charmm_based_energy::FFAtom::dummy();
             h.atom_name = "H".to_owned();
 
-            let mut ha = charmm_based_energy::MDAtom::dummy();
+            let mut ha = charmm_based_energy::FFAtom::dummy();
             ha.atom_name = "HA".to_owned();
             
             n.residue_index_in_chain = aa as i64;
@@ -2933,7 +2933,7 @@ fn peptide_group_test(){
         }
         //residue number について考えてないので必要になったら追加
         for aa in 30..=51{
-            let mut a = charmm_based_energy::MDAtom::dummy();
+            let mut a = charmm_based_energy::FFAtom::dummy();
             a.residue_index_in_chain = aa as i64;
             a.atom_name = "X".to_owned();
             atoms.push(a);
@@ -3094,41 +3094,41 @@ pub fn tbm_and_loop_test(){
     let parr = charmm_param::CHARMMParam::load_chamm19((debug_env::CHARMM_DIR.to_string()+"\\toph19.inp").as_str(),(debug_env::CHARMM_DIR.to_string()+"\\param19.inp").as_str());
     
 
-    charmm_based_energy::MDAtom::change_to_charmmnames(&mut ress);
+    charmm_based_energy::FFAtom::change_to_charmmnames(&mut ress);
     
     let mut chain:pdbdata::PDBAsym = pdbdata::PDBAsym::new("A".to_string());
     for rr in ress.into_iter(){
         chain.add_residue(rr,true);
     }
 
-    let (mut md_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&mut chain,&parr,true);
+    let (mut ff_envset,mut md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::FFAtom::chain_to_atoms(&mut chain,&parr,true);
     
     let mut aligned_atoms:HashSet<usize> = HashSet::new();
-    for (aii,aa) in md_envset.atoms.iter().enumerate(){
+    for (aii,aa) in ff_envset.atoms.iter().enumerate(){
         if flags[aa.residue_index_in_chain as usize]{
             aligned_atoms.insert(aii);
         }
     }
 
     let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped(&(debug_env::RESOURCE_DIR.to_string()+"/"+"angle_distribution_energy.dat"));
-    let (torsion_general,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,true,false,false));
+    let (torsion_general,omegas_general) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&ff_envset,(false,true,false,false));
     //ここから
     //拘束がある場合は Vec に入れてある場合ない場合両方対応できるように
 
     //let pvec:HashMap<String,peptide_backbone_dihedral_energy::PlainDistribution> = peptide_backbone_dihedral_energy::PlainDistribution::load_name_mapped("test/6F3H_B.dihed.dat");
-    //let (torsion,_) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&md_envset,(false,false,true,false));
+    //let (torsion,_) = peptide_backbone_dihedral_energy::PlainDistribution::create_energy_instance(&pvec,&ff_envset,(false,false,true,false));
     
     //let dist_vvec:Vec<(String,usize,String,usize,distance_energy::AtomDistanceEnergy)> = distance_energy::AtomDistanceEnergy::load_name_mapped("test/6F3H_B.cbdist.dat");
-    //let diste:Vec<distance_energy::AtomDistanceEnergy> = distance_energy::AtomDistanceEnergy::assign_atom_ids(&md_envset,dist_vvec);
+    //let diste:Vec<distance_energy::AtomDistanceEnergy> = distance_energy::AtomDistanceEnergy::assign_atom_ids(&ff_envset,dist_vvec);
 
     //binned dist
     //let dist_bvvec:Vec<(String,usize,String,usize,distance_energy::AtomBinnedDistanceEnergy)> = distance_energy::AtomBinnedDistanceEnergy::load_name_mapped("test/6F3H_B.cbdistbin.dat");
-    //let distbe:Vec<distance_energy::AtomBinnedDistanceEnergy> = distance_energy::AtomBinnedDistanceEnergy::assign_atom_ids(&md_envset,dist_bvvec);
+    //let distbe:Vec<distance_energy::AtomBinnedDistanceEnergy> = distance_energy::AtomBinnedDistanceEnergy::assign_atom_ids(&ff_envset,dist_bvvec);
 
-    let masked:Vec<usize> = peptide_backbone_dihedral_energy::get_overwrapping_dihed(&mut md_envset,&mut md_varset.dihedvec,&torsion_general,&omegas_general);
+    let masked:Vec<usize> = peptide_backbone_dihedral_energy::get_overwrapping_dihed(&mut ff_envset,&mut md_varset.dihedvec,&torsion_general,&omegas_general);
 
-    let mut dummy:Vec<f64> = vec![0.0;md_envset.atoms.len()];
-    let scoresum = charmm_based_energy::calc_energy(&mut md_envset,&md_varset,&mut dummy);
+    let mut dummy:Vec<f64> = vec![0.0;ff_envset.atoms.len()];
+    let scoresum = charmm_based_energy::calc_energy(&mut ff_envset,&md_varset,&mut dummy);
         
     println!("energy:{:?}",scoresum);
    
@@ -3153,11 +3153,11 @@ pub fn tbm_and_loop_test(){
         atom_binned_distance_energy:(vec![],100.0),
     };
     
-    eprintln!("{}",ppenergyset.calc_energy(&md_envset,&mut dummy));
+    eprintln!("{}",ppenergyset.calc_energy(&ff_envset,&mut dummy));
     
     let mut sparse_atoms:Vec<usize> = vec![];
     
-    for (aii,aa) in md_envset.atoms.iter().enumerate(){
+    for (aii,aa) in ff_envset.atoms.iter().enumerate(){
         if aa.atom_name == "CA"
         || aa.atom_name == "CB" 
         || aa.atom_name == "C" 
@@ -3170,7 +3170,7 @@ pub fn tbm_and_loop_test(){
     //作った後にクラスタリングとかするか。
     //動きについて Bond の回転等だけで実現するものを作る
 
-    let (mut subenv,mapper):(charmm_based_energy::CharmmEnv,Vec<i64>) = md_envset.make_sub_env(&sparse_atoms);
+    let (mut subenv,mapper):(charmm_based_energy::CharmmEnv,Vec<i64>) = ff_envset.make_sub_env(&sparse_atoms);
     let mut aligned_atoms_sub:HashSet<usize> = HashSet::new();
     for (mii,mm) in mapper.iter().enumerate(){
         if aligned_atoms.contains(&mii){

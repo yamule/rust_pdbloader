@@ -446,7 +446,7 @@ fn refinement(args:HashMap<String,String>) {
     let mut pdbb:PDBEntry = load_pdb(args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")));
     for cc in pdbb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
         cc.remove_alt(None);
-        charmm_based_energy::MDAtom::change_to_charmmnames(&mut cc.residues);
+        charmm_based_energy::FFAtom::change_to_charmmnames(&mut cc.residues);
     }
     let outfile:String =  args.get("-out").unwrap_or_else(|| panic!("Please specify input file with -out.")).to_string();
     let ppenergyset:pp_energy::PPEnergySet =template_based_modelling::refinement(
@@ -474,9 +474,9 @@ fn refinement(args:HashMap<String,String>) {
     );
     
     let mut lines:Vec<String> = vec![];
-    let mut atom_based_energies:Vec<f64> = vec![0.0;ppenergyset.evoef2_env.md_envset.atoms.len()];
+    let mut atom_based_energies:Vec<f64> = vec![0.0;ppenergyset.evoef2_env.ff_envset.atoms.len()];
     let _pres = ppenergyset.calc_energy_sep(&mut atom_based_energies);
-    for (aii,aa) in ppenergyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+    for (aii,aa) in ppenergyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
         let  (chainid,(resname,resnum,altcode),mut att) = aa.to_pdbatom();
         att.temp_factor = atom_based_energies[aii].max(-999.0).min(999.0);
         lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
@@ -500,7 +500,7 @@ fn docking(args:HashMap<String,String>) {
     let mut pdbb:PDBEntry = load_pdb(args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")));
     for cc in pdbb.get_model_at(0).get_entity_at(0).iter_mut_asyms(){
         cc.remove_alt(None);
-        charmm_based_energy::MDAtom::change_to_charmmnames(&mut cc.residues);
+        charmm_based_energy::FFAtom::change_to_charmmnames(&mut cc.residues);
     }
     let outfile:String =  args.get("-out").unwrap_or_else(|| panic!("Please specify input file with -out.")).to_string();
     let ppenergyset:pp_energy::PPEnergySet =template_based_modelling::docking(
@@ -519,9 +519,9 @@ fn docking(args:HashMap<String,String>) {
     );
     
     let mut lines:Vec<String> = vec![];
-    let mut atom_based_energies:Vec<f64> = vec![0.0;ppenergyset.evoef2_env.md_envset.atoms.len()];
+    let mut atom_based_energies:Vec<f64> = vec![0.0;ppenergyset.evoef2_env.ff_envset.atoms.len()];
     let _pres = ppenergyset.calc_energy_sep(&mut atom_based_energies);
-    for (aii,aa) in ppenergyset.evoef2_env.md_envset.atoms.iter().enumerate(){
+    for (aii,aa) in ppenergyset.evoef2_env.ff_envset.atoms.iter().enumerate(){
         let  (chainid,(resname,resnum,altcode),mut att) = aa.to_pdbatom();
         att.temp_factor = atom_based_energies[aii].max(-999.0).min(999.0);
         lines.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&altcode));
@@ -1140,24 +1140,24 @@ fn main_prepare_structure(args:HashMap<String,String>) {
     let mut lines_all:Vec<String> = vec![];
     let numchains:usize = pdbb.get_all_asyms().iter().map(|m|*m).collect().len();
     for ll in 0..numchains{
-        charmm_based_energy::MDAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter().map(|m|*m).collect()[ll].residues);
+        charmm_based_energy::FFAtom::change_to_charmmnames(&mut pdbb.get_all_asyms().iter().map(|m|*m).collect()[ll].residues);
     }
-    let (mut md_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::MDAtom::chain_to_atoms(&pdbb.get_all_asyms().iter().map(|m|*m).collect(),&parr,true);
-    let num_atoms = md_envset.atoms.len();
-    charmm_based_energy::estimate_positions_unplaced(&mut md_envset,&md_varset);
+    let (mut ff_envset,md_varset):(charmm_based_energy::CharmmEnv,charmm_based_energy::CharmmVars) = charmm_based_energy::FFAtom::chain_to_atoms(&pdbb.get_all_asyms().iter().map(|m|*m).collect(),&parr,true);
+    let num_atoms = ff_envset.atoms.len();
+    charmm_based_energy::estimate_positions_unplaced(&mut ff_envset,&md_varset);
     for ii in 0..num_atoms{
         
-        if md_envset.atoms[ii].unplaced{
-            eprintln!("Can not place {:?}",md_envset.atoms[ii]);
+        if ff_envset.atoms[ii].unplaced{
+            eprintln!("Can not place {:?}",ff_envset.atoms[ii]);
         }
         if random_movement > 0.0{
-            md_envset.atoms[ii].x += rgen.gen_range(-random_movement,random_movement);
-            md_envset.atoms[ii].y += rgen.gen_range(-random_movement,random_movement);
-            md_envset.atoms[ii].z += rgen.gen_range(-random_movement,random_movement);
+            ff_envset.atoms[ii].x += rgen.gen_range(-random_movement,random_movement);
+            ff_envset.atoms[ii].y += rgen.gen_range(-random_movement,random_movement);
+            ff_envset.atoms[ii].z += rgen.gen_range(-random_movement,random_movement);
         }
     }
 
-    for aa in md_envset.atoms.iter(){
+    for aa in ff_envset.atoms.iter(){
         let (chainid,(resname,resnum,inscode),att) = aa.to_pdbatom();
         lines_all.push(att.get_pdb_atom_line_string(&chainid,&resname,resnum,&inscode));
     }

@@ -13,7 +13,7 @@ pub mod side_chain_sample;
 pub mod atom_id_map;
 pub mod residue_id_map;
 
-pub mod md_env;
+pub mod ff_env;
 //pub mod mcprocess;
 //pub mod mcprocess_md;
 //pub mod chain_builder;

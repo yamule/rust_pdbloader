@@ -249,23 +249,23 @@ impl PPEnergyWeight{
 }
 impl PPEnergySet{
     pub fn get_num_atoms(&self)->usize{
-        return self.evoef2_env.md_envset.atoms.len();
+        return self.evoef2_env.ff_envset.atoms.len();
     }
 
-    pub fn get_atom(&self,ii:usize)->&charmm_based_energy::MDAtom{
-        return &self.evoef2_env.md_envset.atoms[ii];
+    pub fn get_atom(&self,ii:usize)->&charmm_based_energy::FFAtom{
+        return &self.evoef2_env.ff_envset.atoms[ii];
     }
     
-    pub fn get_atom_mut(&mut self,ii:usize)->&mut charmm_based_energy::MDAtom{
-        return &mut self.evoef2_env.md_envset.atoms[ii];
+    pub fn get_atom_mut(&mut self,ii:usize)->&mut charmm_based_energy::FFAtom{
+        return &mut self.evoef2_env.ff_envset.atoms[ii];
     }
 
     pub fn make_set_for_subenv(&self,sparse_atoms:&Vec<usize>)->(PPEnergySet,Vec<i64>){
-        let (subenv,mapper):(charmm_based_energy::CharmmEnv,Vec<i64>) = self.evoef2_env.md_envset.make_sub_env(sparse_atoms);
+        let (subenv,mapper):(charmm_based_energy::CharmmEnv,Vec<i64>) = self.evoef2_env.ff_envset.make_sub_env(sparse_atoms);
         let charmmvars = self.evoef2_env.charmm_vars.make_sub_env_vars(&mapper);
         let subatomnum:usize = subenv.atoms.len();
         let mut new_evo:evoef2_energy::EvoEF2Env = evoef2_energy::EvoEF2Env{
-            md_envset:subenv,
+            ff_envset:subenv,
             charmm_vars:charmmvars,
             is_backbone:vec![false;subatomnum],
             solvparam:vec![],
@@ -432,19 +432,19 @@ impl PPEnergySet{
     }
 
     pub fn update_distance(&mut self){
-        self.evoef2_env.md_envset.update_distance();
+        self.evoef2_env.ff_envset.update_distance();
     }
 
     pub fn update_distance_one(&mut self,i:usize){
-        self.evoef2_env.md_envset.update_distance_one(i);
+        self.evoef2_env.ff_envset.update_distance_one(i);
     }
 
     pub fn update_edges(&mut self,conn:u64){
-        self.evoef2_env.md_envset.update_edges(&self.evoef2_env.charmm_vars.bondvec,conn);
+        self.evoef2_env.ff_envset.update_edges(&self.evoef2_env.charmm_vars.bondvec,conn);
     }
 
     pub fn gen_pseudo_edges(&mut self,conn:u64){
-        self.evoef2_env.md_envset.gen_pseudo_edges(conn);
+        self.evoef2_env.ff_envset.gen_pseudo_edges(conn);
     }
 
     pub fn calc_energy(&self,atom_level_energy:&mut Vec<f64>)->f64{
@@ -452,75 +452,75 @@ impl PPEnergySet{
         
         if self.weights.charmm_bond > 0.0{
             for bb in self.evoef2_env.charmm_vars.bondvec.iter(){
-                ret += bb.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_bond);
+                ret += bb.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_bond);
             }
         }
         
         if self.weights.charmm_angle > 0.0{
             for aa in self.evoef2_env.charmm_vars.anglevec.iter(){
-                ret += aa.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_angle);
+                ret += aa.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_angle);
             }
         }
         
         if self.weights.charmm_ub > 0.0{
             for uu in self.evoef2_env.charmm_vars.ubvec.iter(){
-                ret += uu.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_ub);
+                ret += uu.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_ub);
             }
         }
         
         if self.weights.charmm_dihed > 0.0{
             if self.weights.dihed_weight_charmm.len() > 0{
                 for (dii,dd) in self.evoef2_env.charmm_vars.dihedvec.iter().enumerate(){
-                    ret += dd.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_dihed*self.weights.dihed_weight_charmm[dii]);
+                    ret += dd.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_dihed*self.weights.dihed_weight_charmm[dii]);
                 }
             }else{
                 for dd in self.evoef2_env.charmm_vars.dihedvec.iter(){
-                    ret += dd.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_dihed);
+                    ret += dd.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_dihed);
                 }
             }
         }
 
         if self.weights.charmm_impr > 0.0{
            for ii in self.evoef2_env.charmm_vars.imprvec.iter(){
-                ret += ii.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_impr);
+                ret += ii.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_impr);
             }
         }
 
         if self.weights.charmm_lj > 0.0{
-            ret += self.evoef2_env.charmm_vars.lj_energy_calculator.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_lj);
+            ret += self.evoef2_env.charmm_vars.lj_energy_calculator.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_lj);
         }
 
         if self.weights.charmm_electro >  0.0{
-            ret += self.evoef2_env.charmm_vars.electrostatic_energy_calculator.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_electro);
+            ret += self.evoef2_env.charmm_vars.electrostatic_energy_calculator.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_electro);
         }
 
         if self.weights.backbone_energy_omega > 0.0{
             for ii in self.backbone_energy_omega.iter(){
-                ret += ii.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.backbone_energy_omega);
+                ret += ii.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.backbone_energy_omega);
             }
         }
 
         if self.weights.backbone_energy_phi_psi > 0.0{
             for ii in self.backbone_energy_phi_psi.iter(){
-                ret += ii.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.backbone_energy_phi_psi);
+                ret += ii.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.backbone_energy_phi_psi);
             }
         }
         
         if self.weights.atom_distance_energy > 0.0{
             for ii in self.atom_distance_energy.iter(){
-                ret += ii.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.atom_distance_energy);
+                ret += ii.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.atom_distance_energy);
             }
         }
 
         if self.weights.atom_binned_distance_energy > 0.0{
             for ii in self.atom_binned_distance_energy.iter(){
-                ret += ii.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.atom_binned_distance_energy);
+                ret += ii.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.atom_binned_distance_energy);
             }
         }
 
         if self.weights.atom_contact_energy > 0.0{
             for ii in self.atom_contact_energy.iter(){
-                ret += ii.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.atom_contact_energy);
+                ret += ii.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.atom_contact_energy);
             }
         }
 
@@ -550,13 +550,13 @@ impl PPEnergySet{
             let mut ene = vec![0.0;atom_level_energy.len()];
             let res = self.calc_energy_sep(&mut ene);
             let mut lastidx:usize = 0;
-            for (aii,aa) in self.evoef2_env.md_envset.atoms.iter().enumerate(){
+            for (aii,aa) in self.evoef2_env.ff_envset.atoms.iter().enumerate(){
                 if ene[aii].is_nan(){
                     lastidx = aii;
                     println!("{} atom:{} {:?}?",atom_level_energy[aii],aa.get_line_representation(),aa.get_xyz());
                 }
             }
-            println!("{:?}",self.evoef2_env.md_envset.dist[lastidx]);
+            println!("{:?}",self.evoef2_env.ff_envset.dist[lastidx]);
             println!("res:{:?}",res);
             panic!();
         }
@@ -570,21 +570,21 @@ impl PPEnergySet{
         
         if self.weights.charmm_bond > 0.0{
             for bb in self.evoef2_env.charmm_vars.bondvec.iter(){
-                ret[eindex] += bb.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_bond);
+                ret[eindex] += bb.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_bond);
             }
         }
         eindex += 1;
         
         if self.weights.charmm_angle > 0.0{
             for aa in self.evoef2_env.charmm_vars.anglevec.iter(){
-                ret[eindex] += aa.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_angle);
+                ret[eindex] += aa.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_angle);
             }
         }
         eindex += 1;
         
         if self.weights.charmm_ub > 0.0{
             for uu in self.evoef2_env.charmm_vars.ubvec.iter(){
-                ret[eindex] += uu.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_ub);
+                ret[eindex] += uu.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_ub);
             }
         }
         eindex += 1;
@@ -592,11 +592,11 @@ impl PPEnergySet{
         if self.weights.charmm_dihed > 0.0{
             if self.weights.dihed_weight_charmm.len() > 0{
                 for (dii,dd) in self.evoef2_env.charmm_vars.dihedvec.iter().enumerate(){
-                    ret[eindex] += dd.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_dihed*self.weights.dihed_weight_charmm[dii]);
+                    ret[eindex] += dd.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_dihed*self.weights.dihed_weight_charmm[dii]);
                 }
             }else{
                 for dd in self.evoef2_env.charmm_vars.dihedvec.iter(){
-                    ret[eindex] += dd.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_dihed);
+                    ret[eindex] += dd.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_dihed);
                 }
             }
         }
@@ -604,38 +604,38 @@ impl PPEnergySet{
 
         if self.weights.charmm_impr > 0.0{
            for ii in self.evoef2_env.charmm_vars.imprvec.iter(){
-            ret[eindex] += ii.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_impr);
+            ret[eindex] += ii.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_impr);
             }
         }
         eindex += 1;
 
         if self.weights.charmm_lj > 0.0{
-            ret[eindex] += self.evoef2_env.charmm_vars.lj_energy_calculator.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_lj);
+            ret[eindex] += self.evoef2_env.charmm_vars.lj_energy_calculator.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_lj);
         }
         eindex += 1;
 
         if self.weights.charmm_electro >  0.0{
-            ret[eindex] += self.evoef2_env.charmm_vars.electrostatic_energy_calculator.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.charmm_electro);
+            ret[eindex] += self.evoef2_env.charmm_vars.electrostatic_energy_calculator.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.charmm_electro);
         }
         eindex += 1;
 
         if self.weights.backbone_energy_omega > 0.0{
             for ii in self.backbone_energy_omega.iter(){
-                ret[eindex] += ii.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.backbone_energy_omega);
+                ret[eindex] += ii.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.backbone_energy_omega);
             }
         }
         eindex += 1;
 
         if self.weights.backbone_energy_phi_psi > 0.0{
             for ii in self.backbone_energy_phi_psi.iter(){
-                ret[eindex] += ii.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.backbone_energy_phi_psi);
+                ret[eindex] += ii.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.backbone_energy_phi_psi);
             }
         }
         eindex += 1;
         
         if self.weights.atom_distance_energy > 0.0{
             for ii in self.atom_distance_energy.iter(){
-                ret[eindex] += ii.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.atom_distance_energy);
+                ret[eindex] += ii.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.atom_distance_energy);
             }
         }
         eindex += 1;
@@ -643,14 +643,14 @@ impl PPEnergySet{
 
         if self.weights.atom_binned_distance_energy > 0.0{
             for ii in self.atom_binned_distance_energy.iter(){
-                ret[eindex] += ii.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.atom_binned_distance_energy);
+                ret[eindex] += ii.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.atom_binned_distance_energy);
             }
         }
         eindex += 1;
 
         if self.weights.atom_contact_energy > 0.0{
             for ii in self.atom_contact_energy.iter(){
-                ret[eindex] += ii.calc_energy(&self.evoef2_env.md_envset,atom_level_energy,self.weights.atom_contact_energy);
+                ret[eindex] += ii.calc_energy(&self.evoef2_env.ff_envset,atom_level_energy,self.weights.atom_contact_energy);
             }
         }
         eindex += 1;
