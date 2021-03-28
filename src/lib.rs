@@ -40,5 +40,5 @@ pub mod builder_option_parser;
 pub mod secondary_structure_assignment;
 pub mod openff_process;
 pub mod openff_energy;
-pub mod smirk_data;
+pub mod smirks_data;
 

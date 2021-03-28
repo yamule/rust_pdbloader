@@ -61,6 +61,11 @@ impl Vector3D for FFAtom{
 }
 
 
+pub struct FFMolecule{
+    pub atoms:Vec<FFAtom>,
+    pub bonds:Vec<FFBond>
+}
+
 pub struct FFBond{
     pub bond_order:usize,
     pub atoms:(usize,usize),

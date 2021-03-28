@@ -1,11 +1,225 @@
 
-use ff_env::{FFAtom, FFBond};
 use roxmltree;
 use std::collections::HashSet;
 use super::debug_env::*;
 use super::openff_energy;
-use super::ff_env;
+use super::smirks_data;
+use super::ff_env::*;
+use regex::Regex;
 use std::collections::HashMap;
+
+
+//https://www.daylight.com/dayhtml/doc/theory/theory.smarts.html
+
+/*
+exclamation 	!e1 	not e1
+ampersand 	e1&e2 	a1 and e2 (high precedence（優先）)
+comma 	e1,e2 	e1 or e2
+semicolon 	e1;e2 	a1 and e2 (low precedence)
+
+[CH2] 	aliphatic carbon with two hydrogens (methylene carbon)
+[!C;R] 	( NOT aliphatic carbon ) AND in ring
+[!C;!R0] 	same as above ("!R0" means not in zero rings)
+[n;H1] 	H-pyrrole nitrogen
+[n&H1] 	same as above
+[nH1] 	same as above
+[c,n&H1] 	any arom carbon OR H-pyrrole nitrogen
+[X3&H0] 	atom with 3 total bonds and no H's
+[c,n;H1] 	(arom carbon OR arom nitrogen) and exactly one H
+[Cl] 	any chlorine atom
+[35*] 	any atom of mass 35
+[35Cl] 	chlorine atom of mass 35
+[F,Cl,Br,I] 	the 1st four halogens.
+*/
+
+
+//ネスト可能な文字列の結合を示す中間データ
+#[derive(Debug)]
+pub struct StringAtomConnector{
+    pub atom:String,
+    pub bond_prev:String,
+    pub bond_next:String,
+    pub connected_prev:Vec<usize>,
+    pub connected_next:Vec<usize>,
+    pub index:usize//最初に分解した token 内の index
+}
+impl StringAtomConnector{
+    fn new(s:&str,i:usize)->StringAtomConnector{
+        return StringAtomConnector{
+            atom:s.to_string(),
+            bond_prev:"".to_owned(),
+            bond_next:"".to_owned(),
+            connected_next:vec![],
+            connected_prev:vec![],
+            index:i
+        };
+    }
+    pub fn add_next_atom(&mut self,i:usize){
+        self.connected_next.push(i);
+    }
+    pub fn add_prev_atom(&mut self,i:usize){
+        self.connected_prev.push(i);
+    }
+}
+
+
+pub struct SMIRKAtom{
+    //"*", any
+    //"a", aromatic
+    //"A", aliphatic
+    //"a,A","A,a", aromatic and aliphatic
+    pub atom_type:String,
+    pub atom_index:String,
+    pub num_substituents:i64
+}
+
+
+impl SMIRKAtom{
+    pub fn match_with(&self,atomcode:&str)->bool{
+        return false;
+    }
+}
+
+//括弧で囲まれた範囲を
+pub fn get_string_range(v:&Vec<String>,start:usize)->usize{
+    assert_eq!(v[start],"(");
+    let mut xcount:usize = 0;
+    for s in (start+1)..v.len(){
+        if v[s] == "("{
+            xcount += 1;
+        }
+        if v[s] == ")"{
+            if xcount == 0{
+                return s;
+            }else{
+                xcount -= 1;
+            }
+        }
+    }
+    let mut zret:Vec<&str> = vec![];
+    for s in start..v.len(){
+        zret.push(&v[s]);
+    }
+    panic!("Couldn't find closing parenthesis! {:?}",zret);
+}
+pub fn tree_print(tmp_atomstring:&Vec<StringAtomConnector>,ppos:usize){
+    print!("{}-",tmp_atomstring[ppos].atom);
+    let nexx:&Vec<usize> = &tmp_atomstring[ppos].connected_next;
+    for (ii,nn) in nexx.iter().enumerate(){
+        if ii != 0{
+            println!("");
+        }else{
+            tree_print(tmp_atomstring,*nn);
+        }
+    }
+}
+pub fn smirks_to_molecule(smarts:&str)->FFMolecule{
+    let mut ret = FFMolecule{
+        atoms:vec![],bonds:vec![]
+    };
+
+    let mut cvec:Vec<String> = smarts.chars().map(|m|m.to_string()).collect();
+    cvec.reverse();
+
+    let mut token:Vec<String> = vec![];
+    let ii:usize = 0;
+    loop{
+        let lcc:String = cvec.pop().unwrap();
+        let mut vcc:Vec<String> = vec![];
+        if lcc == "["{
+            loop{
+                let pcc:String = cvec.pop().unwrap();
+                if pcc == "]"{
+                    break;
+                }
+                vcc.push("[".to_owned()+&pcc+"]");
+            }
+        }else{
+            vcc.push(lcc);
+        }
+        token.push(vcc.into_iter().fold("".to_owned(),|s,m|s+&m));
+        if cvec.len() == 0{
+            break;
+        }
+    }
+    let numtoken:usize = token.len();
+    let mut tmp_atomstring:Vec<StringAtomConnector> = vec![];
+    let regex_nonatom:Regex = Regex::new(r"^(-|=|#|$|\(|\)|/|\\|@)$").unwrap();
+    for (ii,tt) in token.iter().enumerate(){
+        match regex_nonatom.captures(tt){
+            Some(_x)=>{
+            },
+            _=>{
+                tmp_atomstring.push(StringAtomConnector::new(tt,ii));    
+            }
+        }
+    }
+    let slen = token.len();
+    let tlen = tmp_atomstring.len();
+    for kk in 0..tlen{
+        let mut start:usize = tmp_atomstring[kk].index+1;
+        loop{
+            if token[start] == "("{
+                let e = get_string_range(&token, start);
+                let mut p:usize = start;
+                for pp in start..slen{
+                    if token[pp] != "("{
+                        if let Some(_) =  regex_nonatom.captures(&token[pp]){
+                        }else{
+                            p = pp;
+                            break;
+                        }
+                    }
+                }
+                tmp_atomstring[kk].add_next_atom(p);
+                start = e+1;
+                if start >= slen{
+                    break;
+                }
+            }else{
+                tmp_atomstring[kk].add_next_atom(start);
+                break;
+            }
+            if start >= slen{
+                break;
+            }
+        }
+    }
+    tree_print(&tmp_atomstring,0);
+    
+    let regex_num:Regex = Regex::new(r"([0-9]+)").unwrap();
+    for ii in 0..numtoken{
+        let start:usize= ii;
+        let mut end:usize = ii;
+        let mut buff:String = "".to_owned();
+        for jj in ii..numtoken{
+            if smirks_data::ELEMENT_NAME_TO_NUM.contains_key(&buff){
+                end = jj;
+            }
+        }
+    }
+
+    return ret;
+}
+
+
+pub struct SMIRKBond{
+    /*https://ja.wikipedia.org/wiki/SMILES%E8%A8%98%E6%B3%95
+    結合は一次から順に-、=、#、$ で表される（ただし一重結合-は通常省略される）。二重結合=につながっている一重結合の向きを/、\で表すことでシス-トランス異性体を区別する。たとえばC/C=C\C、C/C=C/Cはそれぞれシス・トランス2-ブテンである。結合がないことは.で表現される（たとえば過酸化水素OOに対しO.Oは水2分子）。 
+    */
+    /*
+    二桁のラベルを表すには%を前置する（たとえばC%12はラベル12）。 
+    不斉中心には@または@@を後置し、根の方向から見てそれぞれ左回り・右回りに後続の原子団が並んでいることを表す（@が左回りのため）。たとえばS-アラニンのSMILESは、アミノ基を根にするとN[C@@H](C)C(=O)Oである（N[C@@]([H])(C)C(=O)Oのように書いてもよい）。 
+    */
+    //-,=,#,$
+    pub bond_type:String,   
+}
+impl SMIRKBond{
+    pub fn match_with(){
+
+    }
+}
+
 
 pub struct OpenFFEnergy{
 }

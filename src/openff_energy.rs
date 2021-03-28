@@ -60,7 +60,6 @@ pub const EPSILON:f64 = 1.0e-20;
 
 
 
-
 /*
 pub struct OpenFFEnergy{
     pub bondvec:Vec<BondVars>,
