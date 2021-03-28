@@ -41,17 +41,20 @@ pub struct StringAtomConnector{
     pub bond_next:String,
     pub connected_prev:Vec<usize>,
     pub connected_next:Vec<usize>,
-    pub index:usize//最初に分解した token 内の index
+    pub index:usize,//最初に分解した token 内の index
+    pub index_in_vec:usize//Atom 内の INDEX
 }
 impl StringAtomConnector{
-    fn new(s:&str,i:usize)->StringAtomConnector{
+    fn new(s:&str,i:usize,i2:usize)->StringAtomConnector{
+        assert!(i>=i2);
         return StringAtomConnector{
             atom:s.to_string(),
             bond_prev:"".to_owned(),
             bond_next:"".to_owned(),
             connected_next:vec![],
             connected_prev:vec![],
-            index:i
+            index:i,
+            index_in_vec:i2
         };
     }
     pub fn add_next_atom(&mut self,i:usize){
@@ -102,23 +105,26 @@ pub fn get_string_range(v:&Vec<String>,start:usize)->usize{
     }
     panic!("Couldn't find closing parenthesis! {:?}",zret);
 }
-pub fn tree_print(tmp_atomstring:&Vec<StringAtomConnector>,ppos:usize){
-    print!("{}-",tmp_atomstring[ppos].atom);
+pub fn tree_print(tmp_atomstring:&Vec<StringAtomConnector>,ppos:usize,depth:usize){
+    print!("-{}",tmp_atomstring[ppos].atom);
     let nexx:&Vec<usize> = &tmp_atomstring[ppos].connected_next;
+    //println!("{} {:?}",ppos,nexx);
     for (ii,nn) in nexx.iter().enumerate(){
         if ii != 0{
             println!("");
+            print!("{}",vec![" ";depth*2].into_iter().fold("".to_owned(),|s,m|s+m));
+            tree_print(tmp_atomstring,*nn,depth+1);
         }else{
-            tree_print(tmp_atomstring,*nn);
+            tree_print(tmp_atomstring,*nn,depth+1);
         }
     }
 }
-pub fn smirks_to_molecule(smarts:&str)->FFMolecule{
+pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
     let mut ret = FFMolecule{
         atoms:vec![],bonds:vec![]
     };
 
-    let mut cvec:Vec<String> = smarts.chars().map(|m|m.to_string()).collect();
+    let mut cvec:Vec<String> = smirks.chars().map(|m|m.to_string()).collect();
     cvec.reverse();
 
     let mut token:Vec<String> = vec![];
@@ -145,39 +151,51 @@ pub fn smirks_to_molecule(smarts:&str)->FFMolecule{
     let numtoken:usize = token.len();
     let mut tmp_atomstring:Vec<StringAtomConnector> = vec![];
     let regex_nonatom:Regex = Regex::new(r"^(-|=|#|$|\(|\)|/|\\|@)$").unwrap();
+    
+    let slen = token.len();
+    let mut iimap:Vec<i64> = vec![-1;slen];
     for (ii,tt) in token.iter().enumerate(){
         match regex_nonatom.captures(tt){
             Some(_x)=>{
             },
             _=>{
-                tmp_atomstring.push(StringAtomConnector::new(tt,ii));    
+                let tii = tmp_atomstring.len();
+                tmp_atomstring.push(StringAtomConnector::new(tt,ii,tii));
+                iimap[ii] = tii as i64;
             }
         }
     }
-    let slen = token.len();
     let tlen = tmp_atomstring.len();
     for kk in 0..tlen{
         let mut start:usize = tmp_atomstring[kk].index+1;
+        
+        if start >= slen{
+            break;
+        }
+        
+        if token[start] == ")"{
+            continue;
+        }
         loop{
             if token[start] == "("{
                 let e = get_string_range(&token, start);
-                let mut p:usize = start;
                 for pp in start..slen{
-                    if token[pp] != "("{
-                        if let Some(_) =  regex_nonatom.captures(&token[pp]){
-                        }else{
-                            p = pp;
-                            break;
-                        }
+                    if iimap[pp] > -1{
+                        tmp_atomstring[kk].add_next_atom(iimap[pp] as usize);
+                        break;
                     }
                 }
-                tmp_atomstring[kk].add_next_atom(p);
                 start = e+1;
                 if start >= slen{
                     break;
                 }
             }else{
-                tmp_atomstring[kk].add_next_atom(start);
+                for pp in start..slen{
+                    if iimap[pp] > -1{
+                        tmp_atomstring[kk].add_next_atom(iimap[pp] as usize);
+                        break;
+                    }
+                }
                 break;
             }
             if start >= slen{
@@ -185,7 +203,7 @@ pub fn smirks_to_molecule(smarts:&str)->FFMolecule{
             }
         }
     }
-    tree_print(&tmp_atomstring,0);
+    tree_print(&tmp_atomstring,0,0);
     
     let regex_num:Regex = Regex::new(r"([0-9]+)").unwrap();
     for ii in 0..numtoken{
@@ -371,4 +389,12 @@ pub fn get_all_path(next_atoms:&HashMap<usize,Vec<usize>>
 fn openff_loadtest(){
     let r:OpenFFEnergy = OpenFFEnergy::load(&(RESOURCE_DIR.to_string()+"/openff/smirnoff99frosst/smirnoff99Frosst-1.1.0.offxml"));
 
+}
+
+#[test]
+fn smirkstest(){
+    smirks_to_molecule("C[C@@H](C(=O)O)N");
+    println!("");
+    smirks_to_molecule("C[C@H](C(=O)O)N");
+    println!("");
 }
