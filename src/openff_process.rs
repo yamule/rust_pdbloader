@@ -37,24 +37,27 @@ semicolon 	e1;e2 	a1 and e2 (low precedence)
 #[derive(Debug)]
 pub struct StringAtomConnector{
     pub atom:String,
-    pub bond_prev:String,
-    pub bond_next:String,
+    pub bonds_prev:Vec<String>,
+    pub bonds_next:Vec<String>,
     pub connected_prev:Vec<usize>,
     pub connected_next:Vec<usize>,
-    pub index:usize,//最初に分解した token 内の index
-    pub index_in_vec:usize//Atom 内の INDEX
+    pub index_tokenlist:usize,//最初に分解した token 内の index
+    pub index_in_vec:usize,//Atom 内の INDEX
+    pub stereo_center:String
 }
 impl StringAtomConnector{
     fn new(s:&str,i:usize,i2:usize)->StringAtomConnector{
         assert!(i>=i2);
         return StringAtomConnector{
             atom:s.to_string(),
-            bond_prev:"".to_owned(),
-            bond_next:"".to_owned(),
+            bonds_prev:vec![],
+            bonds_next:vec![],
             connected_next:vec![],
             connected_prev:vec![],
-            index:i,
-            index_in_vec:i2
+            index_tokenlist:i,
+            index_in_vec:i2,
+            stereo_center:"".to_owned()
+            
         };
     }
     pub fn add_next_atom(&mut self,i:usize){
@@ -83,7 +86,7 @@ impl SMIRKAtom{
     }
 }
 
-//括弧で囲まれた範囲を
+//start の括弧に対応する閉じ括弧のインデクスを返す
 pub fn get_string_range(v:&Vec<String>,start:usize)->usize{
     assert_eq!(v[start],"(");
     let mut xcount:usize = 0;
@@ -105,17 +108,17 @@ pub fn get_string_range(v:&Vec<String>,start:usize)->usize{
     }
     panic!("Couldn't find closing parenthesis! {:?}",zret);
 }
-pub fn tree_print(tmp_atomstring:&Vec<StringAtomConnector>,ppos:usize,depth:usize){
+pub fn tree_print(tmp_atomstring:&Vec<StringAtomConnector>,ppos:usize,parent_length:usize){
     print!("-{}",tmp_atomstring[ppos].atom);
     let nexx:&Vec<usize> = &tmp_atomstring[ppos].connected_next;
     //println!("{} {:?}",ppos,nexx);
     for (ii,nn) in nexx.iter().enumerate(){
         if ii != 0{
             println!("");
-            print!("{}",vec![" ";depth*2].into_iter().fold("".to_owned(),|s,m|s+m));
-            tree_print(tmp_atomstring,*nn,depth+1);
+            print!("{}",vec![" ";parent_length+tmp_atomstring[ppos].atom.len()+1].into_iter().fold("".to_owned(),|s,m|s+m));
+            tree_print(tmp_atomstring,*nn,parent_length+tmp_atomstring[ppos].atom.len()+1);
         }else{
-            tree_print(tmp_atomstring,*nn,depth+1);
+            tree_print(tmp_atomstring,*nn,parent_length+tmp_atomstring[ppos].atom.len()+1);
         }
     }
 }
@@ -133,13 +136,16 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
         let lcc:String = cvec.pop().unwrap();
         let mut vcc:Vec<String> = vec![];
         if lcc == "["{
+            let mut pcc:String = cvec.pop().unwrap();
             loop{
-                let pcc:String = cvec.pop().unwrap();
-                if pcc == "]"{
+                let pcc_:String = cvec.pop().unwrap();
+                if pcc_ == "]"{
                     break;
                 }
-                vcc.push("[".to_owned()+&pcc+"]");
+                
+                pcc += pcc_.as_str();
             }
+            vcc.push("[".to_owned()+&pcc+"]");
         }else{
             vcc.push(lcc);
         }
@@ -151,6 +157,7 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
     let numtoken:usize = token.len();
     let mut tmp_atomstring:Vec<StringAtomConnector> = vec![];
     let regex_nonatom:Regex = Regex::new(r"^(-|=|#|$|\(|\)|/|\\|@)$").unwrap();
+    let regex_bond:Regex = Regex::new(r"^(-|=|#|$|/|\\|@)$").unwrap();
     
     let slen = token.len();
     let mut iimap:Vec<i64> = vec![-1;slen];
@@ -167,7 +174,7 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
     }
     let tlen = tmp_atomstring.len();
     for kk in 0..tlen{
-        let mut start:usize = tmp_atomstring[kk].index+1;
+        let mut start:usize = tmp_atomstring[kk].index_tokenlist+1;
         
         if start >= slen{
             break;
@@ -203,6 +210,66 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
             }
         }
     }
+    for tt in 0..tlen{
+        let mut st = tmp_atomstring[tt].index_tokenlist+1;
+        let mut bvec:Vec<String> = vec![];
+        //後方についている bond を判定する
+        while st < slen{
+            match regex_bond.captures(&token[st]){
+                Some(x) =>{
+                    let b:&str = x.get(1).map(|m| m.as_str()).unwrap();
+                    bvec.push(b.to_owned());
+                },
+                _ =>{
+                    break;
+                }
+            }
+            st += 1;
+        }
+        if bvec.len() > 0{
+            if bvec[0] == "@"{
+                if bvec.len() > 1{
+                    if bvec[1] == "@"{
+                        tmp_atomstring[tt].stereo_center = "@@".to_owned();
+                        if bvec.len() > 2{
+                            tmp_atomstring[tt].bonds_next.push(bvec[2].clone());
+                        }
+                    }else{
+                        tmp_atomstring[tt].stereo_center = "@".to_owned();
+                        tmp_atomstring[tt].bonds_next.push(bvec[1].clone());
+                    }
+                }
+            }else{
+                assert!(bvec.len() == 1);
+                tmp_atomstring[tt].bonds_next.push(bvec[0].clone());
+            }
+        }
+
+        let mut st:i64= tmp_atomstring[tt].index_tokenlist as i64 -1;
+        let mut bvec:Vec<String> = vec![];
+        //前方についている bond を判定する
+        while st >= 0{
+            match regex_bond.captures(&token[st as usize]){
+                Some(x) =>{
+                    let b:&str = x.get(1).map(|m| m.as_str()).unwrap();
+                    bvec.push(b.to_owned());
+                },
+                _ =>{
+                    break;
+                }
+            }
+            st += 1;
+        }
+        assert!(bvec.len() <= 1);
+        if bvec.len() == 1{
+            tmp_atomstring[tt].bonds_next.push(bvec[0].clone());
+            ここから
+            原子インデクスで指定している場合があるはず
+            つまり index_tokenlist は vec でないといけない。
+        }
+    }
+
+
     tree_print(&tmp_atomstring,0,0);
     
     let regex_num:Regex = Regex::new(r"([0-9]+)").unwrap();
@@ -226,9 +293,15 @@ pub struct SMIRKBond{
     結合は一次から順に-、=、#、$ で表される（ただし一重結合-は通常省略される）。二重結合=につながっている一重結合の向きを/、\で表すことでシス-トランス異性体を区別する。たとえばC/C=C\C、C/C=C/Cはそれぞれシス・トランス2-ブテンである。結合がないことは.で表現される（たとえば過酸化水素OOに対しO.Oは水2分子）。 
     */
     /*
+    一重結合の向きを/、\で表すことでシス-トランス異性体を区別する。
+    （二重三重結合を挟んだ状態でしか出現しないことが保証されているのだろうか？）
+    */
+
+    /*
     二桁のラベルを表すには%を前置する（たとえばC%12はラベル12）。 
     不斉中心には@または@@を後置し、根の方向から見てそれぞれ左回り・右回りに後続の原子団が並んでいることを表す（@が左回りのため）。たとえばS-アラニンのSMILESは、アミノ基を根にするとN[C@@H](C)C(=O)Oである（N[C@@]([H])(C)C(=O)Oのように書いてもよい）。 
     */
+
     //-,=,#,$
     pub bond_type:String,   
 }
