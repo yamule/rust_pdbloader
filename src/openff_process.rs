@@ -156,11 +156,14 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
     }
     let numtoken:usize = token.len();
     let mut tmp_atomstring:Vec<StringAtomConnector> = vec![];
-    let regex_nonatom:Regex = Regex::new(r"^(-|=|#|$|\(|\)|/|\\|@)$").unwrap();
+    let regex_nonatom:Regex = Regex::new(r"^(-|=|#|$|\(|\)|/|\\|@|[0-9])$").unwrap();
     let regex_bond:Regex = Regex::new(r"^(-|=|#|$|/|\\|@)$").unwrap();
+    let regex_ring_index:Regex = Regex::new(r"^[0-9]$").unwrap();
     
     let slen = token.len();
-    let mut iimap:Vec<i64> = vec![-1;slen];
+    let mut token_to_atom:Vec<i64> = vec![-1;slen];
+    let mut atom_to_token:Vec<usize> = vec![];
+    
     for (ii,tt) in token.iter().enumerate(){
         match regex_nonatom.captures(tt){
             Some(_x)=>{
@@ -168,10 +171,62 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
             _=>{
                 let tii = tmp_atomstring.len();
                 tmp_atomstring.push(StringAtomConnector::new(tt,ii,tii));
-                iimap[ii] = tii as i64;
+                token_to_atom[ii] = tii as i64;
+                atom_to_token[tii] = ii;
             }
         }
     }
+    let mut connectionindex_to_atomindex:HashMap<usize,(i64,Vec<String>)> = HashMap::new();
+    let mut ring_connections:Vec<(usize,usize,Vec<String>)> = vec![];
+    for ss in 0..slen{
+        match regex_ring_index.captures(&token[ss]){
+            Some(x)=>{
+                let mut st:i64 = ss as i64-1;
+                let mut bond_string:Vec<String> = vec![];
+                while st > 0{
+                    match regex_nonatom.captures(&token[ss]){
+                        Some(_x) => {
+                            bond_string.push(token[ss].clone());
+                        },
+                        _ =>{
+                            break;
+                        }
+                    }
+                    st -= 1;
+                }
+
+                let mut st:i64 = ss as i64-1;
+                while st > 0{
+                    if token_to_atom[st as usize] > -1{
+                        let cindex = x.get(1).map(|m| m.as_str()).unwrap().parse::<usize>().unwrap();
+                        let defval:(i64,Vec<String>) = (-1,vec![]);
+                        let cc = connectionindex_to_atomindex.get(&cindex).unwrap_or(&defval);
+                        if cc.0 == -1{
+                            //二桁のインデクスを持つものはないようだ。
+                            //二桁ある場合、それは一桁＋一桁
+                            //よって同じ数字が何度も出てくることがある
+                            //文法としては一番最後に出現した同じ数字のインデクスを持つ Atom ということでよいのだろうか。
+                            if cc.1.len() > 0 && bond_string.len() > 0{
+                                if cc.1 != bond_string{
+                                    panic!("different bond parameter! {:?} , {:?} ",cc.1,bond_string);
+                                }
+                            }
+                            connectionindex_to_atomindex.insert(cindex,(token_to_atom[st as usize],bond_string));
+                        }else{
+                            ring_connections.push((cc.0 as usize,ss,bond_string));
+                            connectionindex_to_atomindex.insert(cindex,(-1,vec![]));
+                        }
+                        break;
+                    }
+                    st -= 1;
+                }
+            },
+            _=>{
+            }
+        }
+    }
+
+
     let tlen = tmp_atomstring.len();
     for kk in 0..tlen{
         let mut start:usize = tmp_atomstring[kk].index_tokenlist+1;
@@ -187,8 +242,8 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
             if token[start] == "("{
                 let e = get_string_range(&token, start);
                 for pp in start..slen{
-                    if iimap[pp] > -1{
-                        tmp_atomstring[kk].add_next_atom(iimap[pp] as usize);
+                    if token_to_atom[pp] > -1{
+                        tmp_atomstring[kk].add_next_atom(token_to_atom[pp] as usize);
                         break;
                     }
                 }
@@ -198,8 +253,8 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
                 }
             }else{
                 for pp in start..slen{
-                    if iimap[pp] > -1{
-                        tmp_atomstring[kk].add_next_atom(iimap[pp] as usize);
+                    if token_to_atom[pp] > -1{
+                        tmp_atomstring[kk].add_next_atom(token_to_atom[pp] as usize);
                         break;
                     }
                 }
@@ -263,10 +318,8 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
         assert!(bvec.len() <= 1);
         if bvec.len() == 1{
             tmp_atomstring[tt].bonds_next.push(bvec[0].clone());
-            ここから
-            原子インデクスで指定している場合があるはず
-            つまり index_tokenlist は vec でないといけない。
         }
+
     }
 
 
