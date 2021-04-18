@@ -10,7 +10,9 @@ use std::f64::consts::PI;
 const DEGREE_TO_RADIAN2:f64 = PI/180.0*PI/180.0;
 pub const EPSILON:f64 = 1.0e-20;
 
-
+pub enum FFBondType{
+    Single,Double,Triple,Aromatic,None
+}
 
 
 impl Vector3D for FFAtom{
@@ -67,7 +69,7 @@ pub struct FFMolecule{
 }
 
 pub struct FFBond{
-    pub bond_order:usize,
+    pub bond_type:FFBondType,
     pub atoms:(usize,usize),
 }
 

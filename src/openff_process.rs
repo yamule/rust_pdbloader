@@ -37,9 +37,7 @@ semicolon 	e1;e2 	a1 and e2 (low precedence)
 #[derive(Debug)]
 pub struct StringAtomConnector{
     pub atom:String,
-    pub bonds_prev:Vec<String>,
     pub bonds_next:Vec<String>,
-    pub connected_prev:Vec<usize>,
     pub connected_next:Vec<usize>,
     pub index_tokenlist:usize,//最初に分解した token 内の index
     pub index_in_vec:usize,//Atom 内の INDEX
@@ -50,39 +48,145 @@ impl StringAtomConnector{
         assert!(i>=i2);
         return StringAtomConnector{
             atom:s.to_string(),
-            bonds_prev:vec![],
             bonds_next:vec![],
             connected_next:vec![],
-            connected_prev:vec![],
             index_tokenlist:i,
             index_in_vec:i2,
             stereo_center:"".to_owned()
             
         };
     }
-    pub fn add_next_atom(&mut self,i:usize){
-        self.connected_next.push(i);
+    pub fn add_next_atom(&mut self,atomindex:usize,ss:String){
+        self.connected_next.push(atomindex);
+        self.bonds_next.push(ss);
     }
-    pub fn add_prev_atom(&mut self,i:usize){
-        self.connected_prev.push(i);
+    pub fn set_bond(&mut self,i:usize,ss:String){
+        self.bonds_next[i] = ss;
+    }
+    pub fn to_molecule2d(atoms:&Vec<StringAtomConnector>)->Molecule2D{
+        let mut ret = Molecule2D::new();
+        let mut bonds_hs:HashMap<usize,HashSet<(usize,String)>> = HashMap::new();
+        
+        for (ii,aa) in atoms.iter().enumerate(){
+            for (bii,bss) in aa.connected_next.iter().zip(aa.bonds_next.iter()){
+                let ls = *(bii.min(&ii));
+                let us = ii.min(*bii);
+                if !bonds_hs.contains_key(&ls){
+                    bonds_hs.insert(ls,HashSet::new());
+                }
+                let bpair = (us,bss.clone());
+                if !bonds_hs.get(&ls).unwrap().contains(&bpair){
+                    bonds_hs.get_mut(&ls).unwrap().insert(bpair);
+                }else{
+                    if &bonds_hs.get(&ls).unwrap().get(&bpair).unwrap().1 != bss{
+                        panic!("Bond letter mismatch! {} vs {} ",&bonds_hs.get(&ls).unwrap().get(&bpair).unwrap().1,bss);
+                    }
+                }
+            }
+        }
+        
+        //atomindex1,atomindex2,bondindex の双方向のマップ
+        //面倒なので大小は考えない
+        let mut atom_to_bonds:HashMap<(usize,usize),usize> = HashMap::new();
+        for uu  in bonds_hs.iter(){
+            for hh in uu.1.iter(){
+                let mut b = Bond2D::new();
+                b.atom1 = *uu.0 as i64;
+                b.atom2 = hh.0 as i64;
+                b.bond_type.push(hh.1.clone());
+                
+                let a1 = b.atom1 as usize;
+                let a2 = b.atom2 as usize;
+                let bondindex = ret.bonds.len();
+                if !atom_to_bonds.contains_key(&(a1,a2)){
+                    atom_to_bonds.insert((a1,a2), bondindex);
+                    atom_to_bonds.insert((a2,a1), bondindex);
+                }
+                ret.bonds.push(b);
+            }
+        }
+        
+
+        for (ii,aa) in atoms.iter().enumerate(){
+            let mut atom:Atom2D =Atom2D::new();
+            atom.atom_type = aa.atom.clone();
+            atom.atom_index = ii as i64;
+            atom.stereo_center = aa.stereo_center.clone();
+            for bb in aa.connected_next.iter(){
+                let code :(usize,usize) = (ii,*bb);
+                if !atom_to_bonds.contains_key(&code){
+                    panic!("{:?} is not found in the dictionary. {:?}",code,atom_to_bonds);
+                }
+                atom.bonds.push(*atom_to_bonds.get(&code).unwrap());
+            }
+
+            ret.atoms.push(
+                atom
+            );
+        }
+
+        return ret;
     }
 }
 
 
-pub struct SMIRKAtom{
-    //"*", any
-    //"a", aromatic
-    //"A", aliphatic
-    //"a,A","A,a", aromatic and aliphatic
+#[derive(Debug)]
+pub struct Bond2D{
+    /*
+    - 	single bond (aliphatic)
+    / 	directional bond "up"1
+    \ 	directional bond "down"1
+    /? 	directional bond "up or unspecified"
+    \? 	directional bond "down or unspecified"
+    = 	double bond
+    # 	triple bond
+    : 	aromatic bond
+    ~ 	any bond (wildcard)
+    @ 	any ring bond1
+    */
+    pub bond_type:Vec<String>,
+    pub atom1:i64,
+    pub atom2:i64,
+}
+impl Bond2D{
+    pub fn new() -> Bond2D{
+
+        return Bond2D{
+            bond_type:vec![],
+            atom1:-1,atom2:-1
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Molecule2D{
+    atoms:Vec<Atom2D>,
+    bonds:Vec<Bond2D>
+}
+impl Molecule2D{
+    pub fn new()->Molecule2D{
+        return Molecule2D{atoms:vec![],bonds:vec![]};
+
+    }
+}
+
+#[derive(Debug)]
+pub struct Atom2D{
     pub atom_type:String,
-    pub atom_index:String,
-    pub num_substituents:i64
+    pub atom_index:i64,
+    pub stereo_center:String,
+    pub bonds:Vec<usize>,
 }
 
 
-impl SMIRKAtom{
-    pub fn match_with(&self,atomcode:&str)->bool{
-        return false;
+impl Atom2D{
+    pub fn new()->Atom2D{
+        return Atom2D{
+            atom_type: "".to_owned(),
+            atom_index: -1,
+            stereo_center: "".to_owned(),
+            bonds:vec![]
+        };
     }
 }
 
@@ -122,10 +226,7 @@ pub fn tree_print(tmp_atomstring:&Vec<StringAtomConnector>,ppos:usize,parent_len
         }
     }
 }
-pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
-    let mut ret = FFMolecule{
-        atoms:vec![],bonds:vec![]
-    };
+pub fn smirks_to_molecule(smirks:&str)->Molecule2D{
 
     let mut cvec:Vec<String> = smirks.chars().map(|m|m.to_string()).collect();
     cvec.reverse();
@@ -158,11 +259,10 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
     let mut tmp_atomstring:Vec<StringAtomConnector> = vec![];
     let regex_nonatom:Regex = Regex::new(r"^(-|=|#|$|\(|\)|/|\\|@|[0-9])$").unwrap();
     let regex_bond:Regex = Regex::new(r"^(-|=|#|$|/|\\|@)$").unwrap();
-    let regex_ring_index:Regex = Regex::new(r"^[0-9]$").unwrap();
+    let regex_distant_connection_index:Regex = Regex::new(r"^[0-9]$").unwrap();
     
     let slen = token.len();
     let mut token_to_atom:Vec<i64> = vec![-1;slen];
-    let mut atom_to_token:Vec<usize> = vec![];
     
     for (ii,tt) in token.iter().enumerate(){
         match regex_nonatom.captures(tt){
@@ -172,21 +272,28 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
                 let tii = tmp_atomstring.len();
                 tmp_atomstring.push(StringAtomConnector::new(tt,ii,tii));
                 token_to_atom[ii] = tii as i64;
-                atom_to_token[tii] = ii;
             }
         }
     }
+    
+    //現在 Connection index （atom の後ろにある数値）を持っている Atom の atom List 上の Index と bondorder を示す文字列
+    //前方にある記号を bond string として入れているが・・・
     let mut connectionindex_to_atomindex:HashMap<usize,(i64,Vec<String>)> = HashMap::new();
-    let mut ring_connections:Vec<(usize,usize,Vec<String>)> = vec![];
+    let mut distant_connections:Vec<(usize,usize,Vec<String>)> = vec![];
     for ss in 0..slen{
-        match regex_ring_index.captures(&token[ss]){
+        match regex_distant_connection_index.captures(&token[ss]){
             Some(x)=>{
                 let mut st:i64 = ss as i64-1;
                 let mut bond_string:Vec<String> = vec![];
-                while st > 0{
+                while st >= 0{//0 は atom であるはずだが一応
                     match regex_nonatom.captures(&token[ss]){
-                        Some(_x) => {
-                            bond_string.push(token[ss].clone());
+                        Some(_x) => {//前方にある Atom でないものをとる
+                            match regex_bond.captures(&token[ss]){
+                                Some(_y) => {//前方にある bond をとる 
+                                        bond_string.push(token[ss].clone());
+                                },
+                                _ => {}
+                            }
                         },
                         _ =>{
                             break;
@@ -199,21 +306,22 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
                 while st > 0{
                     if token_to_atom[st as usize] > -1{
                         let cindex = x.get(1).map(|m| m.as_str()).unwrap().parse::<usize>().unwrap();
-                        let defval:(i64,Vec<String>) = (-1,vec![]);
+                        let defval:(i64,Vec<String>) = (-1,vec![]);//その Connection Index が空の場合は -1 
                         let cc = connectionindex_to_atomindex.get(&cindex).unwrap_or(&defval);
                         if cc.0 == -1{
                             //二桁のインデクスを持つものはないようだ。
                             //二桁ある場合、それは一桁＋一桁
                             //よって同じ数字が何度も出てくることがある
                             //文法としては一番最後に出現した同じ数字のインデクスを持つ Atom ということでよいのだろうか。
+                            
+                            connectionindex_to_atomindex.insert(cindex,(token_to_atom[st as usize],bond_string));
+                        }else{
                             if cc.1.len() > 0 && bond_string.len() > 0{
                                 if cc.1 != bond_string{
                                     panic!("different bond parameter! {:?} , {:?} ",cc.1,bond_string);
                                 }
                             }
-                            connectionindex_to_atomindex.insert(cindex,(token_to_atom[st as usize],bond_string));
-                        }else{
-                            ring_connections.push((cc.0 as usize,ss,bond_string));
+                            distant_connections.push((cc.0 as usize,ss,bond_string));
                             connectionindex_to_atomindex.insert(cindex,(-1,vec![]));
                         }
                         break;
@@ -226,7 +334,7 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
         }
     }
 
-
+    let mut normal_connection:Vec<(usize,usize)> = vec![];
     let tlen = tmp_atomstring.len();
     for kk in 0..tlen{
         let mut start:usize = tmp_atomstring[kk].index_tokenlist+1;
@@ -239,11 +347,14 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
             continue;
         }
         loop{
+            ここから
+            やっぱり Bond も Connection と一緒に設定する
             if token[start] == "("{
                 let e = get_string_range(&token, start);
                 for pp in start..slen{
                     if token_to_atom[pp] > -1{
-                        tmp_atomstring[kk].add_next_atom(token_to_atom[pp] as usize);
+                        tmp_atomstring[kk].add_next_atom(token_to_atom[pp] as usize,"".to_owned());
+                        normal_connection.push((token_to_atom[pp] as usize,kk));
                         break;
                     }
                 }
@@ -254,7 +365,8 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
             }else{
                 for pp in start..slen{
                     if token_to_atom[pp] > -1{
-                        tmp_atomstring[kk].add_next_atom(token_to_atom[pp] as usize);
+                        tmp_atomstring[kk].add_next_atom(token_to_atom[pp] as usize,"".to_owned());
+                        normal_connection.push((token_to_atom[pp] as usize,kk));
                         break;
                     }
                 }
@@ -265,10 +377,12 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
             }
         }
     }
+
+    //bond は Atom-Atom というより単体の Atom についていると考えた方が楽そうなので、Atom と別に Parse する
     for tt in 0..tlen{
         let mut st = tmp_atomstring[tt].index_tokenlist+1;
         let mut bvec:Vec<String> = vec![];
-        //後方についている bond を判定する
+        //stereo senter を判定する
         while st < slen{
             match regex_bond.captures(&token[st]){
                 Some(x) =>{
@@ -286,17 +400,10 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
                 if bvec.len() > 1{
                     if bvec[1] == "@"{
                         tmp_atomstring[tt].stereo_center = "@@".to_owned();
-                        if bvec.len() > 2{
-                            tmp_atomstring[tt].bonds_next.push(bvec[2].clone());
-                        }
                     }else{
                         tmp_atomstring[tt].stereo_center = "@".to_owned();
-                        tmp_atomstring[tt].bonds_next.push(bvec[1].clone());
                     }
                 }
-            }else{
-                assert!(bvec.len() == 1);
-                tmp_atomstring[tt].bonds_next.push(bvec[0].clone());
             }
         }
 
@@ -319,25 +426,20 @@ pub fn smirks_to_molecule(smirks:&str)->FFMolecule{
         if bvec.len() == 1{
             tmp_atomstring[tt].bonds_next.push(bvec[0].clone());
         }
-
     }
+
+    for (cc,ss,mut strr) in distant_connections.into_iter(){
+        tmp_atomstring[cc].connected_next.push(ss);
+        tmp_atomstring[cc].bonds_next.append(&mut strr);
+    }
+
+
 
 
     tree_print(&tmp_atomstring,0,0);
     
-    let regex_num:Regex = Regex::new(r"([0-9]+)").unwrap();
-    for ii in 0..numtoken{
-        let start:usize= ii;
-        let mut end:usize = ii;
-        let mut buff:String = "".to_owned();
-        for jj in ii..numtoken{
-            if smirks_data::ELEMENT_NAME_TO_NUM.contains_key(&buff){
-                end = jj;
-            }
-        }
-    }
 
-    return ret;
+    return StringAtomConnector::to_molecule2d(&tmp_atomstring);
 }
 
 
@@ -519,8 +621,8 @@ fn openff_loadtest(){
 
 #[test]
 fn smirkstest(){
-    smirks_to_molecule("C[C@@H](C(=O)O)N");
-    println!("");
+    let mol = smirks_to_molecule("C[C@@H](C(=O)O)N");
+    println!("{:?}",mol);
     smirks_to_molecule("C[C@H](C(=O)O)N");
     println!("");
 }
