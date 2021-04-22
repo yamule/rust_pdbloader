@@ -70,7 +70,7 @@ impl StringAtomConnector{
         for (ii,aa) in atoms.iter().enumerate(){
             for (bii,bss) in aa.connected_next.iter().zip(aa.bonds_next.iter()){
                 let ls = *(bii.min(&ii));
-                let us = ii.min(*bii);
+                let us = ii.max(*bii);
                 if !bonds_hs.contains_key(&ls){
                     bonds_hs.insert(ls,HashSet::new());
                 }
@@ -258,7 +258,7 @@ pub fn smirks_to_molecule(smirks:&str)->Molecule2D{
     let numtoken:usize = token.len();
     let mut tmp_atomstring:Vec<StringAtomConnector> = vec![];
     let regex_nonatom:Regex = Regex::new(r"^(-|=|#|$|\(|\)|/|\\|@|[0-9])$").unwrap();
-    let regex_bond:Regex = Regex::new(r"^(-|=|#|$|/|\\|@)$").unwrap();
+    let regex_special:Regex = Regex::new(r"^(-|=|#|$|/|\\|@)$").unwrap();
     let regex_distant_connection_index:Regex = Regex::new(r"^[0-9]$").unwrap();
     
     let slen = token.len();
@@ -277,7 +277,7 @@ pub fn smirks_to_molecule(smirks:&str)->Molecule2D{
     }
     
     //現在 Connection index （atom の後ろにある数値）を持っている Atom の atom List 上の Index と bondorder を示す文字列
-    //前方にある記号を bond string として入れているが・・・
+    //数字より前方にある記号を bond string として入れているが・・・
     let mut connectionindex_to_atomindex:HashMap<usize,(i64,Vec<String>)> = HashMap::new();
     let mut distant_connections:Vec<(usize,usize,Vec<String>)> = vec![];
     for ss in 0..slen{
@@ -288,7 +288,7 @@ pub fn smirks_to_molecule(smirks:&str)->Molecule2D{
                 while st >= 0{//0 は atom であるはずだが一応
                     match regex_nonatom.captures(&token[ss]){
                         Some(_x) => {//前方にある Atom でないものをとる
-                            match regex_bond.captures(&token[ss]){
+                            match regex_special.captures(&token[ss]){
                                 Some(_y) => {//前方にある bond をとる 
                                         bond_string.push(token[ss].clone());
                                 },
@@ -334,98 +334,69 @@ pub fn smirks_to_molecule(smirks:&str)->Molecule2D{
         }
     }
 
-    let mut normal_connection:Vec<(usize,usize)> = vec![];
+    let mut connected_atoms:Vec<(usize,usize,Vec<String>)> = vec![];
     let tlen = tmp_atomstring.len();
     for kk in 0..tlen{
         let mut start:usize = tmp_atomstring[kk].index_tokenlist+1;
-        
         if start >= slen{
             break;
         }
-        
-        if token[start] == ")"{
-            continue;
-        }
-        loop{
-            ここから
-            やっぱり Bond も Connection と一緒に設定する
-            if token[start] == "("{
-                let e = get_string_range(&token, start);
-                for pp in start..slen{
-                    if token_to_atom[pp] > -1{
-                        tmp_atomstring[kk].add_next_atom(token_to_atom[pp] as usize,"".to_owned());
-                        normal_connection.push((token_to_atom[pp] as usize,kk));
-                        break;
+        let mut bondvec:Vec<String> = vec![];
+        let mut next_start:i64 = -1;
+        while start < slen{
+            if token_to_atom[start] > -1{
+                let mut stereocount:usize = 0;
+                let mut bbvec:Vec<String> = vec![];
+                for bb in bondvec.iter(){
+                    if bb == "@"{
+                        stereocount += 1;
+                    }else{
+                        bbvec.push(bb.clone());
                     }
                 }
-                start = e+1;
-                if start >= slen{
+                if stereocount > 0{
+                    if stereocount == 1{
+                        tmp_atomstring[kk].stereo_center = "@".to_owned();
+                    }else if stereocount == 2{
+                        tmp_atomstring[kk].stereo_center = "@@".to_owned();
+                    }else{
+                        panic!("??? @ more than two.");
+                    }
+                }
+                if bbvec.len() == 0{
+                    bbvec.push("-".to_owned());
+                }
+                connected_atoms.push((kk,token_to_atom[start] as usize,bbvec));
+                bondvec.clear();
+                if next_start > -1{
+                    start = next_start as usize;
+                    next_start = -1;
+                    continue;
+                }else{
                     break;
                 }
+            }
+            if  token[start] == "("{
+                if next_start == -1{
+                    next_start = get_string_range(&token,start) as i64;
+                }
             }else{
-                for pp in start..slen{
-                    if token_to_atom[pp] > -1{
-                        tmp_atomstring[kk].add_next_atom(token_to_atom[pp] as usize,"".to_owned());
-                        normal_connection.push((token_to_atom[pp] as usize,kk));
-                        break;
+                match regex_special.captures(&token[start]){
+                    Some(x)=>{
+                        bondvec.push(token[start].clone());
+                    },
+                    _=>{
                     }
                 }
-                break;
             }
-            if start >= slen{
-                break;
-            }
+            start += 1;
         }
     }
 
-    //bond は Atom-Atom というより単体の Atom についていると考えた方が楽そうなので、Atom と別に Parse する
-    for tt in 0..tlen{
-        let mut st = tmp_atomstring[tt].index_tokenlist+1;
-        let mut bvec:Vec<String> = vec![];
-        //stereo senter を判定する
-        while st < slen{
-            match regex_bond.captures(&token[st]){
-                Some(x) =>{
-                    let b:&str = x.get(1).map(|m| m.as_str()).unwrap();
-                    bvec.push(b.to_owned());
-                },
-                _ =>{
-                    break;
-                }
-            }
-            st += 1;
-        }
-        if bvec.len() > 0{
-            if bvec[0] == "@"{
-                if bvec.len() > 1{
-                    if bvec[1] == "@"{
-                        tmp_atomstring[tt].stereo_center = "@@".to_owned();
-                    }else{
-                        tmp_atomstring[tt].stereo_center = "@".to_owned();
-                    }
-                }
-            }
-        }
 
-        let mut st:i64= tmp_atomstring[tt].index_tokenlist as i64 -1;
-        let mut bvec:Vec<String> = vec![];
-        //前方についている bond を判定する
-        while st >= 0{
-            match regex_bond.captures(&token[st as usize]){
-                Some(x) =>{
-                    let b:&str = x.get(1).map(|m| m.as_str()).unwrap();
-                    bvec.push(b.to_owned());
-                },
-                _ =>{
-                    break;
-                }
-            }
-            st += 1;
-        }
-        assert!(bvec.len() <= 1);
-        if bvec.len() == 1{
-            tmp_atomstring[tt].bonds_next.push(bvec[0].clone());
-        }
+    for (cc,ss,mut strr) in connected_atoms.into_iter(){
+        tmp_atomstring[cc].connected_next.push(ss);
+        tmp_atomstring[cc].bonds_next.append(&mut strr);
     }
 
     for (cc,ss,mut strr) in distant_connections.into_iter(){
@@ -622,7 +593,7 @@ fn openff_loadtest(){
 #[test]
 fn smirkstest(){
     let mol = smirks_to_molecule("C[C@@H](C(=O)O)N");
-    println!("{:?}",mol);
+    println!("\n{:?}",mol);
     smirks_to_molecule("C[C@H](C(=O)O)N");
     println!("");
 }
