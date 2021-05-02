@@ -945,6 +945,12 @@ fn quote_check(){
 
 #[test]
 fn gz_check(){
-    let pdbentry = load_pdb("example_files/ins_example_1a4w.pdb.gz",true);
-    println!("{:?}",pdbentry.get_aa_sequences());
+    let pdbentry_g = load_pdb("example_files/ins_example_1a4w.pdb.gz",true);
+    let pdbentry = load_pdb("example_files/ins_example_1a4w.pdb",false);
+    assert_eq!(pdbentry.get_aa_sequences(),pdbentry_g.get_aa_sequences());
+    //println!("{:?}",pdbentry.get_aa_sequences());
+    let pdbentry_g = MMCIFEntry::load_mmcif("example_files/ins_example_1a4w.cif.gz",true);
+    let pdbentry = MMCIFEntry::load_mmcif("example_files/ins_example_1a4w.cif",false);
+    assert_eq!(pdbentry.get_aa_sequences(),pdbentry_g.get_aa_sequences());
+    //println!("{:?}",pdbentry.get_aa_sequences());
 }
