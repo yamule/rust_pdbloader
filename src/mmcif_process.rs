@@ -245,11 +245,30 @@ pub fn parse_block(block:&Vec<String>)
     return (keys,values)
 }
 
-pub fn parse_mmcif(filename:&str)->Vec<(Vec<String>,Vec<Vec<String>>)>{
+pub fn parse_mmcif(filename:&str,gzipped:bool)->Vec<(Vec<String>,Vec<Vec<String>>)>{
    
     let mut ret:Vec<(Vec<String>,Vec<Vec<String>>)> = vec![];
-    let file = File::open(filename).unwrap_or_else(|e| panic!("Loading {} was failed! {:?}",filename,e));
-    let reader = BufReader::new(file);
+
+    let mut buffer = Vec::new();
+    let reader:Box<dyn BufRead> = if gzipped {
+        let mut f = File::open(filename).unwrap_or_else(|e|panic!("Failed to open {}.",filename));
+        let fres = f.read_to_end(&mut buffer);
+        match fres{
+            Err(e) => {
+                panic!("{:?}",e);
+            },
+            _ => {}
+        };
+        Box::new(BufReader::new(GzDecoder::new(&buffer[..])))
+    }else{
+        let file = File::open(filename).unwrap_or_else(|e| panic!("Loading {} was failed! {:?}",filename,e));
+        Box::new(BufReader::new(file))
+    };
+
+
+
+
+
     let mut buff:Vec<String> = vec![];
     for (_lcount,line_) in reader.lines().enumerate() {
         let line = line_.unwrap();
@@ -428,8 +447,8 @@ impl MMCIFEntry{
     }
 
     //ToDo: use auth 途中
-    pub fn load_mmcif(filename:&str)->PDBEntry{
-        let mut blocks:Vec<(Vec<String>,Vec<Vec<String>>)> = parse_mmcif(filename);
+    pub fn load_mmcif(filename:&str,gzipped:bool)->PDBEntry{
+        let mut blocks:Vec<(Vec<String>,Vec<Vec<String>>)> = parse_mmcif(filename,gzipped);
         let mut atom_site_block_:Option<(Vec<String>,Vec<Vec<Box<String>>>)> = None;
         
         //let mut atom_sites:Vec<AtomSiteMut> = vec![];
@@ -795,7 +814,7 @@ impl<'a> AtomSite<'a>{
 pub fn load_pdb(filename:&str,gzipped:bool) ->PDBEntry{
     let file = File::open(filename).unwrap();
     let mut buffer = Vec::new();
-    let reader:Box<BufRead> = if gzipped {
+    let reader:Box<dyn BufRead> = if gzipped {
         let mut f = File::open(filename).unwrap_or_else(|e|panic!("Failed to open {}.",filename));
         let fres = f.read_to_end(&mut buffer);
         match fres{
@@ -899,7 +918,7 @@ fn regextest(){
 
 #[test]
 fn mmcif_loadtest(){
-    let mmcifentry = MMCIFEntry::load_mmcif("example_files/ins_example_1a4w.cif");
+    let mmcifentry = MMCIFEntry::load_mmcif("example_files/ins_example_1a4w.cif",false);
     for mm in mmcifentry.mmcif_data.as_ref().unwrap().misc_section.iter(){//atom_site を間違うと他でエラーが出ると思う
         for ii in 0..(mm.2).len(){
             assert_eq!(mm.0.len(),mm.2[ii].len());
@@ -922,4 +941,10 @@ fn quote_check(){
     assert_eq!(get_compatible_values("te\rst"),(";te\nst\n;".to_string(),IS_MULTILINE));
     assert_eq!(get_compatible_values("te\r\nst"),(";te\nst\n;".to_string(),IS_MULTILINE));
     assert_eq!(get_compatible_values("t'e\r\ns't"),(";t'e\ns't\n;".to_string(),IS_MULTILINE));
+}
+
+#[test]
+fn gz_check(){
+    let pdbentry = load_pdb("example_files/ins_example_1a4w.pdb.gz",true);
+    println!("{:?}",pdbentry.get_aa_sequences());
 }
