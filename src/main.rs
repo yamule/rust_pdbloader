@@ -183,7 +183,7 @@ fn ss_assign(args:HashMap<String,String>) {
         }
     }
     let infile:String = args.get("-in").unwrap_or_else(|| panic!("Please specify input file with -in.")).to_string();
-    let pdb = mmcif_process::load_pdb(&infile);
+    let pdb = mmcif_process::load_pdb(&infile,false);
     //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6iws_model1.pdb").as_str());
     
     for cc in pdb.get_all_asyms().iter(){

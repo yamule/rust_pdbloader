@@ -166,8 +166,22 @@ pub struct Molecule2D{
 impl Molecule2D{
     pub fn new()->Molecule2D{
         return Molecule2D{atoms:vec![],bonds:vec![]};
-
     }
+
+    pub fn create_group(start_atom:usize,candidates:&HashSet<usize>,connected:&HashMap<usize,Vec<usize>>)->(Vec<usize>,Vec<Vec<usize>>){
+        let mut ssin:Vec<usize> = vec![];
+        let mut ggro:Vec<Vec<usize>> = vec![];
+//ここから
+//二つ以上に分かれた際は一つずつ GGRO に入れていく
+//Circler は後でつなげる
+        return (ssin,ggro);
+    }
+    pub fn to_smirks(&self)->String{
+        let mut ret:String = "".to_owned();
+
+        return ret;
+    }
+
 }
 
 #[derive(Debug)]

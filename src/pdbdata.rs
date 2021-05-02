@@ -1007,7 +1007,7 @@ fn slicetest(){
 
 #[test]
 fn atomlineloadtest(){
-    let mut pdb = load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/alt_example_1a48.pdb");
+    let mut pdb = load_pdb("D:/dummy/vscode_projects/rust/rust_pdbloader/example_files/alt_example_1a48.pdb",false);
     for mm in pdb.iter_mut_models(){
         for ee in mm.iter_mut_entities(){
             for cc in ee.iter_mut_asyms(){

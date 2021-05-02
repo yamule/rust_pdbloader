@@ -1306,7 +1306,7 @@ fn aligntest(){
 
 #[test]
 fn domain_splittest(){
-    let mut pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
+    let mut pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str(),false);
     let mut cas:Vec<Vec<f64>> = vec![];
     for cc in pdb.get_mut_model_at(0).get_mut_entity_at(0).iter_mut_asyms(){
         for rr in cc.iter_mut_comps(){
@@ -1367,8 +1367,8 @@ fn domain_splittest(){
 #[test]
 fn pdbaligntest(){
     
-    let pdb_orig = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6lu7_A.pdb").as_str());
-    let mut pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
+    let pdb_orig = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6lu7_A.pdb").as_str(),false);
+    let mut pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str(),false);
 
     let mut residues_a:Vec<&pdbdata::PDBComp> = vec![];
     for cc in pdb_orig.get_all_asyms().iter(){

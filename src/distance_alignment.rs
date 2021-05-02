@@ -766,8 +766,8 @@ pub fn align_dp(
 
 pub fn dist_aligntest(){
     
-    let pdb_orig = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6lu7_A.pdb").as_str());
-    let pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
+    let pdb_orig = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6lu7_A.pdb").as_str(),false);
+    let pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str(),false);
     let orig_aa = pdb_orig.get_aa_sequences();
     let pdb_aa = pdb_orig.get_aa_sequences();
     

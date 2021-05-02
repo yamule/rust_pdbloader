@@ -1,14 +1,15 @@
 #[allow(dead_code,unused_imports)]
-use std::io::{BufWriter,Write,BufReader,BufRead};
+use std::io::{Read,BufWriter,Write,BufReader,BufRead};
 use std::fs::File;
 
 use std::collections::HashMap;
 #[allow(unused_imports)]
 use std::collections::HashSet;
+use rand::AsByteSliceMut;
 use regex::Regex;
 use super::pdbdata::*;
 use super::geometry::Vector3D;
-
+use flate2::bufread::GzDecoder;
 
 const IS_MULTILINE:i64 = 0;
 const IS_SINGLELINE:i64 = 1;
@@ -791,10 +792,22 @@ impl<'a> AtomSite<'a>{
     }
 }
 
-pub fn load_pdb(filename:&str) ->PDBEntry{
+pub fn load_pdb(filename:&str,gzipped:bool) ->PDBEntry{
     let file = File::open(filename).unwrap();
-    let reader = BufReader::new(file);
-    
+    let mut buffer = Vec::new();
+    let reader:Box<BufRead> = if gzipped {
+        let mut f = File::open(filename).unwrap_or_else(|e|panic!("Failed to open {}.",filename));
+        let fres = f.read_to_end(&mut buffer);
+        match fres{
+            Err(e) => {
+                panic!("{:?}",e);
+            },
+            _ => {}
+        };
+        Box::new(BufReader::new(GzDecoder::new(&buffer[..])))
+    }else{
+        Box::new(BufReader::new(file))
+    };
     //let mut lcount:i64 = 0;
 
     let _noline = Regex::new(r"^[\r\n]*$").unwrap();

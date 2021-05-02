@@ -354,7 +354,7 @@ pub fn assing_secstr(chains:&Vec<Vec<&PDBComp>>,hbond_threshold:f64)->Vec<(Strin
 fn secstr_test(){
     //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"3rgk_A.pdb").as_str());
     //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"2gx4_A.pdb").as_str());
-    let pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"1EFH_A.pdb").as_str());
+    let pdb = mmcif_process::load_pdb((debug_env::EXAMPLE_DIR.to_string()+"1EFH_A.pdb").as_str(),false);
     //let pdb = load_pdb((debug_env::EXAMPLE_DIR.to_string()+"6iws_model1.pdb").as_str());
     
     let mut ress:Vec<Vec<&PDBComp>> = vec![];

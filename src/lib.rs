@@ -42,3 +42,4 @@ pub mod openff_process;
 pub mod openff_energy;
 pub mod smirks_data;
 
+pub mod rotamer_generator;
