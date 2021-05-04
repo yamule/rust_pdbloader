@@ -272,12 +272,6 @@ impl PDBComp{
             no_label_seq_id:false
         };
     }
-    pub fn set_parent_entry(&mut self,s:Option<i64>){
-        self.parent_entry = s;
-    }
-    pub fn get_parent_entry(&self)->Option<i64>{
-        return self.parent_entry.clone();
-    }
     pub fn num_atoms(&self)->usize{
         return self.atoms.len();
     }
@@ -341,7 +335,6 @@ impl PDBComp{
     fn set_index(&mut self,index:i64){
         self.index = index;
     }
-
 
     pub fn get_all_atoms(&mut self)->Vec<&mut PDBAtom>{
         return self.atoms.iter_mut().map(|m| m).collect();
@@ -427,6 +420,16 @@ impl PDBComp{
         return None;
     }
 
+    pub fn get_parent_entry(&self)->Option<i64>{
+        return self.parent_entry.clone();
+    }
+    pub fn get_parent_entity(&self)->Option<i64>{
+        return self.parent_entity.clone();
+    }
+    pub fn get_parent_asym(&self)->Option<i64>{
+        return self.parent_asym.clone();
+    }
+    
     pub fn get_atom_num(&self)->usize{
         return self.atoms.len();
     }
@@ -460,7 +463,7 @@ impl PDBComp{
     pub fn iter_mut_atoms(&mut self)->IterMut<'_, PDBAtom>{
         return self.atoms.iter_mut();
     }
-    fn set_parent(&mut self,entry_id:Option<i64>,entity_id:Option<i64>,asym_id:Option<i64>,index:i64){
+    pub fn set_parent(&mut self,entry_id:Option<i64>,entity_id:Option<i64>,asym_id:Option<i64>,index:i64){
         self.set_index(index);
         self.parent_asym = asym_id;
         self.parent_entity = entity_id;

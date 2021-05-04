@@ -7,6 +7,7 @@ use std::collections::{HashMap,HashSet};
 use crate::{geometry::{Point3D, Vector3D}, mmcif_process, pdbdata::{PDBAsym, PDBAtom,PDBComp, PDBEntry}, process_3d, structural_alignment::align};
 use super::structural_alignment;
 use super::matrix_process;
+use chrono::{Local};
 
 lazy_static! {
     static ref RESIDUES_DEFAULT:Vec<String> =  vec![
@@ -129,7 +130,7 @@ pub fn generate_intermediate_files(inputdirname:&str
         }
     }
     entries_.sort();
-    let mut entries:Vec<PDBEntry> = vec![];
+    let mut entries:Vec<(String,PDBEntry)> = vec![];//filename, pdbentry
     for ee in entries_.into_iter(){
         if let Some(x) = exx.captures(&ee){
             let ext1:String = x.get(1).unwrap().as_str().to_string();
@@ -141,9 +142,9 @@ pub fn generate_intermediate_files(inputdirname:&str
             };
             println!("Loading {}.",ee);
             if &ext1 == ".ent" || &ext1 == ".pdb"{
-                entries.push(mmcif_process::load_pdb(&ee,is_gzip));
+                entries.push((ee.clone(),mmcif_process::load_pdb(&ee,is_gzip)));
             }else if &ext1 == ".cif"{
-                entries.push(mmcif_process::MMCIFEntry::load_mmcif(&ee,is_gzip));
+                entries.push((ee.clone(),mmcif_process::MMCIFEntry::load_mmcif(&ee,is_gzip)));
 
             }
         }
@@ -164,13 +165,14 @@ pub fn generate_intermediate_files(inputdirname:&str
         }
     }
     let mut compcount:i64 = 0;
-    for (ii,ee) in entries.iter_mut().enumerate(){
+    for (ii,(ff,ee)) in entries.iter_mut().enumerate(){
         let asyms:Vec<&PDBAsym> = ee.get_all_asyms();
         for (jj,aa) in asyms.iter().enumerate(){
             for (_kk,cc) in aa.iter_comps().enumerate(){
                  if targets_hm.contains_key(cc.get_comp_id()){
                     let mut compp = cc.get_copy_wo_parents();
-                    compp.set_parent_entry(Some(compcount));//sort のために使う
+                    //set_parent(&mut self,entry_id:Option<i64>,entity_id:Option<i64>,asym_id:Option<i64>,index:i64){
+                    compp.set_parent(Some(ii as i64),None,None,compcount as i64);//sort のために使う
                     compcount += 1;
                     targets_hm.get_mut(cc.get_comp_id()).unwrap().push(compp);
                  }
@@ -200,7 +202,8 @@ pub fn generate_intermediate_files(inputdirname:&str
             }
         }
 
-        let tthreshold = 0.9;
+        let tthreshold = 0.9;//これより大きい割合のメンバーが持っている原子がない場合、使用しない
+        //面倒なので OXT についても特別な処理はしていない
         let mut canonical_atoms:HashSet<String> = HashSet::new();
         for aa in atomcounter.iter(){
             if *aa.1 as f64/numcomps > tthreshold{
@@ -233,7 +236,7 @@ pub fn generate_intermediate_files(inputdirname:&str
                 cc.remove_atom_by_name(rr);
             }
             
-            validcomps_.push((bfactor_sum,cc.get_parent_entry().unwrap(),cc));
+            validcomps_.push((bfactor_sum,cc.get_index(),cc));
         } 
         validcomps_.sort_by(|a,b|{
             match a.0.partial_cmp(&b.0).unwrap() {
@@ -298,12 +301,62 @@ pub fn generate_intermediate_files(inputdirname:&str
                 }
                 
             }
-            for (iii,aa) in validcomps.iter_mut().enumerate(){
-                for aaa in aa.iter_atoms(){
-                   println!("{}",aaa.get_pdb_atom_line_string("A",aa.get_comp_id(), (iii+1) as i64,""));
+            let num_validcomps:usize = validcomps.len();
+            
+            let mut cluster:Vec<(PDBComp,usize)> = vec![];
+            for vv in validcomps.into_iter(){
+                let mut merge_to:i64 = -1;
+                for (ii,ccc) in cluster.iter().enumerate(){
+                    let mut mergeflag = true;
+                    for an in canonical_atoms_v.iter(){
+                        if ccc.0.get_first_atom_by_name(an).unwrap().distance(vv.get_first_atom_by_name(an).unwrap()) >= cluster_diff_threshold{
+                            mergeflag = false;
+                            break;
+                        }
+                    }
+                    if mergeflag{
+                        merge_to = ii as i64;
+                        break;
+                    }
+                }
+                if merge_to == -1{
+                    cluster.push((vv,1));
+                }else{
+                    cluster[merge_to as usize].1 += 1;
+                }
+                /*
+                
+                */
+            }
+            cluster.sort_by(|a,b|b.1.cmp(&a.1));
+            let filename = outputdirname.to_string()+"/"+re_avoid.replace_all(tt,"_").to_string().as_str()+".rotamer.dat";
+            let mut f = BufWriter::new(fs::File::create(filename).unwrap());
+            f.write_all(format!("#compound: {}\n",tt).as_bytes()).unwrap();
+            f.write_all(format!("#date: {}\n",Local::now()).as_bytes()).unwrap();
+            f.write_all(format!("#num_validcomps: {}\n",num_validcomps).as_bytes()).unwrap();
+            f.write_all(format!("#covered: {}\n",cover_ratio).as_bytes()).unwrap();
+            f.write_all(format!("#threshold: {}\n",cluster_diff_threshold).as_bytes()).unwrap();
+            f.write_all(format!("#results: accepted: {}, failed: {} (qr: {}, checker: {})\n",num_validcomps,qr_failed+checker_failed,qr_failed,checker_failed).as_bytes()).unwrap();
+            f.write_all("#note: Asyms are changed from the original.\n".as_bytes()).unwrap();
+            
+            let mut ccount:usize = 0;
+            for mut cc in cluster.into_iter(){
+                f.write_all(format!("//==\n").as_bytes()).unwrap();
+                f.write_all(format!("#file: {}\n",entries[cc.0.get_parent_entry().unwrap() as usize].0).as_bytes()).unwrap();
+                f.write_all(format!("#ratio: {}\n",(cc.1 as f64)/(num_validcomps as f64)).as_bytes()).unwrap();
+                for aaa in cc.0.iter_mut_atoms(){
+                    if aaa.get_serial_number() > 99999{
+                        aaa.set_serial_number(99999);
+                    }
+                    f.write_all(format!("{}",aaa.get_pdb_atom_line_string("A",tt, 1,"")+"\n").as_bytes()).unwrap();
+                }
+                f.write_all("//\n".as_bytes()).unwrap();
+                ccount += cc.1;
+                if ccount as f64 >= (num_validcomps as f64)*cover_ratio{
+                    break;
                 }
             }
-            println!("{} - accepted: {}, failed: {} (qr: {}, checker: {})",tt,validcomps.len(),qr_failed+checker_failed,qr_failed,checker_failed);
+
             
         }
     }
@@ -311,9 +364,7 @@ pub fn generate_intermediate_files(inputdirname:&str
     
     /*
     for tt in targets.iter(){
-        let filename = outputdirname.to_string()+"/"+re_avoid.replace_all(tt,"_").to_string().as_str();
-        let mut f = BufWriter::new(fs::File::create(filename).unwrap());
-        f.write_all(format!("#{}\n",tt).as_bytes()).unwrap();
+        
 
     }
     */
@@ -321,7 +372,6 @@ pub fn generate_intermediate_files(inputdirname:&str
 
 #[test]
 fn dirloadtest(){
-    generate_intermediate_files("example_files","example_files/sexample_output",&RESIDUES_DEFAULT,0.5,0.8);
+    generate_intermediate_files("example_files","example_files/example_output",&RESIDUES_DEFAULT,0.5,0.8);
     let re_avoid = Regex::new("[^a-zA-Z0-9\\.\\-]").unwrap();
-    println!("{}",re_avoid.replace_all("tes/tes.tes,tes-test^","_"));    
 }
