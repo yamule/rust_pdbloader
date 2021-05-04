@@ -858,13 +858,11 @@ pub fn load_pdb(filename:&str,gzipped:bool) ->PDBEntry{
         _ATOM_SITE_PDBX_PDB_MODEL_NUM,
         ]).into_iter().map(|m|m.to_string()).collect();
     let keymap:HashMap<String,usize> = keyvec.iter().enumerate().map(|m|(m.1.clone(),m.0)).collect();
-
+    let splitter:Regex = Regex::new("[\\s;]+").unwrap();
     for (_lcount,line) in reader.lines().enumerate() {
-
         let sstr = line.unwrap_or_else(|e|panic!("{:?}",e));
-        
         if start_with(&sstr,"MODEL"){
-            let ppt: Vec<&str> = sstr.split("[\\s;]+").collect();
+            let ppt: Vec<&str> = splitter.split(&sstr).collect();
             current_model_num = ppt[1].to_owned();
             terflag = false;
         }

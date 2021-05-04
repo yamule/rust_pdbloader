@@ -293,8 +293,6 @@ pub fn house_qr_decomp(mat:&Vec<Vec<f64>>)->(Vec<Vec<f64>>,Vec<Vec<f64>>){
         rmat = matrix_multi(&hmat_c,&rmat);
         qmat = matrix_multi(&hmat_c,&qmat);
     }
-    
-
     return (matrix_t(&qmat),rmat);
 }
 

@@ -23,8 +23,6 @@ use std::collections::{HashMap,HashSet};
 
 #[allow(dead_code,unused_imports)]
 const ERROR_THRESHOLD:f64 = 0.000000001;
-//Kabsh のアルゴリズムとか SVD とかが良く分かんなかったので QR DECOMP で ROTATION MATRIX を出している。
-
 
 #[allow(non_camel_case_types)]
 pub enum DistanceAlignmentType{

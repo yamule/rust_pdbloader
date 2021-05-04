@@ -629,6 +629,7 @@ pub fn align(query:&Vec<Vec<f64>>,template:&Vec<Vec<f64>>,num_iter_max:usize,dis
                         qmatbuff[2][ii] = mres[2][0];
                     }
 
+                    //template の方も中心を 0 にする
                     for ii in 0..t_length{
                         tmatbuff[0][ii] = template[0][ii]-ycenter.0;
                         tmatbuff[1][ii] = template[1][ii]-ycenter.1;

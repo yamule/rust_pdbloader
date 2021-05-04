@@ -133,6 +133,13 @@ impl PDBAtom{
         return self.serial_number;
     }
 
+    pub fn get_atom_code(&self)->&str{
+        return &self.atom_code;
+    }
+    pub fn set_atom_code(&mut self,code:&str){
+        self.atom_code = code.to_string();
+    }
+    
     pub fn set_atom_site_key(&mut self,i:i64){
         self.atom_site_key = i;
     }
@@ -265,6 +272,12 @@ impl PDBComp{
             no_label_seq_id:false
         };
     }
+    pub fn set_parent_entry(&mut self,s:Option<i64>){
+        self.parent_entry = s;
+    }
+    pub fn get_parent_entry(&self)->Option<i64>{
+        return self.parent_entry.clone();
+    }
     pub fn num_atoms(&self)->usize{
         return self.atoms.len();
     }
@@ -329,14 +342,11 @@ impl PDBComp{
         self.index = index;
     }
 
-    pub fn get_all_atoms(&mut self)->Vec<&PDBAtom>{
-        let mut ret:Vec<&PDBAtom> = vec![];
-        for i in 0..self.atoms.len(){
-            ret.push(&self.atoms[i]);
-        }
-        return ret;
-    }
 
+    pub fn get_all_atoms(&mut self)->Vec<&mut PDBAtom>{
+        return self.atoms.iter_mut().map(|m| m).collect();
+    }
+    
     #[allow(non_snake_case)]
     pub fn get_CA_mut(&mut self)->Option<&mut PDBAtom>{
         for aa in self.atoms.iter_mut(){
@@ -767,7 +777,7 @@ impl PDBEntry{
         return ret;
     }
 
-
+    //この Entry が含む全 Asym の mut 参照を得る
     pub fn get_mut_all_asyms(&mut self)->Vec<&mut PDBAsym>{
         let mut ret:Vec<&mut PDBAsym> = vec![];
         for mm in self.iter_mut_models(){
@@ -780,7 +790,7 @@ impl PDBEntry{
         return ret;
     }
 
-
+    //この Entry が含む全 asym の実体を得る
     pub fn squeeze_asyms(&mut self)->Vec<PDBAsym>{
         let mut ret:Vec<PDBAsym> = vec![];
         for mm in self.iter_mut_models(){
