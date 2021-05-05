@@ -210,7 +210,9 @@ pub fn generate_intermediate_files(inputdirname:&str
                 canonical_atoms.insert(aa.0.to_string());
             }
         }
-
+        let mut vcc:Vec<String> = canonical_atoms.iter().map(|m|m.to_string()).collect();
+        vcc.sort();
+        println!("{}\t{:?}",tt,vcc);
         let re_avoid = Regex::new("[^a-zA-Z0-9\\.\\-]").unwrap();
         let mut validcomps_ :Vec<(f64,i64,PDBComp)> = vec![];
         let mut validcomps:Vec<PDBComp> = vec![];
