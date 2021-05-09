@@ -248,7 +248,7 @@ for cc in list(pdbb.chains):
 	has_middle_missing_atom = False;
 	has_terminal_missing_atom = False;
 	has_alt = False;
-	visible_aa = 0;
+	nonmissing_aa = 0;
 	aas = [];
 	for aa in list(cc.atoms):
 		if "HETATM" in aa.head:
@@ -256,13 +256,9 @@ for cc in list(pdbb.chains):
 		if aa.alt_loc != "" and aa.alt_loc != " ":
 			has_alt = True;
 	rres = cc.assemble_residues();
-	visible_aa = len(rres);
-	 
+	pplen = len(rres);
 	for (ii,rr) in enumerate(list(rres)):
-		if not rr[0].residue_name in aa_3_1:
-			aas.append("X");
-		else:
-			aas.append(aa_3_1[rr[0].residue_name]);
+		has_missing_atom = False;
 		if not rr[0].residue_name in aa_3_1:
 			abnormal_aa = rr[0].residue_name;
 		else:
@@ -276,11 +272,17 @@ for cc in list(pdbb.chains):
 				coveredatom[a] = 100;
 			for aa in list(atom_check[rr[0].residue_name]):
 				if aa not in coveredatom:
-					if ii == 0 or ii == visible_aa-1:
+					has_missing_atom = True;
+					if ii == 0 or ii == pplen -1:
 						has_terminal_missing_atom = rr[0].residue_name+":"+aa;
 					else:
 						has_middle_missing_atom = rr[0].residue_name+":"+aa;
-					break;
+		
+		if not has_missing_atom:				
+			if not rr[0].residue_name in aa_3_1:
+				aas.append("X");
+			else:
+				aas.append(aa_3_1[rr[0].residue_name]);
 	
 	for aa in list(cc.ligands):
 		if aa.residue_name == "HOH":
@@ -299,8 +301,9 @@ for cc in list(pdbb.chains):
 		if cdiff != 0 and cdiff != 1:
 			chain_break = str(cc.atoms[ii].residue_pos)+"->"+str(cc.atoms[ii+1].residue_pos);
 			break;
+	nonmissing_aa = len(aas);
 	aminoacids = "".join(aas);
-	res = "multi_chain:{}\thetflag:{}\tabnormal_aa:{}\tchain_break:{}\thas_middle_missing_atom:{}\thas_terminal_missing_atom:{}\thas_alt:{}\tvisible_aa:{}\taminoacids:{}".format(
-	       multi_chain,    hetflag,    abnormal_aa,    chain_break,    has_middle_missing_atom,    has_terminal_missing_atom,    has_alt,    visible_aa,    aminoacids)
+	res = "multi_chain:{}\thetflag:{}\tabnormal_aa:{}\tchain_break:{}\thas_middle_missing_atom:{}\thas_terminal_missing_atom:{}\thas_alt:{}\tnonmissing_aa:{}\taminoacids:{}".format(
+	       multi_chain,    hetflag,    abnormal_aa,    chain_break,    has_middle_missing_atom,    has_terminal_missing_atom,    has_alt,    nonmissing_aa,    aminoacids)
 	print(sys.argv[1]+"\t"+cc.name+"\t"+res);
 	

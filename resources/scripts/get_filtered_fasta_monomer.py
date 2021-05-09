@@ -39,7 +39,7 @@ with open("pdb_prop.dat") as fin:
 		pt_hs["hetflag"][0] == "False" and \
 		pt_hs["abnormal_aa"][0] == "False" and \
 		pt_hs["chain_break"][0] == "False" and \
-		pt_hs["has_missing"][0] == "False":
+		pt_hs["has_middle_missing_atom"][0] == "False":
 			pdbid = "";
 			mat = re.search("pdb(....)\.ent",pt_hs["?"][0]);
 			if mat:
@@ -52,6 +52,6 @@ with open("pdb_prop.dat") as fin:
 			if len(pt_hs["aa"][0]) < 50 or len(pt_hs["aa"][0]) > 600:
 				continue;
 			if pdbid in passed:
-				print(">"+pdbid+"_"+pt_hs["?"][1]+"\n"+pt_hs["aa"][0]+"\n");
+				print(">"+pdbid+"_"+pt_hs["?"][1]+"\n"+pt_hs["aminoacids"][0]+"\n");
 				
 				
