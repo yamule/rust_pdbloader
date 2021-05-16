@@ -352,6 +352,10 @@ impl Geometry{
     }
     pub fn add_box(&mut self,center:&dyn Vector3D,size:f64){
         let bb = generate_box(center, size,size,size);
+        self.add_objects(&bb);
+    }
+
+    pub fn add_objects(&mut self,bb:&(Vec<Point3D>,Vec<Face>)){
         let mut vmap:Vec<usize> = vec![];
         for v in bb.0.iter(){
             vmap.push(self.add_vertex((*v).clone()));
@@ -363,8 +367,7 @@ impl Geometry{
                 );
         }
     }
-
-    pub fn create_cylinder(start:&(f64,f64,f64),end:&(f64,f64,f64),radius:f64,rdiv:usize,close_hole:bool)
+    pub fn generate_cylinder(start:&(f64,f64,f64),end:&(f64,f64,f64),radius:f64,rdiv:usize,close_hole:bool)
     ->(Vec<Point3D>,Vec<Face>){
         let mut direc_ = process_3d::subtracted_t(end,start);
         direc_ = standardize(direc_.0,direc_.1,direc_.2);
@@ -375,6 +378,7 @@ impl Geometry{
         };
         let pstart_ = process_3d::calc_norm_t(&direc_,&(0.0,0.0,0.0), &pdep);
         let mut pstart:Point3D = Point3D::from_tuple(&pstart_);
+        
         let direc:Point3D = Point3D::from_tuple(&direc_);
         pstart.set_x(pstart.get_x()*radius);
         pstart.set_y(pstart.get_y()*radius);
@@ -444,7 +448,31 @@ impl Geometry{
         }
 
         return (ret_p,ret_f);
+    }
+    
+    pub fn generate_sphere(center:&(f64,f64,f64),radius:f64,vdiv:usize,rdiv:usize)->(Vec<Point3D>,Vec<Face>){
+        let mut retp:Vec<Point3D> = vec![];
+        let mut retf:Vec<Face> = vec![];
+        let rad_step_v:f64 = (PI*2.0)/(vdiv as f64 -1.0);
+        let rad_step_r:f64 = (PI*2.0)/(rdiv as f64);
+        for i in 0..=vdiv{
+            if i == 0{
+                retp.push(Point3D::new(0.0,-1.0*radius,0.0));
+            }else if i == vdiv{
+                retp.push(Point3D::new(0.0,radius,0.0));
+            }else{
+                let yy:f64 = (rad_step_v*(i as f64)).sin()*radius;
+                for jj in 0..rdiv{
+                    let xx:f64 = (rad_step_r*(jj as f64)).cos()*radius;
+                    let zz:f64 = (rad_step_r*(jj as f64)).sin()*radius;
+                    retp.push(Point3D::new(xx,yy,zz));
+                }
+            }
+        }
 
+
+
+        return (retp,retf);
     }
 
 	pub fn save(filename:&str,geoms:&Vec<Geometry>){
@@ -582,4 +610,15 @@ fn boxtest(){
     let gv:Vec<Geometry> = vec![ggeo];
 
     Geometry::save("test/boxtestgeom.obj",&gv);
+}
+#[test]
+fn cylindertest(){
+    let mut ggeo = Geometry::new();
+    let cc = Geometry::generate_cylinder(&(1.0,2.0,3.0),&(8.0,4.0,1.0),3.0,8,true);
+    ggeo.add_objects(&cc);
+
+    ggeo.calc_all_norms();
+    let gv:Vec<Geometry> = vec![ggeo];
+
+    Geometry::save("test/cylinder_geom.obj",&gv);
 }
