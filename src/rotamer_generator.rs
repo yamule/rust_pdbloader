@@ -376,4 +376,5 @@ pub fn generate_intermediate_files(inputdirname:&str
 fn dirloadtest(){
     generate_intermediate_files("example_files","example_files/example_output",&RESIDUES_DEFAULT,0.5,0.8);
     let re_avoid = Regex::new("[^a-zA-Z0-9\\.\\-]").unwrap();
+    //途中。とりあえずここを RUN して、出力ファイルを PyMOL で確認して良さげなら続き。
 }

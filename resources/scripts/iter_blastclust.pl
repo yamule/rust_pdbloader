@@ -46,19 +46,59 @@ sub get_seq{
 	}
 	return \@ret;
 }
+
+sub arg_to_hash{
+	my @args = @{$_[0]};
+	my %hashh;
+	for(my $ii = 0;$ii <= $#args;$ii++){
+		if($args[$ii] =~ /^-/){
+			if($ii < $#args){
+				$hashh{$args[$ii]} = $args[$ii+1];
+			}
+		}else{
+			$hashh{$args[$ii]} = 1;
+		}
+	}
+	return \%hashh;
+}
+
+
+#perl iter_blastclust.pl -in samples/small_fas.fas -out clustered.dat -outdir clusout -ident 30 -cov_long 0.5 -cov_short 0.5
 my $blastppath = "D:/dummy/programs/blast/ncbi-blast-2.10.1+/bin/blastp.exe";
-my $blastdbpath = "D:/dummy/work/aptamer/exapps/ncbi-blast-2.6.0+/bin/makeblastdb.exe";
-my $fastafile = "samples/small_fas.fas";
-my $clusterout = "clustered.dat";
-my $outfas_dir = "clusout/";
+my $makeblastdbpath = "D:/dummy/work/aptamer/exapps/ncbi-blast-2.6.0+/bin/makeblastdb.exe";
+
+my %arghash = %{arg_to_hash(\@ARGV)};
+
+my $fastafile = $arghash{"-in"};
+my $clusterout = $arghash{"-out"};
+my $outfas_dir = $arghash{"-outdir"};
+my $ident_threshold = $arghash{"-ident"};
+my $cov_long = $arghash{"-cov_long"};
+my $cov_short = $arghash{"-cov_short"};
+
+if($ident_threshold > 1){
+	$ident_threshold /= 100.0;
+}
+if($cov_long > 1){
+	$cov_long /= 100.0;
+}
+if($cov_short > 1){
+	$cov_short /= 100.0;
+}
+
+#my $fastafile = "samples/small_fas.fas";
+#my $clusterout = "clustered.dat";
+#my $outfas_dir = "clusout/";
+#my $ident_threshold = 30;
+#my $cov_long = 0.5;
+#my $cov_short = 0.8;
+
+
 
 if(!-d $outfas_dir){
 	mkdir($outfas_dir);
 }
 
-my $ident_threshold = 30;
-my $cov_long = 0.5;
-my $cov_short = 0.8;
 
 
 my @allseqs = @{get_seq($fastafile)};
@@ -77,10 +117,13 @@ foreach my $aa(@allseqs){
 	$seq_hs{${$aa}{"name"}} = $aa;
 }
 close(OUT);
-system("$blastdbpath -in $tmpdbname -dbtype prot -parse_seqids ");
+system("$makeblastdbpath -in $tmpdbname -dbtype prot -parse_seqids ");
 my $numseqs = $#allseqs+1;
 my %clustered;
 my $ci = 0;
+
+open(COUT,"> $clusterout");
+open(CFOUT,"> $clusterout.fas");
 foreach my $qfas(@allseqs){
 	if(${$qfas}{"name"} ne "1bb1_B"){
 	
@@ -135,7 +178,7 @@ foreach my $qfas(@allseqs){
 			$sname = $h1."_".$h2;
 		}
 		
-		if($pident < $ident_threshold){
+		if($pident/100.0 < $ident_threshold){
 			next;
 		}
 		if(!defined $covered_res{$sname}){
@@ -154,7 +197,9 @@ foreach my $qfas(@allseqs){
 	open(FOUT,"> $outfas");
 	print FOUT ">".${$seq_hs{$qname}}{"name"}." ".${$seq_hs{$qname}}{"desc"}."\n".${$seq_hs{$qname}}{"seq"}."\n";
 	print FOUT "\n";
-	print $qname;
+	print CFOUT ">".${$seq_hs{$qname}}{"name"}." ".${$seq_hs{$qname}}{"desc"}."\n".${$seq_hs{$qname}}{"seq"}."\n";
+	print CFOUT "\n";
+	print COUT $qname;
 	foreach my $kk(keys %covered_res){
 		if($kk eq $qname){
 			next;
@@ -186,11 +231,12 @@ foreach my $qfas(@allseqs){
 		print FOUT ">".${$seq_hs{$kk}}{"name"}." ".${$seq_hs{$kk}}{"desc"}."\n".${$seq_hs{$kk}}{"seq"}."\n";
 		print FOUT "\n";
 		$clustered{$kk} = $qname;
-		print " ".$kk;
+		print COUT " ".$kk;
 	}
-	print "\n";
+	print COUT "\n";
 }
-
+close(COUT);
+close(CFOUT);
 unlink($tmpfasname);
 unlink($tmpdbname);
 unlink($tmpdbname.".psi");
@@ -198,3 +244,4 @@ unlink($tmpdbname.".phr");
 unlink($tmpdbname.".pin");
 unlink($tmpdbname.".pog");
 unlink($tmpdbname.".psd");
+unlink($tmpdbname.".psq");

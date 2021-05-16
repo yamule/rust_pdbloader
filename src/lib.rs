@@ -42,4 +42,4 @@ pub mod openff_process;
 pub mod openff_energy;
 pub mod smirks_data;
 
-pub mod rotamer_generator;
+pub mod coarse_grained_model;

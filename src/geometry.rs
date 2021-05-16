@@ -1,9 +1,12 @@
+use std::f64::consts::PI;
 #[allow(dead_code,unused_imports)]
 use std::io::{BufWriter,Write,BufReader,BufRead};
 #[allow(dead_code,unused_imports)]
 use std::collections::HashMap;
 #[allow(dead_code,unused_imports)]
 use std::fs;
+use crate::process_3d;
+
 #[allow(dead_code,unused_imports)]
 use super::process_3d::*;
 
@@ -360,6 +363,90 @@ impl Geometry{
                 );
         }
     }
+
+    pub fn create_cylinder(start:&(f64,f64,f64),end:&(f64,f64,f64),radius:f64,rdiv:usize,close_hole:bool)
+    ->(Vec<Point3D>,Vec<Face>){
+        let mut direc_ = process_3d::subtracted_t(end,start);
+        direc_ = standardize(direc_.0,direc_.1,direc_.2);
+        let pdep:(f64,f64,f64) = if direc_.1.abs() <= 0.0001 && direc_.2.abs() <= 0.0001{
+            (0.0,1.0,0.0)
+        }else{
+            (1.0,0.0,0.0)
+        };
+        let pstart_ = process_3d::calc_norm_t(&direc_,&(0.0,0.0,0.0), &pdep);
+        let mut pstart:Point3D = Point3D::from_tuple(&pstart_);
+        let direc:Point3D = Point3D::from_tuple(&direc_);
+        pstart.set_x(pstart.get_x()*radius);
+        pstart.set_y(pstart.get_y()*radius);
+        pstart.set_z(pstart.get_z()*radius);
+        
+
+        let mut spp:Vec<Point3D> = vec![];
+        spp.push(pstart.clone());
+        
+        let rstep = (PI*2.0)/(rdiv as f64);
+        for ii in 1..rdiv{
+            let mut pp = pstart.clone();
+            let mut tvec:Vec<&mut dyn Vector3D> = vec![&mut pp];
+            process_3d::rotate_3d(&mut tvec,&direc,rstep*(ii as f64));
+            spp.push(pp);
+        }
+        let mut epp:Vec<Point3D> = spp.clone();
+        for pp in spp.iter_mut(){
+            pp.set_x(pp.get_x()+start.0);
+            pp.set_y(pp.get_y()+start.1);
+            pp.set_z(pp.get_z()+start.2);
+        }
+        
+        for pp in epp.iter_mut(){
+            pp.set_x(pp.get_x()+end.0);
+            pp.set_y(pp.get_y()+end.1);
+            pp.set_z(pp.get_z()+end.2);
+        }
+        let mut ret_p:Vec<Point3D> = vec![];
+        let mut ret_f:Vec<Face> = vec![];
+        ret_p.append(&mut spp);
+        ret_p.append(&mut epp);
+        for i in 0..rdiv{
+            let mut ff = Face::new();
+            ff.index_v = vec![i,(i+1)%rdiv,(i+1)%rdiv+rdiv];
+            ret_f.push(
+                ff
+            );
+            let mut ff = Face::new();
+            ff.index_v = vec![(i+1)%rdiv+rdiv,i+rdiv,i];
+            ret_f.push(
+                ff
+            );
+        }
+        if close_hole{
+            let ss:Point3D = Point3D::from_tuple(start);
+            let ee:Point3D = Point3D::from_tuple(end);
+            let si = ret_p.len();
+            ret_p.push(ss);
+            let ei = ret_p.len();
+            ret_p.push(ee);
+            for i in 0..rdiv{
+                let mut ff = Face::new();
+                ff.index_v = vec![(i+1)%rdiv,i,si];
+                ret_f.push(
+                    ff
+                );
+            }
+            
+            for i in 0..rdiv{
+                let mut ff = Face::new();
+                ff.index_v = vec![i+rdiv,(i+1)%rdiv+rdiv,ei];
+                ret_f.push(
+                    ff
+                );
+            }
+        }
+
+        return (ret_p,ret_f);
+
+    }
+
 	pub fn save(filename:&str,geoms:&Vec<Geometry>){
 		//StringBuffer sb = new StringBuffer();
 		let mut voffset:usize = 1;
