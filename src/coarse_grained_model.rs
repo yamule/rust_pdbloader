@@ -69,9 +69,9 @@ pub struct SideChainCylinder<'a>{
     pub ca:&'a PseudoAtom,
     pub c:&'a PseudoAtom,
     pub endpoint:Point3D,
-    pub _x:Point3D,//n ca c の norm
-    pub _y:Point3D,//
-    pub _z:Point3D,//
+    pub rx:Point3D,//n ca c の norm と rz 
+    pub ry:Point3D,//n ca c の norm
+    pub rz:Point3D,//n と c を 単位ベクトル化して中点から ca を通る線。
     pub length:f64,//CA から最終点の距離
     pub num_sep:usize,//length を何個に分割するか//90 度ごと 4 つに分割するので、領域はこれ x4
 }
@@ -95,13 +95,14 @@ impl<'a> SideChainCylinder<'a>{
             ,-1.0*(nn.1/2.0+cc.1/2.0)
             ,-1.0*(nn.2/2.0+cc.2/2.0)
             );
+        self.rz.set_xyz(zz.0*self.length,zz.1*self.length,zz.2*self.length);
 
         let xx:(f64,f64,f64) = process_3d::calc_norm_t(
             &zz,
             &(0.0,0.0,0.0),
             &yy
         );
-        
+
 
          
 

@@ -453,24 +453,62 @@ impl Geometry{
     pub fn generate_sphere(center:&(f64,f64,f64),radius:f64,vdiv:usize,rdiv:usize)->(Vec<Point3D>,Vec<Face>){
         let mut retp:Vec<Point3D> = vec![];
         let mut retf:Vec<Face> = vec![];
-        let rad_step_v:f64 = (PI*2.0)/(vdiv as f64 -1.0);
+        let rad_step_v:f64 = (PI)/(vdiv as f64);
         let rad_step_r:f64 = (PI*2.0)/(rdiv as f64);
-        for i in 0..=vdiv{
-            if i == 0{
+        for ii in 0..=vdiv{
+            if ii == 0{
                 retp.push(Point3D::new(0.0,-1.0*radius,0.0));
-            }else if i == vdiv{
+            }else if ii == vdiv{
                 retp.push(Point3D::new(0.0,radius,0.0));
             }else{
-                let yy:f64 = (rad_step_v*(i as f64)).sin()*radius;
+                let yy:f64 = (rad_step_v*(ii as f64)-PI/2.0).sin()*radius;
+                let ss:f64 = (rad_step_v*(ii as f64)-PI/2.0).cos()*radius;
                 for jj in 0..rdiv{
-                    let xx:f64 = (rad_step_r*(jj as f64)).cos()*radius;
-                    let zz:f64 = (rad_step_r*(jj as f64)).sin()*radius;
+                    let xx:f64 = (rad_step_r*(jj as f64)).cos()*ss;
+                    let zz:f64 = (rad_step_r*(jj as f64)).sin()*ss;
                     retp.push(Point3D::new(xx,yy,zz));
                 }
             }
         }
+        for pp in retp.iter_mut(){
+            pp.set_x(pp.get_x()+center.0);
+            pp.set_y(pp.get_y()+center.1);
+            pp.set_z(pp.get_z()+center.2);
+        }
 
-
+        for ii in 0..vdiv{
+            if ii == 0{
+                for jj in 0..rdiv{
+                    let mut ff = Face::new();
+                    ff.index_v = vec![jj+1,(jj+1)%rdiv+1,0];
+                    retf.push(
+                        ff
+                    );
+                }
+            }else if ii == vdiv-1{
+                for jj in 0..rdiv{
+                    let mut ff = Face::new();
+                    ff.index_v = vec![(jj+1)%rdiv+(ii-1)*rdiv+1,jj+(ii-1)*rdiv+1,(vdiv-1)*rdiv+1];
+                    retf.push(
+                        ff
+                    );
+                }
+            }else{
+                for jj in 0..rdiv{
+                    let mut ff = Face::new();
+                    ff.index_v = vec![(jj+1)%rdiv+(ii-1)*rdiv+1,jj+(ii-1)*rdiv+1,(jj+1)%rdiv+ii*rdiv+1];
+                    retf.push(
+                        ff
+                    );
+                    
+                    let mut ff = Face::new();
+                    ff.index_v = vec![jj+ii*rdiv+1,(jj+1)%rdiv+ii*rdiv+1,jj+(ii-1)*rdiv+1];
+                    retf.push(
+                        ff
+                    );
+                }
+            }
+        }
 
         return (retp,retf);
     }
@@ -621,4 +659,16 @@ fn cylindertest(){
     let gv:Vec<Geometry> = vec![ggeo];
 
     Geometry::save("test/cylinder_geom.obj",&gv);
+}
+
+#[test]
+fn spheretest(){
+    let mut ggeo = Geometry::new();
+    let cc = Geometry::generate_sphere(&(1.0,2.0,3.0),2.5,8,8);
+    ggeo.add_objects(&cc);
+
+    ggeo.calc_all_norms();
+    let gv:Vec<Geometry> = vec![ggeo];
+
+    Geometry::save("test/sphere_geom.obj",&gv);
 }

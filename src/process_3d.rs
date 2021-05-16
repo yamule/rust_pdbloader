@@ -135,7 +135,9 @@ pub fn rotate_with(xx:f64,yy:f64,zz:f64,angle:(f64,f64,f64,f64))->(f64,f64,f64){
     */
 pub fn fit_to_vector(t1:&dyn Vector3D,t2:&dyn Vector3D,t3:&dyn Vector3D
     ,s1:&dyn Vector3D,s2:&dyn Vector3D,s3:&dyn Vector3D,
-    vset:&mut Vec<&mut dyn Vector3D>){
+    vset_:&mut Vec<&mut dyn Vector3D>){
+
+
     let angle:(f64,f64,f64,f64) = get_xzero_rot_angle(
     s1.get_x()-s2.get_x()
     ,s1.get_y()-s2.get_y()
@@ -168,8 +170,17 @@ pub fn fit_to_vector(t1:&dyn Vector3D,t2:&dyn Vector3D,t3:&dyn Vector3D
     
     let cos2 = vcd.get_z();
     let sin2 = vcd.get_y();
-    //println!("{:?}",dd);
-    //println!("{:?}",vcd);
+    
+    let mut c1 = Point3D::from_vector3d(t1);
+    let mut c2 = Point3D::from_vector3d(t2);
+    let mut c3 = Point3D::from_vector3d(t3);
+    let mut vset:Vec<&mut dyn Vector3D> = vec![];
+    for v in vset_.iter_mut(){
+        vset.push(*v);
+    }
+    vset.push(&mut c1);
+    vset.push(&mut c2);
+    vset.push(&mut c3);
     for v in vset.iter_mut(){
         v.set_xyz(v.get_x()-t2.get_x(),v.get_y()-t2.get_y(),v.get_z()-t2.get_z());
 
@@ -189,6 +200,52 @@ pub fn fit_to_vector(t1:&dyn Vector3D,t2:&dyn Vector3D,t3:&dyn Vector3D
         let l = rotate_with(dtmp1.0,dtmp1.1,dtmp1.2,angle);
         v.set_xyz(l.0+s2.get_x(),l.1+s2.get_y(),l.2+s2.get_z());
     }
+    let vset:Option<f64> = None;
+
+    let snorm0 = calc_norm_t(
+        &s1.get_xyz(),
+        &s2.get_xyz(),
+        &s3.get_xyz(),
+    );
+    let ps1 = standardize(
+    s1.get_x()-s2.get_x(),
+    s1.get_y()-s2.get_y(),
+    s1.get_z()-s2.get_z());
+    
+    let snorm1 = calc_norm_t(
+       &snorm0,
+       &(0.0,0.0,0.0),
+       &ps1
+    );
+
+
+    //全部 0 起点で standardize されている必要がある
+    let get_radian = |
+    p:&(f64,f64,f64)
+    ,xaxis:&(f64,f64,f64)
+    ,yaxis:&(f64,f64,f64)
+    |->f64{
+        let d:f64 = distance(xaxis, p);
+        let radp = ((2.0-d*d)/2.0).acos();
+        let zd:f64 = distance(yaxis, p);
+        if zd > (2.0_f64).sqrt(){
+            return radp*-1.0;
+        }
+        return radp;
+    };
+    c1.subtract(&c2.get_xyz());
+    c3.subtract(&c2.get_xyz());
+    c1.standardize();
+    c3.standardize();
+    let mut sc3 = Point3D::from_vector3d(s3);
+    sc3.subtract(&s2.get_xyz());
+    sc3.standardize();
+    let rad1 = get_radian(&c1.get_xyz(),&ps1,&snorm1);
+    let rad3 = get_radian(&c3.get_xyz(),&ps1,&snorm1);
+    let rad3b = get_radian(&sc3.get_xyz(),&ps1,&snorm1);
+    //rad1b の角度は 0.0
+    //差の平均度回転する
+    println!("{} {} {} {:?} {:?} {:?}",rad1,rad3,rad3b,sc3,ps1,snorm1);
 }
 
 /**

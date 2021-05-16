@@ -182,12 +182,25 @@ pub fn generate_intermediate_files(inputdirname:&str
     //CHARMM19
     let angle_radian:f64 = 117.5/180.0*std::f64::consts::PI;
     let c_bond_length:f64 = 1.52;
-    let base_n:Point3D = Point3D::new(1.45,0.0,0.0);
+    let n_bond_length:f64 = 1.45;
     let base_ca:Point3D = Point3D::new(0.0,0.0,0.0);
+    
+    let base_n:Point3D = Point3D::new(
+        n_bond_length*((-angle_radian/2.0).cos()),
+        n_bond_length*((-angle_radian/2.0).sin()),
+        0.0);   
+    let base_c:Point3D = Point3D::new(
+        c_bond_length*((angle_radian/2.0).cos()),
+        c_bond_length*((angle_radian/2.0).sin()),
+       0.0);
+    
+    /*
+    let base_n:Point3D = Point3D::new(n_bond_length,0.0,0.0);
     let base_c:Point3D = Point3D::new(
         c_bond_length*(angle_radian.cos()),
         c_bond_length*(angle_radian.sin()),
        0.0);
+    */
     let checker_threshold = 0.15;//N CA C のいずれかのずれがこれより大きい場合使用しない
     for tt in targets.iter(){
         let mut atomcounter:HashMap<String,usize> = HashMap::new();
@@ -293,6 +306,7 @@ pub fn generate_intermediate_files(inputdirname:&str
                     || ca.distance(&base_ca) > checker_threshold
                     || c.distance(&base_c) > checker_threshold
                     {  
+                        //println!("{} {} {} ",n.distance(&base_n),ca.distance(&base_ca),c.distance(&base_c));
                         checker_failed += 1;
                     }else{
                         validcomps.push(coo.2);
