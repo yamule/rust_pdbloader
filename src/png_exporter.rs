@@ -3,8 +3,6 @@ use std::io::prelude::*;
 use flate2::write::*;
 use flate2::Compression;
 
-
-
 //https://www.setsuki.com/hsp/ext/png.htm
 pub struct PngExporter{
 
@@ -57,7 +55,7 @@ impl PngExporter{
         let mut varr_:Vec<u8> = vec![0;h*w*num_colors+h];
         let mut ppos:usize = 0;
         for yy in 0..h{
-            if yy == 0{
+            if false{//MS paint での表示が変になる
                 varr_[ppos] = 1;
                 ppos+=1;
                 for nn in 0..num_colors{
@@ -71,15 +69,15 @@ impl PngExporter{
                     }
                 }
             }else{
-                varr_[ppos] = 2;
+                
+                varr_[ppos] = 0;
                 ppos+=1;
-                for xx in 1..w{
+                for xx in 0..w{
                     for nn in 0..num_colors{
-                        varr_[ppos] = (pixels[xx][yy][nn] as usize +256 -pixels[xx][yy-1][nn] as usize & 0xff) as u8;
+                        varr_[ppos] = pixels[xx][yy][nn];
                         ppos += 1;
                     }
                 }
-
             }
         }
 
@@ -109,7 +107,6 @@ impl PngExporter{
         let crc = calc_crc(&bbuf);
         file.write_all(bbuf.as_slice()).unwrap();
         file.write_all(&u64_to_slice(crc)).unwrap();
-        
     }
 
 }
