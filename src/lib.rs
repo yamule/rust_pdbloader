@@ -45,4 +45,4 @@ pub mod smirks_data;
 pub mod coarse_grained_model;
 pub mod rotamer_generator;
 pub mod png_exporter;
-
+pub mod image2d_process;
