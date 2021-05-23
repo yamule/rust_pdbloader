@@ -359,31 +359,37 @@ impl Geometry{
         }else{
             used_colors.len()/num_cols +1
         };
-        let mut img = Image2D::new(num_cols*4,num_rows*4,3);
+        
+        let wid = num_cols*4;
+        let hei = num_rows*4;
+        let mut img = Image2D::new(wid,hei,nchannel);
         if self.texture_vertices.len() > 0{
             eprintln!("Texture vertices will be cleared.");
         }
         self.texture_vertices.clear();
 
         for ii in 0..used_colors.len(){
-            let sx =((ii%num_cols)*4) as i128;
-            let sy =  ((ii/num_cols)*4) as i128;
+            let sx_ =((ii%num_cols)*4) as i128;
+            let sy_ =  ((ii/num_cols)*4) as i128;
+
+            let sx:f64 = sx_ as f64/(wid as f64);
+            let sy:f64 = 1.0 - sy_ as f64/(hei as f64);
             self.texture_vertices.push(
-                Point2D{x:sx as f64+1.0,y:sy as f64 +1.0}
+                Point2D{x:sx as f64+1.0/(wid as f64),y:sy as f64 -1.0/(hei as f64)}
             );
             self.texture_vertices.push(
-                Point2D{x:sx as f64+1.0,y:sy as f64 +2.0}
+                Point2D{x:sx as f64+1.0/(wid as f64),y:sy as f64 -2.0/(hei as f64)}
             );
             self.texture_vertices.push(
-                Point2D{x:sx as f64+2.0,y:sy as f64 +2.0}
+                Point2D{x:sx as f64+2.0/(wid as f64),y:sy as f64 -2.0/(hei as f64)}
             );
-            img.fill_rect(sx,sy,4,4, &used_colors[ii]);
+            img.fill_rect(sx_,sy_,4,4, &used_colors[ii]);
         }
         self.material = Some(
             Material::new()
         );
         self.material.as_mut().unwrap().texture_image = Some(img);
-        
+        self.material.as_mut().unwrap().name = "colortile".to_owned();
         for ff in self.faces.iter_mut(){
             let cindex:usize = 
             if let Some(x) = ff.color.as_ref(){
@@ -456,12 +462,17 @@ impl Geometry{
             let fv:&Vec<usize> = &self.v_to_f[vii];
             let mut vn:Point3D = Point3D::zero();
             for fii in fv{
-
                 let v = self.faces[*fii].get_norm();
                 vn.add(&v.get_xyz());
             }
-            if fv.len() > 0{
-                vn.standardize();
+            if vn.get_x() == 0.0 && vn.get_y() == 0.0 && vn.get_z() == 0.0{
+                //表裏がある場合についてどうしようか。。。
+                let v = self.faces[fv[0]].get_norm();
+                vn.add(&v.get_xyz());
+            }else{
+                if fv.len() > 0{
+                    vn.standardize();
+                }
             }
             self.norms.push(vn);
         }
@@ -662,7 +673,13 @@ impl Geometry{
                 if let Some(t) = x.texture_image.as_ref(){
                     let outfilename = format!("{}.{}.png",filename,ii);
                     png_exporter::PngExporter::export(&outfilename,&t.pixels);
-                    materiallines.append(&mut x.get_string(Some(outfilename)));
+
+
+                    
+                    let re = Regex::new(r".*[/\\]").unwrap();
+                    let filep:String = re.replace_all(outfilename.as_str(), "").to_string();
+                    
+                    materiallines.append(&mut x.get_string(Some(filep)));
                 }
             }
         }
@@ -772,7 +789,9 @@ fn geomtest(){
     ggeo.add_face(0,1,3);
     ggeo.add_face(0,2,1);
     ggeo.add_face(0,3,1);
+    ggeo.faces[0].color = Some(vec![255,0,0,255]);
     ggeo.calc_all_norms();
+    ggeo.add_colortile_material();
     let mut gv:Vec<Geometry> = vec![ggeo];
 
     Geometry::save("test/testgeom.obj",&mut gv);
@@ -809,6 +828,15 @@ fn spheretest(){
     let cc = Geometry::generate_sphere(&(1.0,2.0,3.0),2.5,8,8);
     ggeo.add_objects(&cc);
 
+    ggeo.faces[0].color = Some(vec![255,0,0,255]);
+    ggeo.faces[1].color = Some(vec![0,255,0,255]);
+    ggeo.faces[2].color = Some(vec![0,255,0,255]);
+    ggeo.faces[3].color = Some(vec![0,0,255,255]);
+    ggeo.faces[4].color = Some(vec![0,0,255,255]);
+    ggeo.faces[5].color = Some(vec![0,0,255,255]);
+    
+    ggeo.calc_all_norms();
+    ggeo.add_colortile_material();
     ggeo.calc_all_norms();
     let mut gv:Vec<Geometry> = vec![ggeo];
 
