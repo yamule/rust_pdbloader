@@ -275,8 +275,12 @@ pub fn generate_intermediate_files(inputdirname:&str
                 //qr 分解で揃えるブロックもあるが今は使ってない
                 let mut qralign = true;
                 if true{
+                    
                     process_3d::fit_to_vector(&n,&ca,&c,&base_n, &base_ca,&base_c
                         ,&mut vvec);
+                    //println!("{} ++", (angle_radian-aac)/2.0);
+                        /*
+                    //n-ca がフィットするので、c-ca の角度に差がある場合調整する 
                     let mut c:Point3D = Point3D::from_vector3d(coo.2.get_C().unwrap_or_else(||panic!("Can not get C for {}.",tt)));
                     let ddis = process_3d::distance(&(0.0,0.0,0.0),&c.get_xyz());
                     if ddis > 0.0{
@@ -293,6 +297,7 @@ pub fn generate_intermediate_files(inputdirname:&str
                             vv.set_y(yy);
                         }
                     }
+                    */
                 }else{
                     qralign = align_residue(&n,&ca,&c
                     ,&base_n, &base_ca,&base_c
@@ -302,20 +307,20 @@ pub fn generate_intermediate_files(inputdirname:&str
                     let n:Point3D = Point3D::from_vector3d(coo.2.get_N().unwrap_or_else(||panic!("Can not get N for {}.",tt)));
                     let ca:Point3D = Point3D::from_vector3d(coo.2.get_CA().unwrap_or_else(||panic!("Can not get CA for {}.",tt)));
                     let c:Point3D = Point3D::from_vector3d(coo.2.get_C().unwrap_or_else(||panic!("Can not get C for {}.",tt)));
+                    
                     if n.distance(&base_n) > checker_threshold
                     || ca.distance(&base_ca) > checker_threshold
                     || c.distance(&base_c) > checker_threshold
                     {  
-                        //println!("{} {} {} ",n.distance(&base_n),ca.distance(&base_ca),c.distance(&base_c));
+                        
+                    //   println!("{} {} {} ",n.distance(&base_n),ca.distance(&base_ca),c.distance(&base_c));
                         checker_failed += 1;
                     }else{
                         validcomps.push(coo.2);
                     }
-                    
                 }else{
                     qr_failed += 1;
                 }
-                
             }
             let num_validcomps:usize = validcomps.len();
             
@@ -340,9 +345,6 @@ pub fn generate_intermediate_files(inputdirname:&str
                 }else{
                     cluster[merge_to as usize].1 += 1;
                 }
-                /*
-                
-                */
             }
             cluster.sort_by(|a,b|b.1.cmp(&a.1));
             let filename = outputdirname.to_string()+"/"+re_avoid.replace_all(tt,"_").to_string().as_str()+".rotamer.dat";
@@ -353,6 +355,7 @@ pub fn generate_intermediate_files(inputdirname:&str
             f.write_all(format!("#covered: {}\n",cover_ratio).as_bytes()).unwrap();
             f.write_all(format!("#threshold: {}\n",cluster_diff_threshold).as_bytes()).unwrap();
             f.write_all(format!("#results: accepted: {}, failed: {} (qr: {}, checker: {})\n",num_validcomps,qr_failed+checker_failed,qr_failed,checker_failed).as_bytes()).unwrap();
+            println!("#results: accepted: {}, failed: {} (qr: {}, checker: {})",num_validcomps,qr_failed+checker_failed,qr_failed,checker_failed);
             f.write_all("#note: Asyms are changed from the original.\n".as_bytes()).unwrap();
             
             let mut ccount:usize = 0;

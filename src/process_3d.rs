@@ -133,7 +133,144 @@ pub fn rotate_with(xx:f64,yy:f64,zz:f64,angle:(f64,f64,f64,f64))->(f64,f64,f64){
     * @param s3
     * @param vset 
     */
+
 pub fn fit_to_vector(t1:&dyn Vector3D,t2:&dyn Vector3D,t3:&dyn Vector3D
+    ,s1:&dyn Vector3D,s2:&dyn Vector3D,s3:&dyn Vector3D,
+    vset_:&mut Vec<&mut dyn Vector3D>){
+
+
+    let angle:(f64,f64,f64,f64) = get_xzero_rot_angle(
+    s1.get_x()-s2.get_x()
+    ,s1.get_y()-s2.get_y()
+    ,s1.get_z()-s2.get_z());
+    let sst:(f64,f64,f64) = rotate_xzero(
+        s3.get_x()-s2.get_x()
+        ,s3.get_y()-s2.get_y()
+        ,s3.get_z()-s2.get_z()
+        ,angle);
+    
+    let mut vc = Point3D::new(0.0,sst.1,sst.2);
+    vc.standardize();
+
+    let cos1 = vc.get_z();
+    let sin1 = vc.get_y();
+
+    
+    let angle2 = get_xzero_rot_angle(
+    t1.get_x()-t2.get_x()
+    ,t1.get_y()-t2.get_y()
+    ,t1.get_z()-t2.get_z());
+    
+    let dd = rotate_xzero(
+    t3.get_x()-t2.get_x()
+    ,t3.get_y()-t2.get_y()
+    ,t3.get_z()-t2.get_z(),angle2);
+    
+    let mut vcd = Point3D::new(0.0,dd.1,dd.2);
+    vcd.standardize();
+    
+    let cos2 = vcd.get_z();
+    let sin2 = vcd.get_y();
+    
+    let mut c1 = Point3D::from_vector3d(t1);
+    let mut c2 = Point3D::from_vector3d(t2);
+    let mut c3 = Point3D::from_vector3d(t3);
+    let mut vset:Vec<&mut dyn Vector3D> = vec![];
+    for v in vset_.iter_mut(){
+        vset.push(*v);
+    }
+    vset.push(&mut c1);
+    vset.push(&mut c2);
+    vset.push(&mut c3);
+    for v in vset.iter_mut(){
+        v.set_xyz(v.get_x()-t2.get_x(),v.get_y()-t2.get_y(),v.get_z()-t2.get_z());
+
+        let mut dtmp1 = rotate_xzero(v.get_x(),v.get_y(),v.get_z(),angle2);
+        let mut vcdd = Point3D::new(dtmp1.0,dtmp1.1,dtmp1.2);
+        //println!("{:?}",vcdd);
+        dtmp1.1 = vcdd.get_y()*cos2-vcdd.get_z()*sin2;
+        dtmp1.2 = vcdd.get_y()*sin2+vcdd.get_z()*cos2;
+
+        //println!("{:?}",dtmp1);
+        vcdd.set_y(dtmp1.1);
+        vcdd.set_z(dtmp1.2);
+        
+        dtmp1.1 = vcdd.get_y()*cos1+vcdd.get_z()*sin1;
+        dtmp1.2 = vcdd.get_z()*cos1-vcdd.get_y()*sin1;
+        
+        let l = rotate_with(dtmp1.0,dtmp1.1,dtmp1.2,angle);
+        //v.set_xyz(l.0+s2.get_x(),l.1+s2.get_y(),l.2+s2.get_z());
+        v.set_xyz(l.0,l.1,l.2);
+    }
+
+    let snorm0 = calc_norm_t(
+        &s1.get_xyz(),
+        &s2.get_xyz(),
+        &s3.get_xyz(),
+    );
+    let ps1 = standardize(
+    s1.get_x()-s2.get_x(),
+    s1.get_y()-s2.get_y(),
+    s1.get_z()-s2.get_z());
+    
+    let snorm1 = calc_norm_t(  
+    &ps1,
+        &(0.0,0.0,0.0),
+        &snorm0
+    );
+
+
+    //全部 0 起点で standardize されている必要がある
+    let get_radian = |
+    p:&(f64,f64,f64)
+    ,xaxis:&(f64,f64,f64)
+    ,yaxis:&(f64,f64,f64)
+    |->f64{
+        let d:f64 = distance(xaxis, p);
+        let radp = ((2.0-d*d)/2.0).acos();
+        let zd:f64 = distance(yaxis, p);
+        if zd > (2.0_f64).sqrt(){
+            return radp*-1.0;
+        }
+        return radp;
+    };
+    c1.subtract(&c2.get_xyz());
+    c3.subtract(&c2.get_xyz());
+    c1.standardize();
+    c3.standardize();
+    let mut sc1 = Point3D::from_vector3d(s1);
+    sc1.subtract(&s2.get_xyz());
+    sc1.standardize();
+    let mut sc3 = Point3D::from_vector3d(s3);
+    sc3.subtract(&s2.get_xyz());
+    sc3.standardize();
+    
+    let rad1 = get_radian(&c1.get_xyz(),&ps1,&snorm1);
+    let rad1b = get_radian(&sc1.get_xyz(),&ps1,&snorm1);
+
+    let rad3 = get_radian(&c3.get_xyz(),&ps1,&snorm1);
+    let rad3b = get_radian(&sc3.get_xyz(),&ps1,&snorm1);
+    
+    let rot = (rad3b-rad3)/2.0+(rad1b-rad1)/2.0;
+    
+    let mut vset:Vec<&mut dyn Vector3D> = vec![];
+    for v in vset_.iter_mut(){
+        //v.set_xyz(v.get_x()-s2.get_x(), v.get_y()-s2.get_y(), v.get_z()-s2.get_z());
+        vset.push(*v);
+    }
+    rotate_3d(&mut vset,&(Point3D::from_tuple(&snorm0)),rot);
+    for v in vset_.iter_mut(){
+        v.set_xyz(v.get_x()+s2.get_x(), v.get_y()+s2.get_y(), v.get_z()+s2.get_z());
+    }
+    
+    
+    //println!("{} {} {} {:?} {:?} {:?}",rad1,rad3,rad3b,sc3,ps1,snorm1);
+    
+}
+
+
+//t1->t2 と s1->s2 が合う昔のコード
+pub fn fit_to_vector_old(t1:&dyn Vector3D,t2:&dyn Vector3D,t3:&dyn Vector3D
     ,s1:&dyn Vector3D,s2:&dyn Vector3D,s3:&dyn Vector3D,
     vset_:&mut Vec<&mut dyn Vector3D>){
 
@@ -200,54 +337,10 @@ pub fn fit_to_vector(t1:&dyn Vector3D,t2:&dyn Vector3D,t3:&dyn Vector3D
         let l = rotate_with(dtmp1.0,dtmp1.1,dtmp1.2,angle);
         v.set_xyz(l.0+s2.get_x(),l.1+s2.get_y(),l.2+s2.get_z());
     }
-    let vset:Option<f64> = None;
-
-    let snorm0 = calc_norm_t(
-        &s1.get_xyz(),
-        &s2.get_xyz(),
-        &s3.get_xyz(),
-    );
-    let ps1 = standardize(
-    s1.get_x()-s2.get_x(),
-    s1.get_y()-s2.get_y(),
-    s1.get_z()-s2.get_z());
+    //println!("{} {} {} {:?} {:?} {:?}",rad1,rad3,rad3b,sc3,ps1,snorm1);
     
-    let snorm1 = calc_norm_t(
-       &snorm0,
-       &(0.0,0.0,0.0),
-       &ps1
-    );
-
-
-    //全部 0 起点で standardize されている必要がある
-    let get_radian = |
-    p:&(f64,f64,f64)
-    ,xaxis:&(f64,f64,f64)
-    ,yaxis:&(f64,f64,f64)
-    |->f64{
-        let d:f64 = distance(xaxis, p);
-        let radp = ((2.0-d*d)/2.0).acos();
-        let zd:f64 = distance(yaxis, p);
-        if zd > (2.0_f64).sqrt(){
-            return radp*-1.0;
-        }
-        return radp;
-    };
-    c1.subtract(&c2.get_xyz());
-    c3.subtract(&c2.get_xyz());
-    c1.standardize();
-    c3.standardize();
-    let mut sc3 = Point3D::from_vector3d(s3);
-    sc3.subtract(&s2.get_xyz());
-    sc3.standardize();
-    let rad1 = get_radian(&c1.get_xyz(),&ps1,&snorm1);
-    let rad3 = get_radian(&c3.get_xyz(),&ps1,&snorm1);
-    let rad3b = get_radian(&sc3.get_xyz(),&ps1,&snorm1);
-    //rad1b の角度は 0.0
-    //差の平均度回転する
-    println!("{} {} {} {:?} {:?} {:?}",rad1,rad3,rad3b,sc3,ps1,snorm1);
 }
-
+    
 /**
  * query1->query2 というベクトルを template1->template2 というベクトルに合うように vset を回転する
  * query1 等が vset に入っていると結果がおかしくなるが、その場合ボローチェッカーを通らないはず。
