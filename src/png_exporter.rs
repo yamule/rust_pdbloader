@@ -139,6 +139,7 @@ pub fn calc_crc(vv:&Vec<u8>) -> u64{
 #[test]
 fn pngtest(){
 
+    /*
     let mut writer = Vec::new();
     let mut deflater = ZlibDecoder::new(writer);
     deflater.write_all(&[
@@ -146,13 +147,13 @@ fn pngtest(){
         ]).unwrap();
     writer = deflater.finish().unwrap();
     println!("{:?}",writer);
-
+    */
 
     let pix:Vec<Vec<Vec<u8>>> = vec![
-        vec![vec![255,255,255],vec![0,255,255],vec![255,0,0]],
-        vec![vec![255,255,255],vec![0,255,255],vec![255,0,0]],
-        vec![vec![255,255,255],vec![0,255,255],vec![255,0,0]],
-        vec![vec![255,255,255],vec![0,255,255],vec![255,0,0]]
+        vec![vec![255,255,255,128],vec![0,255,255,128],vec![255,0,0,128]],
+        vec![vec![255,255,255,128],vec![0,255,255,128],vec![255,0,0,128]],
+        vec![vec![255,255,255,128],vec![0,255,255,128],vec![255,0,0,128]],
+        vec![vec![255,255,255,128],vec![0,255,255,128],vec![255,0,0,128]]
     ];
     PngExporter::export("example_files/example_output/test.png",&pix);
  

@@ -1,15 +1,15 @@
-use std::f64::consts::PI;
+use std::{collections::HashSet, f64::consts::PI};
 #[allow(dead_code,unused_imports)]
 use std::io::{BufWriter,Write,BufReader,BufRead};
 #[allow(dead_code,unused_imports)]
 use std::collections::HashMap;
 #[allow(dead_code,unused_imports)]
 use std::fs;
-use crate::process_3d;
+use crate::{geometry, image2d_process::Image2D, png_exporter, process_3d};
 
 #[allow(dead_code,unused_imports)]
 use super::process_3d::*;
-
+use super::image2d_process::*;
 extern crate regex;
 use regex::Regex;
 
@@ -159,6 +159,7 @@ pub struct Face{
     index_vt:Vec<usize>,
     index_vn:Vec<usize>,
     norm:Option<Point3D>,
+    color:Option<Vec<u8>>,
     dead_flag:bool
 }
 
@@ -168,6 +169,7 @@ impl Face{
         index_vt:vec![],
         index_vn:vec![],
         norm:None,
+        color:None,
         dead_flag:false,
         };
     }
@@ -223,7 +225,63 @@ impl Face{
 
 
 pub struct Material{//途中
-    name:String
+    name:String,
+    params:Vec<(String,String)>,
+    texture_image:Option<Image2D>,
+}
+impl Material{
+    pub fn new()->Material{
+        return Material{
+            name:"".to_string()
+            ,params:Material::get_default_params()
+            ,texture_image:None
+        };
+    }
+    pub fn get_default_params()-> Vec<(String,String)>{
+        let mut matelsb:Vec<(String,String)> = vec![];
+        matelsb.push(("Ka".to_owned(),"1.0 1.0 1.0".to_string()));
+        matelsb.push(("Kd".to_owned(),"0.8 0.8 0.8".to_string()));
+        matelsb.push(("Ks".to_owned(),"0.0 0.0 0.0".to_string()));
+        matelsb.push(("Ke".to_owned(),"0.2 0.2 0.2".to_string()));
+        matelsb.push(("Ns".to_owned(),"0.0".to_string()));
+        matelsb.push(("Ni".to_owned(),"1.0".to_string()));
+        matelsb.push(("d".to_owned(),"1.0".to_string()));
+        matelsb.push(("illum".to_owned(),"2".to_string()));
+        return matelsb;
+    }
+    pub fn get_string(&self,texture_filename:Option<String>)->Vec<String>{
+        let mut ret:Vec<String> = vec![];
+        ret.push(format!("newmtl {}",self.name));
+        for pp in self.params.iter(){
+            if let Some(_) = texture_filename.as_ref(){
+                if pp.0 == "map_Kd" || pp.0 == "map_Ks" || pp.0 == "map_Ka"{
+                    continue;
+                } 
+            }
+            ret.push(format!("{} {}",pp.0,pp.1));
+        }
+        if let Some(x) =  texture_filename.as_ref(){
+            ret.push(format!("map_Ka {}",x));
+            ret.push(format!("map_Ks {}",x));
+            ret.push(format!("map_Kd {}",x));
+        }
+        return ret;
+
+    }
+    pub fn set_param(&mut self,k:&str,v:&str){
+        let mut index:i128 = -1;
+        for (ii,kk) in self.params.iter().enumerate(){
+            if kk.0 == k{
+                index = ii as i128;
+                break;
+            }
+        }
+        if index > -1{
+            self.params[index as usize] = (k.to_string(),v.to_string());
+        }else{
+            self.params.push((k.to_string(),v.to_string()));
+        }
+    }
 }
 
 pub struct Geometry{
@@ -277,6 +335,70 @@ impl Geometry{
 			}
 		}
     }
+    pub fn add_colortile_material(&mut self){
+        let mut used_colors_:HashSet<&Vec<u8>> = HashSet::new();
+        for ff in self.faces.iter(){
+            if let Some(c) = ff.color.as_ref(){
+                used_colors_.insert(c);
+            }
+        }
+        let mut used_colors:Vec<Vec<u8>> = used_colors_.into_iter().map(|m|m.clone()).collect();
+        used_colors.sort();
+        let num_cols = ((used_colors.len() as f64).sqrt() as usize).max(1);
+        let nchannel = used_colors[0].len();
+        if ! used_colors.contains(&vec![255;nchannel]){
+            used_colors.push(vec![255;nchannel]);
+        }
+        
+        let used_colors_hm:HashMap<&Vec<u8>,usize> = used_colors.iter().enumerate().map(|m|(m.1,m.0)).collect();
+        
+        let none_index:usize = *used_colors_hm.get(&vec![255;nchannel]).unwrap();
+        
+        let num_rows = if used_colors.len()%num_cols == 0{
+            used_colors.len()/num_cols
+        }else{
+            used_colors.len()/num_cols +1
+        };
+        let mut img = Image2D::new(num_cols*4,num_rows*4,3);
+        if self.texture_vertices.len() > 0{
+            eprintln!("Texture vertices will be cleared.");
+        }
+        self.texture_vertices.clear();
+
+        for ii in 0..used_colors.len(){
+            let sx =((ii%num_cols)*4) as i128;
+            let sy =  ((ii/num_cols)*4) as i128;
+            self.texture_vertices.push(
+                Point2D{x:sx as f64+1.0,y:sy as f64 +1.0}
+            );
+            self.texture_vertices.push(
+                Point2D{x:sx as f64+1.0,y:sy as f64 +2.0}
+            );
+            self.texture_vertices.push(
+                Point2D{x:sx as f64+2.0,y:sy as f64 +2.0}
+            );
+            img.fill_rect(sx,sy,4,4, &used_colors[ii]);
+        }
+        self.material = Some(
+            Material::new()
+        );
+        self.material.as_mut().unwrap().texture_image = Some(img);
+        
+        for ff in self.faces.iter_mut(){
+            let cindex:usize = 
+            if let Some(x) = ff.color.as_ref(){
+                *used_colors_hm.get(x).unwrap_or_else(||panic!("???"))
+            }else{
+                none_index
+            };
+            ff.index_vt.clear();
+            ff.index_vt.push(cindex*3);
+            ff.index_vt.push(cindex*3+1);
+            ff.index_vt.push(cindex*3+2);
+        }
+    }
+
+
 #[allow(non_snake_case)]
     pub fn V(&self,i:usize)->&Point3D{
         return &self.vertices[i];
@@ -513,29 +635,46 @@ impl Geometry{
         return (retp,retf);
     }
 
-	pub fn save(filename:&str,geoms:&Vec<Geometry>){
+	pub fn save(filename:&str,geoms:&mut Vec<Geometry>){
 		//StringBuffer sb = new StringBuffer();
 		let mut voffset:usize = 1;
 		let mut vnoffset:usize = 1;
 		let mut vtoffset:usize = 1;
 		let materialfile:String = filename.to_string()+".mtl";
+        let dummy_material:String = "material1".to_owned();
+        
+        let mut namechanged:bool = false;
+        let namecheck:HashSet<String> = HashSet::new();
+        for (ii,gg) in geoms.iter_mut().enumerate(){
+            if let Some(x) = gg.material.as_mut(){
+                if namecheck.contains(&x.name){
+                    x.name = format!("{}.{}",x.name,ii);
+                    namechanged = true;
+                }
+            }
+        }
+        if namechanged{
+            println!("The names of the materials have been changed due to duplication.");
+        }
+        let mut materiallines:Vec<String> = vec![];
+        for (ii,gg) in geoms.iter().enumerate(){
+            if let Some(x) = gg.material.as_ref(){
+                if let Some(t) = x.texture_image.as_ref(){
+                    let outfilename = format!("{}.{}.png",filename,ii);
+                    png_exporter::PngExporter::export(&outfilename,&t.pixels);
+                    materiallines.append(&mut x.get_string(Some(outfilename)));
+                }
+            }
+        }
+        if materiallines.len() == 0{
+            let mut dmat = Material::new();
+            dmat.name = dummy_material.clone();
+            materiallines.append(&mut dmat.get_string(None));
+        }
 
 
-		//saveDummyMaterial(this.materialFile);
-		//仮
-        let mut matelsb:Vec<String> = vec![];
-        matelsb.push("newmtl material1".to_string());
-        matelsb.push("Ka 1.0 1.0 1.0".to_string());
-        matelsb.push("Kd 0.8 0.8 0.8".to_string());
-        matelsb.push("Ks 0.0 0.0 0.0".to_string());
-        matelsb.push("Ke 0.2 0.2 0.2".to_string());
-        matelsb.push("Ns 0.0".to_string());
-        matelsb.push("Ni 1.0".to_string());
-        matelsb.push("d 1.0".to_string());
-        matelsb.push("illum 2".to_string());
-        write_to_file(&materialfile,matelsb);
-
-
+        write_to_file(&materialfile,materiallines);
+    
         let mut f = BufWriter::new(fs::File::create(filename).unwrap());
         
         let re = Regex::new(r".*[/\\]").unwrap();
@@ -583,6 +722,7 @@ fn generate_box(center:&dyn Vector3D,wid:f64,hei:f64,dep:f64)->(Vec<Point3D>,Vec
                 index_vt:vec![],
                 index_vn:vec![],
                 norm:None,
+                color:None,
                 dead_flag:false 
             }
         );
@@ -592,6 +732,7 @@ fn generate_box(center:&dyn Vector3D,wid:f64,hei:f64,dep:f64)->(Vec<Point3D>,Vec
                 index_vt:vec![],
                 index_vn:vec![],
                 norm:None,
+                color:None,
                 dead_flag:false 
             }
         );
@@ -605,6 +746,7 @@ fn generate_box(center:&dyn Vector3D,wid:f64,hei:f64,dep:f64)->(Vec<Point3D>,Vec
                 index_vt:vec![],
                 index_vn:vec![],
                 norm:None,
+                color:None,
                 dead_flag:false 
             }
         );
@@ -631,9 +773,9 @@ fn geomtest(){
     ggeo.add_face(0,2,1);
     ggeo.add_face(0,3,1);
     ggeo.calc_all_norms();
-    let gv:Vec<Geometry> = vec![ggeo];
+    let mut gv:Vec<Geometry> = vec![ggeo];
 
-    Geometry::save("test/testgeom.obj",&gv);
+    Geometry::save("test/testgeom.obj",&mut gv);
 }
 
 
@@ -645,9 +787,9 @@ fn boxtest(){
     ggeo.add_box(&Point3D::new(0.0,0.0,0.0),4.0);
 
     ggeo.calc_all_norms();
-    let gv:Vec<Geometry> = vec![ggeo];
+    let mut gv:Vec<Geometry> = vec![ggeo];
 
-    Geometry::save("test/boxtestgeom.obj",&gv);
+    Geometry::save("test/boxtestgeom.obj",&mut gv);
 }
 #[test]
 fn cylindertest(){
@@ -656,9 +798,9 @@ fn cylindertest(){
     ggeo.add_objects(&cc);
 
     ggeo.calc_all_norms();
-    let gv:Vec<Geometry> = vec![ggeo];
+    let mut gv:Vec<Geometry> = vec![ggeo];
 
-    Geometry::save("test/cylinder_geom.obj",&gv);
+    Geometry::save("test/cylinder_geom.obj",&mut gv);
 }
 
 #[test]
@@ -668,7 +810,24 @@ fn spheretest(){
     ggeo.add_objects(&cc);
 
     ggeo.calc_all_norms();
-    let gv:Vec<Geometry> = vec![ggeo];
+    let mut gv:Vec<Geometry> = vec![ggeo];
 
-    Geometry::save("test/sphere_geom.obj",&gv);
+    Geometry::save("test/sphere_geom.obj",&mut gv);
+}
+#[test]
+fn hstest(){
+    let mut hss:HashMap<Vec<u8>,bool> = HashMap::new();
+    hss.insert(vec![12,124],true);
+    assert_eq!(Some(&true), hss.get(&vec![12,124]));
+    assert_eq!(None, hss.get(&vec![12,125]));
+    
+    let mut hss_ck:HashMap<&Vec<u8>,bool> = HashMap::new();
+    let chkk = vec![12,124];
+    let chkk_2 = vec![12,124];
+    let chkk_3 = vec![12,125];
+    hss_ck.insert(&chkk,true);
+    assert_eq!(Some(&true), hss_ck.get(&chkk_2));
+    assert_eq!(None, hss.get(&chkk_3));
+    hss_ck.insert(&chkk_2,false);
+    assert_eq!(Some(&false), hss_ck.get(&chkk));
 }
