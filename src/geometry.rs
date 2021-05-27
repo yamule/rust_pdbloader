@@ -191,6 +191,9 @@ impl Face{
         let tt = calc_norm_v(v0,v1,v2);
         return Point3D{x:tt.0,y:tt.1,z:tt.2};
     }
+    pub fn set_color(&mut self,c:&Vec<u8>){
+        self.color = Some(c.clone());
+    }
     pub fn set_norm(&mut self,v:Point3D){
         self.norm = Some(v);
     }
@@ -342,6 +345,9 @@ impl Geometry{
                 used_colors_.insert(c);
             }
         }
+        if used_colors_.len() == 0{
+            return;
+        }
         let mut used_colors:Vec<Vec<u8>> = used_colors_.into_iter().map(|m|m.clone()).collect();
         used_colors.sort();
         let num_cols = ((used_colors.len() as f64).sqrt() as usize).max(1);
@@ -415,12 +421,15 @@ impl Geometry{
         return self.vertices.len()-1;
     }
 
-    pub fn add_face(& mut self,a:usize,b:usize,c:usize){
+    pub fn make_face(& mut self,a:usize,b:usize,c:usize){
         let mut fa = Face::new();
         fa.index_v.push(a);
         fa.index_v.push(b);
         fa.index_v.push(c);
         self.faces.push(fa);
+    }
+    pub fn add_face(& mut self,f:Face){
+        self.faces.push(f);
     }
     pub fn add_reversi_face(&mut self){
         let flen:usize = self.faces.len();
@@ -429,7 +438,7 @@ impl Geometry{
             let mut fv:Vec<usize> = f.index_v.clone();
             assert!(fv.len() == 3);//3 しか対応してない
             fv.reverse();
-            self.add_face(fv[0],fv[1],fv[2])
+            self.make_face(fv[0],fv[1],fv[2])
         }
     }
 
@@ -485,19 +494,22 @@ impl Geometry{
     }
     pub fn add_box(&mut self,center:&dyn Vector3D,size:f64){
         let bb = generate_box(center, size,size,size);
-        self.add_objects(&bb);
+        self.add_objects(bb);
     }
 
-    pub fn add_objects(&mut self,bb:&(Vec<Point3D>,Vec<Face>)){
+    pub fn add_objects(&mut self,mut bb:(Vec<Point3D>,Vec<Face>)){
         let mut vmap:Vec<usize> = vec![];
-        for v in bb.0.iter(){
-            vmap.push(self.add_vertex((*v).clone()));
+        let vv = bb.0;
+        let faa = bb.1;
+
+        for v in vv.into_iter(){
+            vmap.push(self.add_vertex(v));
         }
-        for f in bb.1.iter(){
-            self.add_face(vmap[f.index_v[0]]
-                ,vmap[f.index_v[1]]
-                ,vmap[f.index_v[2]]
-                );
+        for mut f in faa.into_iter(){
+            f.index_v[0] = vmap[f.index_v[0]];
+            f.index_v[1] = vmap[f.index_v[1]];
+            f.index_v[2] = vmap[f.index_v[2]];
+            self.add_face(f);
         }
     }
     pub fn generate_cylinder(start:&(f64,f64,f64),end:&(f64,f64,f64),radius:f64,rdiv:usize,close_hole:bool)
@@ -785,10 +797,10 @@ fn geomtest(){
     ggeo.add_vertex(Point3D{x:0.0,y:1.0,z:0.0});
     ggeo.add_vertex(Point3D{x:0.0,y:0.0,z:1.0});
     ggeo.add_vertex(Point3D{x:1.0,y:1.0,z:0.0});
-    ggeo.add_face(0,1,2);
-    ggeo.add_face(0,1,3);
-    ggeo.add_face(0,2,1);
-    ggeo.add_face(0,3,1);
+    ggeo.make_face(0,1,2);
+    ggeo.make_face(0,1,3);
+    ggeo.make_face(0,2,1);
+    ggeo.make_face(0,3,1);
     ggeo.faces[0].color = Some(vec![255,0,0,255]);
     ggeo.calc_all_norms();
     ggeo.add_colortile_material();
@@ -814,7 +826,7 @@ fn boxtest(){
 fn cylindertest(){
     let mut ggeo = Geometry::new();
     let cc = Geometry::generate_cylinder(&(1.0,2.0,3.0),&(8.0,4.0,1.0),3.0,8,true);
-    ggeo.add_objects(&cc);
+    ggeo.add_objects(cc);
 
     ggeo.calc_all_norms();
     let mut gv:Vec<Geometry> = vec![ggeo];
@@ -826,7 +838,7 @@ fn cylindertest(){
 fn spheretest(){
     let mut ggeo = Geometry::new();
     let cc = Geometry::generate_sphere(&(1.0,2.0,3.0),2.5,8,8);
-    ggeo.add_objects(&cc);
+    ggeo.add_objects(cc);
 
     ggeo.faces[0].color = Some(vec![255,0,0,255]);
     ggeo.faces[1].color = Some(vec![0,255,0,255]);

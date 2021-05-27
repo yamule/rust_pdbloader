@@ -180,7 +180,9 @@ pub fn generate_intermediate_files(inputdirname:&str
         }
     }
     //CHARMM19
-    let angle_radian:f64 = 117.5/180.0*std::f64::consts::PI;
+    
+    //C    CH1E NH1     45.0     111.6
+    let angle_radian:f64 = 111.6/180.0*std::f64::consts::PI;
     let c_bond_length:f64 = 1.52;
     let n_bond_length:f64 = 1.45;
     let base_ca:Point3D = Point3D::new(0.0,0.0,0.0);
