@@ -191,6 +191,11 @@ impl Face{
         let tt = calc_norm_v(v0,v1,v2);
         return Point3D{x:tt.0,y:tt.1,z:tt.2};
     }
+    pub fn color_faces(f:&mut Vec<Face>,c:&Vec<u8>){
+        for ff in f.iter_mut(){
+            ff.set_color(&c);
+        }
+    }
     pub fn set_color(&mut self,c:&Vec<u8>){
         self.color = Some(c.clone());
     }

@@ -11,6 +11,7 @@ use super::matrix_process;
 use super::geometry;
 use chrono::{Local};
 use std::f64::consts::PI;
+use rand::prelude::*;
 
 const to_radian:f64 = PI/180.0;
 pub struct PseudoAtom{
@@ -83,25 +84,27 @@ pub struct SideChainCylinder<'a>{
     pub n:&'a PseudoAtom,
     pub ca:&'a PseudoAtom,
     pub c:&'a PseudoAtom,
-    pub endpoint:Point3D,
+    pub radius:f64,
     pub rx:Point3D,//ry と rz の法線であり、nc center->c のベクトル
     pub ry:Point3D,//n ca c の norm を CB 分回転したベクトル 
     pub rz:Point3D,//CA →見積もった CB へのベクトル
     pub length:f64,//CA から最終点の距離
-    pub num_sep:usize,//length を何個に分割するか//90 度ごと 4 つに分割するので、領域はこれ x4
+    pub rz_length:Point3D,
+    pub num_sep:usize,//length を何個に分割するか//90 度ごと 4*2 つに分割するので、領域はこれ x8
 }
 impl<'a> SideChainCylinder<'a>{
-    pub fn new(n:&'a PseudoAtom,ca:&'a PseudoAtom,c:&'a PseudoAtom)->SideChainCylinder<'a>{
+    pub fn new(n:&'a PseudoAtom,ca:&'a PseudoAtom,c:&'a PseudoAtom,llen:f64,ssep:usize,radi:f64)->SideChainCylinder<'a>{
         let mut ret = SideChainCylinder{
         n:n,
         ca:ca,
         c:c,
-        endpoint:Point3D::new(0.0,0.0,0.0),
-        rx:Point3D::new(0.0,0.0,0.0),//n ca c の norm と rz 
+        radius:radi,
+        rx:Point3D::new(0.0,0.0,0.0),//n ca c の norm と rz の norm
         ry:Point3D::new(0.0,0.0,0.0),//n ca c の norm
-        rz:Point3D::new(0.0,0.0,0.0),//n と c を 単位ベクトル化して中点から ca を通る線。
-        length:8.0,//CA から最終点の距離
-        num_sep:4
+        rz:Point3D::new(0.0,0.0,0.0),//ca->cb の単位ベクトル
+        rz_length:Point3D::new(0.0,0.0,0.0),//ca->cb を length 分伸ばした線分。他原子の評価の際に毎回計算する必要があるのであらかじめ計算しておく
+        length:llen,//CA から最終点の距離
+        num_sep:ssep
         };
         ret.update();
         return ret;
@@ -115,7 +118,7 @@ impl<'a> SideChainCylinder<'a>{
             ,st.2+self.rz.get_z()*self.length
         );
         let mut ret:Vec<(Vec<Point3D>,Vec<geometry::Face>)> = vec![];
-        ret.push(geometry::Geometry::generate_cylinder(&st,&en,1.0,8,false));
+        ret.push(geometry::Geometry::generate_cylinder(&st,&en,self.radius,8,false));
         ret.push(geometry::Geometry::generate_sphere(&self.ca.get_xyz(),0.5,8,8));
         ret.push(geometry::Geometry::generate_sphere(&self.n.get_xyz(),0.5,8,8));
         ret.push(geometry::Geometry::generate_sphere(&self.c.get_xyz(),0.5,8,8));
@@ -173,8 +176,13 @@ impl<'a> SideChainCylinder<'a>{
         self.ry.set_xyz(ynorm.0,ynorm.1,ynorm.2);
         
 
-
-        if false{
+        self.rz_length.set_xyz(
+            self.rz.get_x()*self.length,
+            self.rz.get_y()*self.length,
+            self.rz.get_z()*self.length
+        );
+        if false{//デバッグ用コード
+            
             
             let candidate1:(f64,f64,f64)
             = (
@@ -259,9 +267,89 @@ impl<'a> SideChainCylinder<'a>{
                 geometry::Geometry::save("test/anglecheck.obj",&mut gv);
             }
         }
+    }
+
+    //分割中の近い位置を 0 として何番目の分割内にあるか
+    //,
+    //方向
+    //7 3 0 4
+    //6 2 1 5
+    //で返す。
+    pub fn get_position_of(&self,atom:&dyn Vector3D)->Option<(u8,u8)>{
+        if atom.distance(self.ca).powf(2.0) > self.length*self.length + self.radius*self.radius{
+            return None;
+        }
+        let mut ppos = atom.get_xyz();
+        ppos.0 -= self.ca.get_x();
+        ppos.1 -= self.ca.get_y();
+        ppos.2 -= self.ca.get_z();
         
+        let a:f64 = process_3d::distance(&ppos,&self.rz_length.get_xyz());
+        let b:f64 = process_3d::distance(&ppos,&(0.0,0.0,0.0));
+        if b*b >= a*a+self.length*self.length || a*a >= b*b+self.length*self.length{            
+            return None;
+        }
 
+        let d = (b*b-a*a+self.length*self.length)/(2.0*self.length);
+        assert!(d > 0.0);
+        let ratio = d/self.length;
+        let rpos:(f64,f64,f64) = (
+            self.rz_length.get_x()*ratio,
+            self.rz_length.get_y()*ratio,
+            self.rz_length.get_z()*ratio
+        );
 
+        //ppos を原点中心の相対的な位置に移動
+        ppos.0 -= rpos.0;
+        ppos.1 -= rpos.1;
+        ppos.2 -= rpos.2;
+
+        let mut ddist = ppos.0*ppos.0+ppos.1*ppos.1+ppos.2*ppos.2;//中心点からの距離
+        
+        if ddist > 0.0{
+            ddist = ddist.sqrt();
+            ppos.0 /= ddist;
+            ppos.1 /= ddist;
+            ppos.2 /= ddist;
+        }//ppos は単位ベクトルに直した
+        if ddist > self.radius {
+            return None;
+        }
+        let bdis = process_3d::distance(
+            &ppos
+            ,&(self.rx.get_xyz())
+        );
+        let mut rad_1 = (1.0-bdis*bdis/2.0).acos();
+        
+        let cdis = process_3d::distance(&ppos,&self.ry.get_xyz());
+
+        if cdis > (2.0_f64).sqrt(){
+            rad_1 *= -1.0;
+        }
+        let direc_code:u8 = 
+        if rad_1 < PI/2.0 && rad_1 >= 0.0{
+            0
+        }else if rad_1 >= -1.0*PI/2.0 && rad_1 < 0.0{
+            1
+        }else if rad_1 < -1.0*PI/2.0 && rad_1 >= -1.0*PI{
+            2
+        }else{
+            3
+        };
+        let direc_code:u8 = if ddist < self.radius/2.0{
+            direc_code
+        }else{
+            direc_code +3
+        };
+        let rstep = 1.0/(self.num_sep as f64);
+        let mut pcode:u8 = 0;
+        for ii in 1..=self.num_sep{
+            if rstep*(ii as f64) > ratio{
+                pcode = ii as u8;
+                break;
+            }
+        }
+        return Some((pcode,direc_code));
     }
     pub fn is_in(&self,atom:&dyn Vector3D){
         
@@ -277,13 +365,36 @@ fn coarse_grained_test(){
     let ca:PseudoAtom = PseudoAtom::new(0.000,0.000,0.000);
     let cb:PseudoAtom = PseudoAtom::new(-0.949,-0.005,1.177);
     let c:PseudoAtom = PseudoAtom::new(0.860,1.255,0.000);
-    let cyl = SideChainCylinder::new(&n,&ca,&c);
+    let cyl = SideChainCylinder::new(&n,&ca,&c,8.0,3,6.0);
     let obj = cyl.generate_obj();
     let mut geom:geometry::Geometry = geometry::Geometry::new();
     for bb in obj.into_iter(){
         geom.add_objects(bb);
     }
+    let mut rgen:StdRng =  SeedableRng::seed_from_u64(10);
+    
+    for _ in 0..500{
+        let spos:(f64,f64,f64) = (rgen.gen_range(-10.0,10.0),rgen.gen_range(-10.0,10.0),rgen.gen_range(-10.0,10.0));
+        let mut spp = 
+        geometry::Geometry::generate_sphere(&spos,0.1,8,8);
+        let res = cyl.get_position_of(&Point3D::new(spos.0,spos.1,spos.2));
+        if let Some(x) = res{
+            //let r = 80*x.0;
+            let g = 36*x.1;
+            g が間違っていそう
+            let r = 0;
+            geometry::Face::color_faces(&mut spp.1,&vec![r,g,0]);
+        }
+        geom.add_objects(spp);
+    }
+
+
     geom.add_objects(geometry::Geometry::generate_sphere(&cb.get_xyz(),0.5,8,8));
+
+    geom.calc_all_norms();
+    geom.add_colortile_material();
+    geom.calc_all_norms();
+
     geometry::Geometry::save("test/cylindercheck.obj",&mut vec![geom]);    
 }
 
