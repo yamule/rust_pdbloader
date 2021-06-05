@@ -339,7 +339,7 @@ impl<'a> SideChainCylinder<'a>{
         let direc_code:u8 = if ddist < self.radius/2.0{
             direc_code
         }else{
-            direc_code +3
+            direc_code + 4
         };
         let rstep = 1.0/(self.num_sep as f64);
         let mut pcode:u8 = 0;
@@ -373,16 +373,18 @@ fn coarse_grained_test(){
     }
     let mut rgen:StdRng =  SeedableRng::seed_from_u64(10);
     
-    for _ in 0..500{
+    for _ in 0..10000{
         let spos:(f64,f64,f64) = (rgen.gen_range(-10.0,10.0),rgen.gen_range(-10.0,10.0),rgen.gen_range(-10.0,10.0));
         let mut spp = 
         geometry::Geometry::generate_sphere(&spos,0.1,8,8);
         let res = cyl.get_position_of(&Point3D::new(spos.0,spos.1,spos.2));
         if let Some(x) = res{
-            //let r = 80*x.0;
+            let r:u8 = if x.1%2 == 0 {
+                255
+            }else{
+                100
+            };
             let g = 36*x.1;
-            g が間違っていそう
-            let r = 0;
             geometry::Face::color_faces(&mut spp.1,&vec![r,g,0]);
         }
         geom.add_objects(spp);
