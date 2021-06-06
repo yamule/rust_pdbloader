@@ -345,7 +345,7 @@ impl<'a> SideChainCylinder<'a>{
         let mut pcode:u8 = 0;
         for ii in 1..=self.num_sep{
             if rstep*(ii as f64) > ratio{
-                pcode = ii as u8;
+                pcode = (ii -1) as u8 ;
                 break;
             }
         }
@@ -361,30 +361,51 @@ impl<'a> SideChainCylinder<'a>{
 
 #[test]
 fn coarse_grained_test(){
-    let n:PseudoAtom = PseudoAtom::new(0.822,-1.200,-0.000);
-    let ca:PseudoAtom = PseudoAtom::new(0.000,0.000,0.000);
-    let cb:PseudoAtom = PseudoAtom::new(-0.949,-0.005,1.177);
-    let c:PseudoAtom = PseudoAtom::new(0.860,1.255,0.000);
+    let mut n:PseudoAtom = PseudoAtom::new(0.822,-1.200,-0.000);
+    let mut ca:PseudoAtom = PseudoAtom::new(0.000,0.000,0.000);
+    let mut cb:PseudoAtom = PseudoAtom::new(-0.949,-0.005,1.177);
+    let mut c:PseudoAtom = PseudoAtom::new(0.860,1.255,0.000);
+
+    let mut rgen:StdRng =  SeedableRng::seed_from_u64(10);
+    
+
+    let mut v1 = Point3D::new(rgen.gen_range(-10.0, 10.0),rgen.gen_range(-10.0, 10.0),rgen.gen_range(-10.0, 10.0));
+    v1.standardize();
+
+    process_3d::rotate_3d(&mut vec![&mut n,&mut ca,&mut cb,&mut c],&v1, rgen.gen_range(-360.0, 360.0)/180.0*PI);
+
+
+    let v2 = Point3D::new(rgen.gen_range(-3.0, 3.0),rgen.gen_range(-10.0, 10.0),rgen.gen_range(-10.0, 10.0));
+
+    for vv in vec![&mut n,&mut ca,&mut cb,&mut c].into_iter(){
+        let p = vv.get_xyz();
+
+        vv.set_xyz(p.0+v2.get_x(),p.1+v2.get_y(), p.2+v2.get_z());
+    }
     let cyl = SideChainCylinder::new(&n,&ca,&c,8.0,3,6.0);
     let obj = cyl.generate_obj();
     let mut geom:geometry::Geometry = geometry::Geometry::new();
     for bb in obj.into_iter(){
         geom.add_objects(bb);
     }
-    let mut rgen:StdRng =  SeedableRng::seed_from_u64(10);
-    
     for _ in 0..10000{
         let spos:(f64,f64,f64) = (rgen.gen_range(-10.0,10.0),rgen.gen_range(-10.0,10.0),rgen.gen_range(-10.0,10.0));
         let mut spp = 
         geometry::Geometry::generate_sphere(&spos,0.1,8,8);
         let res = cyl.get_position_of(&Point3D::new(spos.0,spos.1,spos.2));
         if let Some(x) = res{
+            
             let r:u8 = if x.1%2 == 0 {
                 255
             }else{
                 100
             };
             let g = 36*x.1;
+            
+            /*
+            let r:u8 = x.0*120;
+            let g = 0;
+            */
             geometry::Face::color_faces(&mut spp.1,&vec![r,g,0]);
         }
         geom.add_objects(spp);
@@ -398,20 +419,4 @@ fn coarse_grained_test(){
     geom.calc_all_norms();
 
     geometry::Geometry::save("test/cylindercheck.obj",&mut vec![geom]);    
-}
-
-#[test]
-fn coarse_grained_test2(){
-    let x = (18.5*to_radian).cos()*((60.0*to_radian).cos());
-    let y = (18.5*to_radian).sin();
-    let z = (18.5*to_radian).cos()*((60.0*to_radian).sin());
-    let p =  (1.0-z*z).sqrt();
-    println!("{} {} {}"
-    ,x*(PI+(180.0-111.6)*to_radian/-2.0).cos()-y*(PI+(180.0-111.6)*to_radian/-2.0).sin()
-    ,y*(PI+(180.0-111.6)*to_radian/-2.0).cos()+x*(PI+(180.0-111.6)*to_radian/-2.0).sin()
-    ,z);
-    println!("{} {} {}"
-    ,x
-    ,y
-    ,z);
 }

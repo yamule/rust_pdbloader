@@ -371,8 +371,8 @@ impl Geometry{
             used_colors.len()/num_cols +1
         };
         
-        let wid = num_cols*4;
-        let hei = num_rows*4;
+        let wid = num_cols*16;
+        let hei = num_rows*16;
         let mut img = Image2D::new(wid,hei,nchannel);
         if self.texture_vertices.len() > 0{
             eprintln!("Texture vertices will be cleared.");
@@ -380,21 +380,21 @@ impl Geometry{
         self.texture_vertices.clear();
 
         for ii in 0..used_colors.len(){
-            let sx_ =((ii%num_cols)*4) as i128;
-            let sy_ =  ((ii/num_cols)*4) as i128;
+            let sx_ =((ii%num_cols)*16) as i128;
+            let sy_ =  ((ii/num_cols)*16) as i128;
 
             let sx:f64 = sx_ as f64/(wid as f64);
             let sy:f64 = 1.0 - sy_ as f64/(hei as f64);
             self.texture_vertices.push(
-                Point2D{x:sx as f64+1.0/(wid as f64),y:sy as f64 -1.0/(hei as f64)}
+                Point2D{x:sx as f64+6.0/(wid as f64),y:sy as f64 -6.0/(hei as f64)}
             );
             self.texture_vertices.push(
-                Point2D{x:sx as f64+1.0/(wid as f64),y:sy as f64 -2.0/(hei as f64)}
+                Point2D{x:sx as f64+6.0/(wid as f64),y:sy as f64 -8.0/(hei as f64)}
             );
             self.texture_vertices.push(
-                Point2D{x:sx as f64+2.0/(wid as f64),y:sy as f64 -2.0/(hei as f64)}
+                Point2D{x:sx as f64+8.0/(wid as f64),y:sy as f64 -8.0/(hei as f64)}
             );
-            img.fill_rect(sx_,sy_,4,4, &used_colors[ii]);
+            img.fill_rect(sx_,sy_,16,16, &used_colors[ii]);
         }
         self.material = Some(
             Material::new()
