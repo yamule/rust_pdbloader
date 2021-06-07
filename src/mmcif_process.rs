@@ -5,7 +5,6 @@ use std::fs::File;
 use std::collections::HashMap;
 #[allow(unused_imports)]
 use std::collections::HashSet;
-use rand::AsByteSliceMut;
 use regex::Regex;
 use super::pdbdata::*;
 use super::geometry::Vector3D;

@@ -466,18 +466,18 @@ fn testrotate(){
 fn testrotate2(){
     let mut rgen:StdRng = SeedableRng::seed_from_u64(123);
     for _ in 0..100{
-        let v1 = Point3D::new(rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0));
-        let v2 = Point3D::new(rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0));
-        let v3 = Point3D::new(rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0));
-        let v4 = Point3D::new(rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0));
+        let v1 = Point3D::new(rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0));
+        let v2 = Point3D::new(rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0));
+        let v3 = Point3D::new(rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0));
+        let v4 = Point3D::new(rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0));
 
         let mut v1b = v1.get_copy();
         let mut v2b = v2.get_copy();
         let mut v3b = v3.get_copy();
         let mut v4b = v4.get_copy();
-        let mut rott = Point3D::new(rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0));
+        let mut rott = Point3D::new(rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0));
         rott.standardize();
-        rotate_3d(&mut vec![&mut v1b,&mut v2b,&mut v3b,&mut v4b],&rott,rgen.gen_range(0.0,10.0));
+        rotate_3d(&mut vec![&mut v1b,&mut v2b,&mut v3b,&mut v4b],&rott,rgen.gen_range(0.0..10.0));
 
 
         

@@ -18,7 +18,7 @@ use super::ff_env;
 use super::geometry::Vector3D;
 #[allow(unused_imports)]
 use super::geometry::Point3D;
-use rand::rngs::StdRng;
+use rand::prelude::*;
 use rand_distr::{Normal, Distribution};
 
 use super::energy_function::EnergyFunction;

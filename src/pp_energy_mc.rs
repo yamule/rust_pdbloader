@@ -2623,7 +2623,7 @@ fn group_fit_test(){//エラーが起きないか見るだけ
         let atom1 = charmm_based_energy::FFAtom::dummy();
         atoms.push(atom1);
         let mut rgen:StdRng = SeedableRng::seed_from_u64(123);
-        let randx:(f64,f64,f64) = (rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0));
+        let randx:(f64,f64,f64) = (rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0));
         for ii in 0..10{
             atoms.push(charmm_based_energy::FFAtom{
                 atom_type:"C".to_string(),
@@ -2653,7 +2653,7 @@ fn group_fit_test(){//エラーが起きないか見るだけ
             });
         }
         
-        let randx:(f64,f64,f64) = (rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0),rgen.gen_range(-100.0,100.0));
+        let randx:(f64,f64,f64) = (rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0),rgen.gen_range(-100.0..100.0));
         for ii in 0..10{
             atoms.push(charmm_based_energy::FFAtom{
                 atom_type:"C".to_string(),
@@ -2684,7 +2684,7 @@ fn group_fit_test(){//エラーが起きないか見るだけ
         }
 
         
-        let randx:(f64,f64,f64) = (rgen.gen_range(-10.0,10.0),rgen.gen_range(-10.0,10.0),rgen.gen_range(-10.0,10.0));
+        let randx:(f64,f64,f64) = (rgen.gen_range(-10.0..10.0),rgen.gen_range(-10.0..10.0),rgen.gen_range(-10.0..10.0));
         for ii in 0..1{
             atoms.push(charmm_based_energy::FFAtom{
                 atom_type:"C".to_string(),

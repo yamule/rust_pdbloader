@@ -469,13 +469,13 @@ fn pseudo_cb_test(){
     let mut rgen:StdRng =  SeedableRng::seed_from_u64(10);
     
 
-    let mut v1 = Point3D::new(rgen.gen_range(-10.0, 10.0),rgen.gen_range(-10.0, 10.0),rgen.gen_range(-10.0, 10.0));
+    let mut v1 = Point3D::new(rgen.gen_range(-10.0..10.0),rgen.gen_range(-10.0..10.0),rgen.gen_range(-10.0..10.0));
     v1.standardize();
 
-    process_3d::rotate_3d(&mut vec![&mut n,&mut ca,&mut cb,&mut c],&v1, rgen.gen_range(-360.0, 360.0)/180.0*PI);
+    process_3d::rotate_3d(&mut vec![&mut n,&mut ca,&mut cb,&mut c],&v1, rgen.gen_range(-360.0..360.0)/180.0*PI);
 
 
-    let v2 = Point3D::new(rgen.gen_range(-3.0, 3.0),rgen.gen_range(-10.0, 10.0),rgen.gen_range(-10.0, 10.0));
+    let v2 = Point3D::new(rgen.gen_range(-3.0..3.0),rgen.gen_range(-10.0..10.0),rgen.gen_range(-10.0..10.0));
 
     for vv in vec![&mut n,&mut ca,&mut cb,&mut c].into_iter(){
         let p = vv.get_xyz();
@@ -489,7 +489,7 @@ fn pseudo_cb_test(){
         geom.add_objects(bb);
     }
     for _ in 0..10000{
-        let spos:(f64,f64,f64) = (rgen.gen_range(-10.0,10.0),rgen.gen_range(-10.0,10.0),rgen.gen_range(-10.0,10.0));
+        let spos:(f64,f64,f64) = (rgen.gen_range(-10.0..10.0),rgen.gen_range(-10.0..10.0),rgen.gen_range(-10.0..10.0));
         let mut spp = 
         geometry::Geometry::generate_sphere(&spos,0.1,8,8);
         let res = cyl.get_position_of(&Point3D::new(spos.0,spos.1,spos.2));
@@ -524,6 +524,6 @@ fn pseudo_cb_test(){
 
 #[test]
 fn coarse_grained_test3(){
-    generate_intermediate_files("example_files","example_files/example_output",&RESIDUES_DEFAULT,0.5,0.8);
-    let re_avoid = Regex::new("[^a-zA-Z0-9\\.\\-]").unwrap();
+    //generate_intermediate_files("example_files","example_files/example_output",&RESIDUES_DEFAULT,0.5,0.8);
+    //let re_avoid = Regex::new("[^a-zA-Z0-9\\.\\-]").unwrap();
 }

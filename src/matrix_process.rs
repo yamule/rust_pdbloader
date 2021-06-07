@@ -337,11 +337,11 @@ fn matrix_invtest(){
 
     let mut rgen:StdRng =  SeedableRng::seed_from_u64(100);
     for _ in 0..100{  
-        let m:usize = rgen.gen_range(2,15);
+        let m:usize = rgen.gen_range(2..15);
         let mut vv:Vec<Vec<f64>> = vec![vec![0.0;m];m];
         for i in 0..m{
             for j in 0..m{
-                vv[i][j] = rgen.gen_range(-100.0,100.0);
+                vv[i][j] = rgen.gen_range(-100.0..100.0);
             }
         }
         let res_:Option<Vec<Vec<f64>>> = matrix_inv(&vv);
@@ -413,33 +413,33 @@ fn matrix_slicetest(){
 
     let mut rgen:StdRng =  SeedableRng::seed_from_u64(100);
     for _ in 0..100{  
-        let l:usize = rgen.gen_range(2,15);
-        let m:usize = rgen.gen_range(2,15);
-        let n:usize = rgen.gen_range(2,15);
+        let l:usize = rgen.gen_range(2..15);
+        let m:usize = rgen.gen_range(2..15);
+        let n:usize = rgen.gen_range(2..15);
         let mut vv:Vec<Vec<f64>> = vec![vec![0.0;n];l];
         let mut vv2:Vec<Vec<f64>> = vec![vec![0.0;m];n];
         let mut vv_b:Vec<Vec<f64>> = vec![vec![0.0;n*2];l*2];
         let mut vv2_b:Vec<Vec<f64>> = vec![vec![0.0;m*3];n];
         for v in vv_b.iter_mut(){
             for i in v.iter_mut(){
-                *i  = rgen.gen_range(-100.0,100.0);
+                *i  = rgen.gen_range(-100.0..100.0);
             }    
         }
 
         for v in vv2_b.iter_mut(){
             for i in v.iter_mut(){
-                *i  = rgen.gen_range(-100.0,100.0);
+                *i  = rgen.gen_range(-100.0..100.0);
             }    
         }
 
         for i in 0..m.max(l){
             for j in 0..n{
                 if i < l{
-                    vv[i][j] = rgen.gen_range(-100.0,100.0);
+                    vv[i][j] = rgen.gen_range(-100.0..100.0);
                     vv_b[i][j] = vv[i][j];
                 }
                 if i < m{
-                    vv2[j][i] = rgen.gen_range(-100.0,100.0);
+                    vv2[j][i] = rgen.gen_range(-100.0..100.0);
                     vv2_b[j][i] = vv2[j][i];
                 }
             }

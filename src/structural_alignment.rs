@@ -1254,18 +1254,18 @@ fn aligntest(){
         let mut bvec_:Vec<Vec<f64>> = vec![];
         for _ in 0..100{
             avec_.push(vec![
-            rgen.gen_range(-100.0,100.0)
-            ,rgen.gen_range(-100.0,100.0)
-            ,rgen.gen_range(-100.0,100.0)
+            rgen.gen_range(-100.0..100.0)
+            ,rgen.gen_range(-100.0..100.0)
+            ,rgen.gen_range(-100.0..100.0)
             ]);
         }
         let avec = matrix_process::matrix_t(&avec_);
 
-        let radi:f64 = rgen.gen_range(-3.14,3.14);
+        let radi:f64 = rgen.gen_range(-3.14..3.14);
         let ssin:f64 = radi.sin();
         let ccos:f64 =  radi.cos();
         
-        let radi:f64 = rgen.gen_range(-3.14,3.14);
+        let radi:f64 = rgen.gen_range(-3.14..3.14);
         let ssin2:f64 = radi.sin();
         let ccos2:f64 =  radi.cos();
         
@@ -1324,8 +1324,8 @@ fn domain_splittest(){
     let mut moved = cas.clone();
     let mut rgen:StdRng =  SeedableRng::seed_from_u64(10);
 
-    let m1:(f64,f64,f64) = (rgen.gen_range(-20.0,20.0),rgen.gen_range(-20.0,20.0),rgen.gen_range(-20.0,20.0));
-    let r1:(f64,f64,f64) = (rgen.gen_range(-20.0,20.0),rgen.gen_range(-20.0,20.0),rgen.gen_range(-20.0,20.0));
+    let m1:(f64,f64,f64) = (rgen.gen_range(-20.0..20.0),rgen.gen_range(-20.0..20.0),rgen.gen_range(-20.0..20.0));
+    let r1:(f64,f64,f64) = (rgen.gen_range(-20.0..20.0),rgen.gen_range(-20.0..20.0),rgen.gen_range(-20.0..20.0));
     for ii in 0..s0{
         let orig = moved[ii].clone();
         moved[ii][0] = orig[0]*r1.0.cos()-orig[1]*r1.0.sin();
@@ -1335,8 +1335,8 @@ fn domain_splittest(){
         moved[ii][2] += m1.2;
     }
     
-    let m1:(f64,f64,f64) = (rgen.gen_range(-20.0,20.0),rgen.gen_range(-20.0,20.0),rgen.gen_range(-20.0,20.0));
-    let r1:(f64,f64,f64) = (rgen.gen_range(-20.0,20.0),rgen.gen_range(-20.0,20.0),rgen.gen_range(-20.0,20.0));
+    let m1:(f64,f64,f64) = (rgen.gen_range(-20.0..20.0),rgen.gen_range(-20.0..20.0),rgen.gen_range(-20.0..20.0));
+    let r1:(f64,f64,f64) = (rgen.gen_range(-20.0..20.0),rgen.gen_range(-20.0..20.0),rgen.gen_range(-20.0..20.0));
     for ii in s0..s1{
         let orig = moved[ii].clone();
         moved[ii][1] = orig[1]*r1.0.cos()-orig[2]*r1.0.sin();
