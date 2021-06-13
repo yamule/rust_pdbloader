@@ -13,15 +13,64 @@ use chrono::{Local};
 use std::f64::consts::PI;
 use rand::prelude::*;
 
+use std::sync::Mutex;
 
 
 lazy_static! {
-    static ref RESIDUES_DEFAULT:Vec<String> =  vec![
+    static ref RESIDUES_DEFAULT:Vec<(i8,String)> =  vec![
         "ALA","ARG","ASN","ASP","CYS","GLN","GLU","GLY","HIS","ILE"
         ,"LEU","LYS","MET","PHE","PRO","SER","THR","TRP","TYR","VAL",
-    ].into_iter().map(|m|m.to_owned()).collect();
+    ].into_iter().enumerate().map(|m|(m.0 as i8,m.1.to_owned())).collect();
+    static ref AA_3_TO_1:Mutex<HashMap<String,String>> = Mutex::new(HashMap::new());
+    static ref AA_1_TO_3:Mutex<HashMap<String,String>> = Mutex::new(HashMap::new());
+    //RESIDUES_DEFAULT の順でインデックスが入る
+    static ref AA_3_TO_INDEX:Mutex<HashMap<String,i8>> = Mutex::new(HashMap::new());
+    static ref AA_1_TO_INDEX:Mutex<HashMap<String,i8>> = Mutex::new(HashMap::new());
 }
 
+pub fn prepare_static(){
+    if AA_3_TO_1.lock().unwrap().len() != 0{
+        return;
+    }
+    if AA_1_TO_3.lock().unwrap().len() != 0{
+        return;
+    }
+    AA_3_TO_1.lock().unwrap().insert("ALA".to_string(),"A".to_string());
+    AA_3_TO_1.lock().unwrap().insert("ARG".to_string(),"R".to_string());
+    AA_3_TO_1.lock().unwrap().insert("ASN".to_string(),"N".to_string());
+    AA_3_TO_1.lock().unwrap().insert("ASP".to_string(),"D".to_string());
+    AA_3_TO_1.lock().unwrap().insert("CYS".to_string(),"C".to_string());
+    AA_3_TO_1.lock().unwrap().insert("GLN".to_string(),"Q".to_string());
+    AA_3_TO_1.lock().unwrap().insert("GLU".to_string(),"E".to_string());
+    AA_3_TO_1.lock().unwrap().insert("GLY".to_string(),"G".to_string());
+    
+    AA_3_TO_1.lock().unwrap().insert("HIS".to_string(),"H".to_string());
+    //AA_3_TO_1.lock().unwrap().insert("HSD".to_string(),"H".to_string());
+    //AA_3_TO_1.lock().unwrap().insert("HSC".to_string(),"H".to_string());
+
+    AA_3_TO_1.lock().unwrap().insert("ILE".to_string(),"I".to_string());
+    AA_3_TO_1.lock().unwrap().insert("LEU".to_string(),"L".to_string());
+    AA_3_TO_1.lock().unwrap().insert("LYS".to_string(),"K".to_string());
+    AA_3_TO_1.lock().unwrap().insert("MET".to_string(),"M".to_string());
+    AA_3_TO_1.lock().unwrap().insert("PHE".to_string(),"F".to_string());
+    AA_3_TO_1.lock().unwrap().insert("PRO".to_string(),"P".to_string());
+    AA_3_TO_1.lock().unwrap().insert("SER".to_string(),"S".to_string());
+    AA_3_TO_1.lock().unwrap().insert("THR".to_string(),"T".to_string());
+    AA_3_TO_1.lock().unwrap().insert("TRP".to_string(),"W".to_string());
+    AA_3_TO_1.lock().unwrap().insert("TYR".to_string(),"Y".to_string());
+    AA_3_TO_1.lock().unwrap().insert("VAL".to_string(),"V".to_string());
+    AA_3_TO_1.lock().unwrap().insert("UNK".to_string(),"X".to_string());
+    for a in AA_3_TO_1.lock().unwrap().iter(){
+        if a.0 == "HSD" || a.0 == "HSC"{
+            continue;
+        }
+        AA_1_TO_3.lock().unwrap().insert(a.1.to_string(),a.0.to_string());
+    }
+    for a in RESIDUES_DEFAULT.iter(){
+        AA_1_TO_INDEX.lock().unwrap().insert(AA_3_TO_1.lock().unwrap().get(&a.1).unwrap().clone(),a.0);
+        AA_3_TO_INDEX.lock().unwrap().insert(a.1.clone(),a.0);
+    }
+}
 
 const to_radian:f64 = PI/180.0;
 #[derive(Clone,Copy)]
@@ -92,32 +141,37 @@ impl PseudoAtom{
     }
 }
 pub struct SideChainCylinder<'a>{
-    pub n:&'a PseudoAtom,
-    pub ca:&'a PseudoAtom,
-    pub c:&'a PseudoAtom,
-    pub radius:f64,
+    pub n:&'a dyn Vector3D,
+    pub ca:&'a dyn Vector3D,
+    pub c:&'a dyn Vector3D,
+    pub atom_radius:f64,
+    pub cylinder_radius:f64,
     pub rx:Point3D,//ry と rz の法線であり、nc center->c のベクトル
     pub ry:Point3D,//n ca c の norm を CB 分回転したベクトル 
     pub rz:Point3D,//CA →見積もった CB へのベクトル
     pub length:f64,//CA から最終点の距離
     pub rz_length:Point3D,
     pub num_sep:usize,//length を何個に分割するか//120 度ごと 3*2 つに分割するので、領域はこれ x6
-    pub pseudo_atoms:Vec<PseudoAtom>// CB 方向 cylinder 内に配置される PseudoAtom 群
+    pub pseudo_atoms:Vec<PseudoAtom>,// CB 方向 cylinder 内に配置される PseudoAtom 群
+    pub comp_name:String,
 }
 impl<'a> SideChainCylinder<'a>{
-    pub fn new(n:&'a PseudoAtom,ca:&'a PseudoAtom,c:&'a PseudoAtom,llen:f64,ssep:usize,radi:f64)->SideChainCylinder<'a>{
+    pub fn new(n:&'a dyn Vector3D,ca:&'a dyn Vector3D,c:&'a dyn Vector3D,cname:&str,llen:f64,ssep:usize,aradi:f64,cradi:f64)->SideChainCylinder<'a>{
+        prepare_static();
         let mut ret = SideChainCylinder{
         n:n,
         ca:ca,
         c:c,
-        radius:radi,
+        atom_radius:aradi,
+        cylinder_radius:cradi,
         rx:Point3D::new(0.0,0.0,0.0),//n ca c の norm と rz の norm
         ry:Point3D::new(0.0,0.0,0.0),//n ca c の norm
         rz:Point3D::new(0.0,0.0,0.0),//ca->cb の単位ベクトル
         rz_length:Point3D::new(0.0,0.0,0.0),//ca->cb を length 分伸ばした線分。他原子の評価の際に毎回計算する必要があるのであらかじめ計算しておく
         length:llen,//CA から最終点の距離
         num_sep:ssep,
-        pseudo_atoms:vec![PseudoAtom::new(0.0,0.0,0.0);ssep]
+        pseudo_atoms:vec![PseudoAtom::new(0.0,0.0,0.0);ssep],
+        comp_name:cname.to_string()
         };
         ret.update();
         return ret;
@@ -136,7 +190,7 @@ impl<'a> SideChainCylinder<'a>{
             geometry::Face::color_faces(&mut rres.1,&vec![0,0,255]);
             ret.push(rres);
         }
-        ret.push(geometry::Geometry::generate_cylinder(&st,&en,self.radius,8,false));
+        ret.push(geometry::Geometry::generate_cylinder(&st,&en,self.cylinder_radius,8,false));
         ret.push(geometry::Geometry::generate_sphere(&self.ca.get_xyz(),0.5,8,8));
         ret.push(geometry::Geometry::generate_sphere(&self.n.get_xyz(),0.5,8,8));
         ret.push(geometry::Geometry::generate_sphere(&self.c.get_xyz(),0.5,8,8));
@@ -171,6 +225,7 @@ impl<'a> SideChainCylinder<'a>{
         self.rx.standardize();
         
 
+        //n-c の中点
         let mut pcx:(f64,f64,f64) = standardize(nn.0/2.0+cc.0/2.0,nn.1/2.0+cc.1/2.0,nn.2/2.0+cc.2/2.0);
         pcx.0 *= -1.0;
         pcx.1 *= -1.0;
@@ -295,14 +350,12 @@ impl<'a> SideChainCylinder<'a>{
         }
     }
 
-    //分割中の近い位置を 0 として何番目の分割内にあるか
-    //,
-    //方向
-    //7 3 0 4
-    //6 2 1 5
-    //で返す。
-    pub fn get_position_of(&self,atom:&dyn Vector3D)->Option<(u8,u8)>{
-        if atom.distance(self.ca).powf(2.0) > self.length*self.length + self.radius*self.radius{
+    //
+    //方向を 3 分割して 半径/2 半径*1 の 6 個ずつの分割 +
+    //分割中の近い位置を 0 として何番目の分割内にあるか *6
+    //で返す
+    pub fn get_position_of(&self,atom:&dyn Vector3D)->Option<u8>{
+        if atom.distance(self.ca).powf(2.0) > self.length*self.length + self.cylinder_radius*self.cylinder_radius{
             return None;
         }
         let mut ppos = atom.get_xyz();
@@ -338,7 +391,7 @@ impl<'a> SideChainCylinder<'a>{
             ppos.1 /= ddist;
             ppos.2 /= ddist;
         }//ppos は単位ベクトルに直した
-        if ddist > self.radius {
+        if ddist > self.cylinder_radius {
             return None;
         }
         let bdis = process_3d::distance(
@@ -360,7 +413,7 @@ impl<'a> SideChainCylinder<'a>{
         }else{
             2
         };
-        let direc_code:u8 = if ddist < self.radius/2.0{
+        let direc_code:u8 = if ddist < self.cylinder_radius/2.0{
             direc_code
         }else{
             direc_code + 3
@@ -373,10 +426,51 @@ impl<'a> SideChainCylinder<'a>{
                 break;
             }
         }
-        return Some((pcode,direc_code));
+        
+        //自分側は 近い方から 012345 6789,10,11 12,13,14,15,16,17
+        return Some(pcode*6+direc_code);
     }
     pub fn is_in(&self,atom:&dyn Vector3D){
         
+    }
+    pub fn create_cylinder(comp:&PDBComp,llen:f64,ssep:usize,aradi:f64,cradi:f64)->SideChainCylinder{
+        let n = comp.get_N();
+        let ca = comp.get_CA();
+        let c = comp.get_C();
+        if let (Some(_),Some(_),Some(_)) = (n,ca,c){
+        }else{
+            panic!("This compound lacks backbone atom! {:?}",comp);
+        }
+        let ret = SideChainCylinder::new(n.unwrap(),ca.unwrap(),c.unwrap(),comp.get_name(),llen,ssep,aradi,cradi);
+        return ret;
+    }
+    pub fn count_atoms(&self,target:&SideChainCylinder,ret_:Option<HashMap<String,HashMap<String,usize>>>) -> HashMap<String,HashMap<String,usize>>{
+        let mut ret:HashMap<String,HashMap<String,usize>> = match ret_{
+            Some(x) =>{x},
+            _=>{
+                HashMap::new()
+            }
+        };
+        let mut zat:Vec<&dyn Vector3D> = target.pseudo_atoms.iter().map(|m| m as &dyn Vector3D).collect();
+        zat.push(target.n);
+        zat.push(target.ca);
+        zat.push(target.c);
+        
+        for a in zat.into_iter().enumerate(){
+            if let Some(x) = self.get_position_of(a.1){
+                let zcode = self.comp_name.clone()+"_"+x.to_string().as_str();
+                if !ret.contains_key(&zcode){
+                    ret.insert(zcode.clone(),HashMap::new());
+                }
+                let pcode = target.comp_name.clone()+"_"+a.0.to_string().as_str();
+                let co = ret.get(&zcode).unwrap().get(&pcode).unwrap_or(&0)+1;
+                ret.get_mut(&zcode).unwrap().insert(pcode.clone(),co);
+            }
+        }
+
+
+        
+        return ret;
     }
 }
 
@@ -385,14 +479,16 @@ impl<'a> SideChainCylinder<'a>{
 pub fn generate_intermediate_files(inputdirname:&str
     ,outputdirname:&str
     ,targets:&Vec<String>
+    , cylinder_length:f64
+    , cylinder_num_sep:usize
+    , atom_radius:f64
+    , cylinder_radius:f64
     ){
     //自分側は 近い方から 012345 6789,10,11 12,13,14,15,16,17
     //相手側は
-    //n ca c +pseudoatoms[0]... の順でインデクスをつける
-    let mut sample_count:Vec<Vec<u8>> = vec![vec![0_u8;std::usize::MAX];21];
-    println!("{}",sample_count[0].len());
-
-
+    //ARNDCQEGHILKMFPSTWYVX
+    //pseudoatoms[0]...+ncac の順でインデクスをつける
+    prepare_static();
     let paths = fs::read_dir(inputdirname).unwrap();
     let exx =  Regex::new(r"(\.ent|\.pdb|\.cif)(\.gz)?").unwrap();
     let mut entries_:Vec<String> = vec![];
@@ -406,7 +502,10 @@ pub fn generate_intermediate_files(inputdirname:&str
         }
     }
     entries_.sort();
-    let mut entries:Vec<(String,PDBEntry)> = vec![];//filename, pdbentry
+    
+    //COMPNAME_POSITION->COMPNAME_PSEUDOATOMCODE->count
+    let mut space_count:HashMap<String,HashMap<String,usize>> = HashMap::new();
+
     for ee in entries_.into_iter(){
         if let Some(x) = exx.captures(&ee){
             let ext1:String = x.get(1).unwrap().as_str().to_string();
@@ -417,46 +516,47 @@ pub fn generate_intermediate_files(inputdirname:&str
                 false
             };
             println!("Loading {}.",ee);
-            if &ext1 == ".ent" || &ext1 == ".pdb"{
-                entries.push((ee.clone(),mmcif_process::load_pdb(&ee,is_gzip)));
+            let entt_ = if &ext1 == ".ent" || &ext1 == ".pdb"{
+                Some(mmcif_process::load_pdb(&ee,is_gzip))
             }else if &ext1 == ".cif"{
-                entries.push((ee.clone(),mmcif_process::MMCIFEntry::load_mmcif(&ee,is_gzip)));
-
+                Some(mmcif_process::MMCIFEntry::load_mmcif(&ee,is_gzip))
+            }else{
+                println!("Skipped {} (unknown extension)",ee);
+                None
+            };
+            if let Some(entt) = entt_{
+                let asyms:Vec<&PDBAsym> = entt.get_all_asyms();
+                let mut cylinders:Vec<SideChainCylinder> = vec![];
+                for (jj,aa) in asyms.iter().enumerate(){
+                    for (_kk,cc) in aa.iter_comps().enumerate(){
+                        if AA_3_TO_INDEX.lock().unwrap().contains_key(cc.get_name()){
+                            cylinders.push(SideChainCylinder::create_cylinder(cc, cylinder_length, cylinder_num_sep, atom_radius, cylinder_radius));
+                        }else{
+                            if cc.get_name() != "HOH"{
+                                eprintln!("{} is not found in dict!",cc.get_name());
+                            }
+                        }
+                    } 
+                }
+                for (cii,cc) in cylinders.iter().enumerate(){
+                    for (cjj,ccc) in cylinders.iter().enumerate(){
+                        if cii != cjj{
+                            space_count = cc.count_atoms(ccc,Some(space_count));
+                        }
+                    }
+                }
             }
         }
     }
-    let mut targets_hm:HashMap<String,Vec<PDBComp>> = HashMap::new();
-    
-    for tt in targets.iter(){
-        targets_hm.insert(tt.clone(),vec![]);
-    }
-    let dd = std::path::Path::new(outputdirname);
-    if dd.exists(){
-        if  !dd.is_dir(){
-            panic!("{} is not a directory.",outputdirname);
+    for ss in space_count.iter(){
+        print!("{}",ss.0);
+        let mut keys:Vec<&String> = ss.1.keys().into_iter().collect();
+        keys.sort();
+        for kk in keys.iter(){
+            print!("\t{}={}",kk,ss.1.get(kk.as_str()).unwrap());
         }
-    }else{
-        if let Err(e) = std::fs::create_dir(outputdirname){
-            panic!("Cannot make {}. {:?}",outputdirname,e);
-        }
+        println!("");
     }
-    let mut compcount:i64 = 0;
-    for (ii,(ff,ee)) in entries.iter_mut().enumerate(){
-        let asyms:Vec<&PDBAsym> = ee.get_all_asyms();
-        
-        for (jj,aa) in asyms.iter().enumerate(){
-            for (_kk,cc) in aa.iter_comps().enumerate(){
-                 if targets_hm.contains_key(cc.get_comp_id()){
-                    let mut compp = cc.get_copy_wo_parents();
-                    //set_parent(&mut self,entry_id:Option<i64>,entity_id:Option<i64>,asym_id:Option<i64>,index:i64){
-                    compp.set_parent(Some(ii as i64),None,None,compcount as i64);//sort のために使う
-                    compcount += 1;
-                    targets_hm.get_mut(cc.get_comp_id()).unwrap().push(compp);
-                 }
-            } 
-        }
-    }
-    
 }
 
 #[test]
@@ -475,14 +575,14 @@ fn pseudo_cb_test(){
     process_3d::rotate_3d(&mut vec![&mut n,&mut ca,&mut cb,&mut c],&v1, rgen.gen_range(-360.0..360.0)/180.0*PI);
 
 
-    let v2 = Point3D::new(rgen.gen_range(-3.0..3.0),rgen.gen_range(-10.0..10.0),rgen.gen_range(-10.0..10.0));
+    let v2 = Point3D::new(rgen.gen_range(-3.0..3.0),rgen.gen_range(-3.0..3.0),rgen.gen_range(-3.0..3.0));
 
     for vv in vec![&mut n,&mut ca,&mut cb,&mut c].into_iter(){
         let p = vv.get_xyz();
 
         vv.set_xyz(p.0+v2.get_x(),p.1+v2.get_y(), p.2+v2.get_z());
     }
-    let cyl = SideChainCylinder::new(&n,&ca,&c,8.0,3,6.0);
+    let cyl = SideChainCylinder::new(&n,&ca,&c,"UNK",8.0,3,6.0,6.0);
     let obj = cyl.generate_obj();
     let mut geom:geometry::Geometry = geometry::Geometry::new();
     for bb in obj.into_iter(){
@@ -491,22 +591,37 @@ fn pseudo_cb_test(){
     for _ in 0..10000{
         let spos:(f64,f64,f64) = (rgen.gen_range(-10.0..10.0),rgen.gen_range(-10.0..10.0),rgen.gen_range(-10.0..10.0));
         let mut spp = 
-        geometry::Geometry::generate_sphere(&spos,0.1,8,8);
+        geometry::Geometry::generate_sphere(&spos,0.125,8,8);
         let res = cyl.get_position_of(&Point3D::new(spos.0,spos.1,spos.2));
         if let Some(x) = res{
             
-            let r:u8 = if x.1%2 == 0 {
-                255
+            let mut r:u8 = 255;
+            let mut g:u8 = 255;
+            let mut b:u8 = 255;
+            /*
+            if x%6/3 == 0{
+                r = x%3*127;
+                b = x%3*127;
             }else{
-                100
-            };
-            let g = 36*x.1;
-            
+                g = x%3*127;
+                b = x%3*127;
+            }*/
+            if x/6 == 0{
+                g = 0;
+                b = 0;
+            }else if x/6 == 1{
+                r = 0;
+                b = 0;
+            }else{
+                r = 0;
+                g = 0;
+            }
+
             /*
             let r:u8 = x.0*120;
             let g = 0;
             */
-            geometry::Face::color_faces(&mut spp.1,&vec![r,g,0]);
+            geometry::Face::color_faces(&mut spp.1,&vec![r,g,b]);
         }
         geom.add_objects(spp);
     }
@@ -524,6 +639,6 @@ fn pseudo_cb_test(){
 
 #[test]
 fn coarse_grained_test3(){
-    //generate_intermediate_files("example_files","example_files/example_output",&RESIDUES_DEFAULT,0.5,0.8);
-    //let re_avoid = Regex::new("[^a-zA-Z0-9\\.\\-]").unwrap();
+    generate_intermediate_files("example_files","example_files/example_output",&(RESIDUES_DEFAULT.iter().map(|m|m.1.clone()).collect()),10.0,3,8.0,8.0);
+    let re_avoid = Regex::new("[^a-zA-Z0-9\\.\\-]").unwrap();
 }
