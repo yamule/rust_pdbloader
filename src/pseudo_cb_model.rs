@@ -524,10 +524,11 @@ pub fn generate_intermediate_files(inputdirname:&str
                 println!("Skipped {} (unknown extension)",ee);
                 None
             };
-            if let Some(entt) = entt_{
-                let asyms:Vec<&PDBAsym> = entt.get_all_asyms();
+            if let Some(mut entt) = entt_{
+                let mut asyms:Vec<&mut PDBAsym> = entt.get_mut_all_asyms();
                 let mut cylinders:Vec<SideChainCylinder> = vec![];
-                for (jj,aa) in asyms.iter().enumerate(){
+                for (jj,aa) in asyms.iter_mut().enumerate(){
+                    aa.remove_alt(None);
                     for (_kk,cc) in aa.iter_comps().enumerate(){
                         if AA_3_TO_INDEX.lock().unwrap().contains_key(cc.get_name()){
                             cylinders.push(SideChainCylinder::create_cylinder(cc, cylinder_length, cylinder_num_sep, atom_radius, cylinder_radius));
@@ -548,12 +549,15 @@ pub fn generate_intermediate_files(inputdirname:&str
             }
         }
     }
-    for ss in space_count.iter(){
-        print!("{}",ss.0);
-        let mut keys:Vec<&String> = ss.1.keys().into_iter().collect();
+    let mut skeys:Vec<&String> = space_count.keys().into_iter().collect();
+    skeys.sort();
+    for ss in skeys.into_iter(){
+        print!("{}",ss);
+        let hm = space_count.get(ss.to_string().as_str()).unwrap();
+        let mut keys:Vec<&String> = hm.keys().into_iter().collect();
         keys.sort();
         for kk in keys.iter(){
-            print!("\t{}={}",kk,ss.1.get(kk.as_str()).unwrap());
+            print!("\t{}={}",kk,hm.get(kk.as_str()).unwrap());
         }
         println!("");
     }

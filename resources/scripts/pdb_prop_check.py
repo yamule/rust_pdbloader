@@ -295,7 +295,19 @@ for cc in list(pdbb.chains):
 		for pp in list(pdbb.chains):
 			names.append(pp.name);
 		multi_chain = ";".join(names);
-		
+	
+	alt_aa = False;
+	alt_flag = False;
+	hcheck = {};
+	for ii in range(alen):
+		if len(cc.atoms[ii].alt_loc) > 0 and cc.atoms[ii].alt_loc != " ":
+			alt_flag = True;
+		#self.residue_name = re.sub("[\s]","",line[17:20]);
+		rcode = cc.atoms[ii].chain_id+"_"+str(cc.atoms[ii].residue_pos)+"_"+cc.atoms[ii].insertion_code;
+		if rcode in hcheck and hcheck[rcode] != cc.atoms[ii].residue_name:
+			alt_aa = True;
+		hcheck[rcode] = cc.atoms[ii].residue_name;
+	
 	for ii in range(alen-1):
 		cdiff = cc.atoms[ii+1].residue_pos - cc.atoms[ii].residue_pos;
 		if cdiff != 0 and cdiff != 1:
@@ -303,7 +315,7 @@ for cc in list(pdbb.chains):
 			break;
 	nonmissing_aa = len(aas);
 	aminoacids = "".join(aas);
-	res = "multi_chain:{}\thetflag:{}\tabnormal_aa:{}\tchain_break:{}\thas_middle_missing_atom:{}\thas_terminal_missing_atom:{}\thas_alt:{}\tnonmissing_aa:{}\taminoacids:{}".format(
-	       multi_chain,    hetflag,    abnormal_aa,    chain_break,    has_middle_missing_atom,    has_terminal_missing_atom,    has_alt,    nonmissing_aa,    aminoacids)
+	res = "multi_chain:{}\thetflag:{}\tabnormal_aa:{}\tchain_break:{}\thas_middle_missing_atom:{}\thas_terminal_missing_atom:{}\thas_alt:{}\tnonmissing_aa:{}\talt_aa:{}\talt_flag:{}\taminoacids:{}".format(
+	       multi_chain,    hetflag,    abnormal_aa,    chain_break,    has_middle_missing_atom,    has_terminal_missing_atom,    has_alt,    nonmissing_aa,    alt_aa,    alt_flag     ,aminoacids)
 	print(sys.argv[1]+"\t"+cc.name+"\t"+res);
 	
