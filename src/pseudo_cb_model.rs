@@ -1,7 +1,8 @@
 use core::f64;
 use std::fs;
 use std::cmp::Ordering;
-use std::io::{BufWriter,Write};
+use std::fs::File;
+use std::io::{BufWriter,Write,BufReader,BufRead};
 use regex::Regex;
 use std::collections::{HashMap,HashSet};
 use crate::process_3d::standardize;
@@ -476,9 +477,8 @@ impl<'a> SideChainCylinder<'a>{
 
 
 
-pub fn generate_intermediate_files(inputdirname:&str
-    ,outputdirname:&str
-    ,targets:&Vec<String>
+pub fn generate_intermediate_files(
+    structure_files:Vec<(String,Option<HashMap<String,f64>>)>//path, weight(chain->weight)
     , cylinder_length:f64
     , cylinder_num_sep:usize
     , atom_radius:f64
@@ -489,23 +489,12 @@ pub fn generate_intermediate_files(inputdirname:&str
     //ARNDCQEGHILKMFPSTWYVX
     //pseudoatoms[0]...+ncac の順でインデクスをつける
     prepare_static();
-    let paths = fs::read_dir(inputdirname).unwrap();
-    let exx =  Regex::new(r"(\.ent|\.pdb|\.cif)(\.gz)?").unwrap();
-    let mut entries_:Vec<String> = vec![];
-    for path in paths {
-        if let Ok(a) = path{
-            if let Some(b) = a.path().to_str(){
-                if let Some(x) = exx.find(b){
-                    entries_.push(b.to_string());
-                }
-            }
-        }
-    }
-    entries_.sort();
+    
+    let entries_:Vec<String> = structure_files.iter().map(|m|m.0.clone()).collect();
     
     //COMPNAME_POSITION->COMPNAME_PSEUDOATOMCODE->count
     let mut space_count:HashMap<String,HashMap<String,usize>> = HashMap::new();
-
+    let exx =  Regex::new(r"(\.ent|\.pdb|\.cif)(\.gz)?").unwrap();
     for ee in entries_.into_iter(){
         if let Some(x) = exx.captures(&ee){
             let ext1:String = x.get(1).unwrap().as_str().to_string();
@@ -642,7 +631,23 @@ fn pseudo_cb_test(){
 
 
 #[test]
-fn coarse_grained_test3(){
-    generate_intermediate_files("example_files","example_files/example_output",&(RESIDUES_DEFAULT.iter().map(|m|m.1.clone()).collect()),10.0,3,8.0,8.0);
-    let re_avoid = Regex::new("[^a-zA-Z0-9\\.\\-]").unwrap();
+fn pseudocb_model_test(){
+    let filename = "resources/scripts/samples/target_path.dat";
+    let file = File::open(filename).unwrap_or_else(|e|panic!("{} {:?}",filename,e));
+    let reader = BufReader::new(file);
+
+        
+    let exx =  Regex::new(r"^.+(\.ent|\.pdb|\.cif)(\.gz)?").unwrap();
+    let mut entries_:Vec<(String,Option<HashMap<String,f64>>)> = vec![];
+    for (_lcount,line) in reader.lines().enumerate() {
+        let path = line.unwrap();
+        if let Some(x) = exx.captures(path.as_str()){
+            entries_.push((x.get(0).unwrap().as_str().to_string(),None));
+        }
+    }
+    println!("{:?}",entries_);
+    entries_.sort_by(|a,b|a.0.cmp(&b.0));
+
+    generate_intermediate_files(entries_,10.0,3,8.0,8.0);
+    
 }

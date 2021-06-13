@@ -868,12 +868,20 @@ pub fn load_pdb(filename:&str,gzipped:bool) ->PDBEntry{
         if start_with(&sstr,"ATOM") || start_with(&sstr,"HETATM"){
             let mut arecord:Vec<Box<String>> = MMCIFEntry::parse_atom_line_pdb(&sstr,&current_model_num,&keymap).into_iter().map(|m|Box::new(m)).collect();
             //println!("{:?}",arecord);
+            
+            let mut asite:AtomSiteMut = AtomSiteMut::new(&keymap,&mut arecord);
+            asite.set_index(_lcount as i64);
             if terflag{
-                possibly_ligand = true;
+                if &(*asite.values[*asite.keymap.get(_ATOM_SITE_LABEL_COMP_ID).unwrap()]) != "HOH"{
+                    possibly_ligand = true;
+                    //println!("{}",asite.values[*asite.keymap.get(_ATOM_SITE_LABEL_COMP_ID).unwrap()]);
+                    //println!("{:?}",arecord);
+                }
             }
-            AtomSiteMut::new(&keymap,&mut arecord).set_index(_lcount as i64);
             records.push(arecord);
         }else if start_with(&sstr,"TER"){
+            ここから
+            CHAIN 判定つける
             terflag = true;
         }else{
 

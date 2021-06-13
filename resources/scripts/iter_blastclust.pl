@@ -65,6 +65,8 @@ sub arg_to_hash{
 
 #perl iter_blastclust.pl -in samples/small_fas.fas -out clustered.dat -outdir clusout -ident 30 -cov_long 0.5 -cov_short 0.5
 my $blastppath = "D:/dummy/programs/blast/ncbi-blast-2.10.1+/bin/blastp.exe";
+
+#my $makeblastdbpath = "D:/dummy/programs/blast/ncbi-blast-2.10.1+/bin/makeblastdb.exe"; #‚¨‚»‚ç‚­ƒoƒO‚Å DB ì¬‚ª‚Å‚«‚È‚¢
 my $makeblastdbpath = "D:/dummy/work/aptamer/exapps/ncbi-blast-2.6.0+/bin/makeblastdb.exe";
 
 my %arghash = %{arg_to_hash(\@ARGV)};

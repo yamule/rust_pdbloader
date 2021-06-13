@@ -25,7 +25,7 @@ sub getAllFiles{
 }
 
 
-my @allfiles = getAllFiles("pdb/");
+my @allfiles = getAllFiles("D:/dummy/vbox_share/bioo/database/pdb/");
 
 my $cpunum = 8;
 for(my $cc = 0;$cc < $cpunum;$cc++){

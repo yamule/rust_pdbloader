@@ -10,12 +10,13 @@
 find pdb |grep ent.gz|xargs -I {} echo "zcat {} | grep -v -E '^(ATOM|HETATM|CONECT)'"|bash > meta_info_lines.dat 
 python get_resolution_deposition.py > resotable.dat 
 perl check_stat_pdb.pl
-cat res*.dat > pdb_stat.dat
+cat res*.dat > results/pdb_prop.dat
 
-
-
-
-
-python .\get_filtered_fasta_monomer.py > filtered_aa.fas 2> err.dat
+get_filtered_fasta.py 内のファイルパスを変更し、
+python .\get_filtered_fasta.py > samples/filtered_aa.fas 2> err.dat
 
 で filtered_aa.fas としてフィルタリングしたものを生成。
+
+
+
+perl iter_blastclust.pl -in samples/filtered_aa.fas -out samples/clustered.dat -outdir samples/clusout -ident 30 -cov_long 0.5 -cov_short 0.5
