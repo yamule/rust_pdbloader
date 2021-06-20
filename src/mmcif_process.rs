@@ -883,7 +883,10 @@ pub fn load_pdb(filename:&str,gzipped:bool) ->PDBEntry{
             }
             records.push(arecord);
         }else if start_with(&sstr,"TER"){
-            terflag.insert((&sstr[21..22]).to_string());
+            //ToDo: general な Flag もつける
+            if sstr.len() > 21{
+                terflag.insert((&sstr[21..22]).to_string());
+            }
         }else{
 
         }

@@ -152,29 +152,104 @@ impl PseudoAtom{
 
 
 pub struct VerySimplePCBModel{
-    pub exist:Vec<HashMap<(usize,usize),f64>>,
-    pub non_exist:Vec<HashMap<(usize,usize),f64>>
+    pub exist:Vec<Vec<HashMap<String,f64>>>,
+    pub non_exist:Vec<Vec<HashMap<String,f64>>>,
+    pub cylinder_length:f64,
+    pub cylinder_num_sep:usize,
+    pub atom_radius:f64,
+    pub cylinder_radius:f64
 }
 impl VerySimplePCBModel{
     pub fn new()->VerySimplePCBModel{
-        let mut exx:Vec<HashMap<(usize,usize),f64>> = vec![];
-        let mut nexx:Vec<HashMap<(usize,usize),f64>> = vec![];
+        let mut exx:Vec<Vec<HashMap<String,f64>>> = vec![];
+        let mut nexx:Vec<Vec<HashMap<String,f64>>> = vec![];
         for ai in 0..NUM_AA_INDEX{
-            let mut hmm:HashMap<(usize,usize),f64> = HashMap::new();
-            let mut hmm2:HashMap<(usize,usize),f64> = HashMap::new();
+            let mut vvhmm:Vec<HashMap<String,f64>> = vec![];
+            let mut vvhmm2:Vec<HashMap<String,f64>> = vec![];
             for nn in 0..NUM_REGION{
-                for pp in 0..NUM_DIFF_PARTNER{
-                    hmm.insert((nn,pp),0.0);
-                    hmm2.insert((nn,pp),0.0);
+                let mut hmm:HashMap<String,f64> = HashMap::new();
+                let mut hmm2:HashMap<String,f64> = HashMap::new();
+                for aa in RESIDUES_DEFAULT.iter(){
+                    for pp in 0..(NUM_PSEUDOCB+3){
+                        hmm.insert(aa.1.clone()+"_"+pp.to_string().as_str(),0.0);
+                        hmm2.insert(aa.1.clone()+"_"+pp.to_string().as_str(),0.0);
+                    }
                 }
+                vvhmm.push(hmm);
+                vvhmm2.push(hmm2);
             }
-            exx.push(hmm);
-            nexx.push(hmm2);
+            exx.push(vvhmm);
+            nexx.push(vvhmm2);
         }
         return VerySimplePCBModel{
             exist:exx,
-            non_exist:nexx
+            non_exist:nexx,
+            cylinder_length:10.0,
+            cylinder_num_sep:3,
+            atom_radius:8.0,
+            cylinder_radius:8.0
         };
+    }
+    pub fn calc_score(&self,entt:&PDBEntry)->f64{
+        let asyms:Vec<&PDBAsym> = entt.get_all_asyms();
+        let mut cylinders:Vec<SideChainCylinder> = vec![];
+        let mut score:f64 = 0.0;
+        for (_jj,aa) in asyms.iter().enumerate(){
+            //aa.remove_alt(None);
+            let cnum = aa.num_comps();
+            if cnum == 0{
+                continue;
+            }
+            let st = 0;
+            let en = cnum-1;
+            for cc in st..=en{    
+                let compp = aa.get_comp_at(cc);
+                if AA_3_TO_INDEX.lock().unwrap().contains_key(compp.get_name()){
+                    cylinders.push(SideChainCylinder::create_cylinder(compp, self.cylinder_length, self.cylinder_num_sep, self.atom_radius, self.cylinder_radius));
+                }else{
+                    if compp.get_name() != "HOH"{
+                        eprintln!("{} is not found in dict!",compp.get_name());
+                    }
+                }
+            } 
+        }
+        let rxcode =  Regex::new(r"^([^_]+)_([0-9]+)$").unwrap();
+        for (cii,cc) in cylinders.iter().enumerate(){
+            let mut space_count:HashMap<String,HashMap<String,usize>> = HashMap::new();
+            let mut counted:Vec<HashSet<String>> = vec![HashSet::new();NUM_REGION];
+            let rcode = *AA_3_TO_INDEX.lock().unwrap().get(&cc.comp_name).unwrap() as usize;
+            for (cjj,ccc) in cylinders.iter().enumerate(){
+                if cii != cjj{
+                    space_count = cc.count_atoms(ccc,Some(space_count));
+                }
+            }
+            for pp in space_count.iter(){
+                if let Some(x) = rxcode.captures(pp.0){
+                    let _rcode = *AA_3_TO_INDEX.lock().unwrap().get(x.get(1).unwrap().as_str()).unwrap();
+                    let pcode = x.get(2).unwrap().as_str().parse::<usize>().unwrap();
+                    for qq in pp.1.iter(){
+                        if *qq.1 > 0{
+                            counted[pcode].insert(qq.0.clone());
+                        }
+                    }
+                }                    
+            }
+            for pp in 0..self.exist[rcode].len(){
+                for qq in self.exist[rcode][pp].iter(){
+                    if counted[pp].contains(qq.0){
+                        score += qq.1;
+                    }
+                }
+            }
+            for pp in 0..self.non_exist[rcode].len(){
+                for qq in self.non_exist[rcode][pp].iter(){
+                    if !counted[pp].contains(qq.0){
+                        score += qq.1;
+                    }
+                }
+            }
+        }
+        return score;
     }
     pub fn load(filepath:&str)->VerySimplePCBModel{
         prepare_static();
@@ -184,19 +259,41 @@ impl VerySimplePCBModel{
         let file = File::open(filepath).unwrap();
         let reader = BufReader::new(file);
         
-        let mut exx:Vec<HashMap<(usize,usize),usize>> = vec![HashMap::new();NUM_AA_INDEX];
-        let mut nexx:Vec<HashMap<(usize,usize),usize>> = vec![HashMap::new();NUM_AA_INDEX];
+        let mut exx:Vec<Vec<HashMap<String,f64>>> = vec![vec![HashMap::new();NUM_REGION];NUM_AA_INDEX];
+        let mut nexx:Vec<Vec<HashMap<String,f64>>> = vec![vec![HashMap::new();NUM_REGION];NUM_AA_INDEX];
 
         let rxcode =  Regex::new(r"^([^_]+)_([0-9]+)$").unwrap();
         let kv =  Regex::new(r"^([^=]+)=(.+)$").unwrap();
-        let mut count_compound:HashMap<usize,usize> = HashMap::new();//region でなく comound 数
+        let mut count_compound:HashMap<usize,f64> = HashMap::new();//region でなく comound 数
         for line_ in reader.lines() {
             let line_ = line_.unwrap();
             let line =  (*REGEX_TAILBLANK.replace_all(&line_, "")).to_string();
-            let ptt:Vec<String> = line.split_ascii_whitespace().into_iter().map(|m|m.to_owned()).collect();
+            let mut ptt:Vec<String> = line.split_ascii_whitespace().into_iter().map(|m|m.to_owned()).collect();
             let mut selfcode:usize = 0;//円柱のインデクス
             let mut selfaacode:usize = 0;//アミノ酸インデクス
-
+            if &ptt[0] == "option"{
+                ptt.remove(0);
+                for pp in ptt.iter(){
+                    if let Some(x) = kv.captures(pp){
+                        let k:String = x.get(1).unwrap().as_str().to_string();
+                        let v:String = x.get(2).unwrap().as_str().to_string();
+                        if k == "cylinder_length"{
+                            ret.cylinder_length = v.parse::<f64>().unwrap();
+                        }else if k == "cylinder_radius"{
+                            ret.cylinder_radius = v.parse::<f64>().unwrap();
+                        }else if k == "atom_radius"{
+                            ret.atom_radius = v.parse::<f64>().unwrap();
+                        }else if k == "cylinder_num_sep"{
+                            ret.cylinder_num_sep = v.parse::<usize>().unwrap();
+                        }else{
+                            if pp.len() > 0{
+                                panic!("can not parse {}.",pp);
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
             for pp in ptt.iter().enumerate(){
                 if pp.0 == 0{
                     if let Some(x) =  rxcode.captures(pp.1){
@@ -212,7 +309,7 @@ impl VerySimplePCBModel{
                 }else{
                     if let Some(x) = kv.captures(pp.1){
                         let k = x.get(1).unwrap().as_str().to_string();
-                        let v = x.get(2).unwrap().as_str().parse::<usize>().unwrap();
+                        let v = x.get(2).unwrap().as_str().parse::<f64>().unwrap();
                         if &k == "all"{
                             if count_compound.contains_key(&selfaacode){
                                 assert_eq!(*count_compound.get(&selfaacode).unwrap(),v);
@@ -220,16 +317,7 @@ impl VerySimplePCBModel{
                                 count_compound.insert(selfaacode,v);
                             }
                         }else{
-                            if let Some(y) =  rxcode.captures(&k){
-                                let name = y.get(1).unwrap().as_str();
-                                let code = y.get(2).unwrap().as_str().parse::<usize>().unwrap();
-                                let targetcode = (*AA_3_TO_INDEX.lock().unwrap().get(name).unwrap_or_else(||panic!("{} is not a valid code.",name)) as usize)*(NUM_PSEUDOCB+3)+code;
-                                exx[selfaacode].insert((selfcode,targetcode),v);
-                            }else{
-                                if pp.1.len() > 0{
-                                    panic!("???");
-                                }
-                            }
+                            exx[selfaacode][selfcode].insert(k,v);
                         }
                     }else{
                         if pp.1.len() > 0{
@@ -241,30 +329,36 @@ impl VerySimplePCBModel{
         }
         for aa in 0..NUM_AA_INDEX{
             for bb in 0..NUM_REGION{
-                for cc in 0..NUM_DIFF_PARTNER{
-                    if !exx[aa].contains_key(&(bb,cc)){
-                        exx[aa].insert((bb,cc),0);
+                for pp in RESIDUES_DEFAULT.iter(){
+                    for cc in 0..(NUM_PSEUDOCB+3){
+                        let ccode = pp.1.clone()+"_"+cc.to_string().as_str();
+                        if !exx[aa][bb].contains_key(&ccode){
+                            exx[aa][bb].insert(ccode.clone(),0.0);
+                        }
+                        nexx[aa][bb].insert(ccode.clone(),*count_compound.get(&aa).unwrap_or(&0.0)-*exx[aa][bb].get(&ccode).unwrap());
                     }
-                    nexx[aa].insert((bb,cc),*count_compound.get(&aa).unwrap_or(&0)-*exx[aa].get(&(bb,cc)).unwrap());
                 }
             }
         }
         //全 compound 数
-        let asum = count_compound.iter().fold(0,|s,m|s+*m.1) as f64;
+        let asum = count_compound.iter().fold(0.0,|s,m|s+*m.1) as f64;
         for bb in 0..NUM_REGION{
-            for cc in 0..NUM_DIFF_PARTNER{
-                //その pseudo atom が存在する compound 数
-                let bsum = exx.iter().fold(0,|s,m|s+*m.get(&(bb,cc)).unwrap()) as f64;
-                for aa in 0..NUM_AA_INDEX{
-                    if bsum > 0.0{
-                        ret.exist[aa].insert((bb,cc), *exx[aa].get(&(bb,cc)).unwrap() as f64 /bsum);
-                    }else{
-                        ret.exist[aa].insert((bb,cc), 0.0);
-                    }
-                    if asum -bsum > 0.0{
-                        ret.non_exist[aa].insert((bb,cc), *nexx[aa].get(&(bb,cc)).unwrap() as f64 /(asum-bsum));
-                    }else{
-                        ret.non_exist[aa].insert((bb,cc), 0.0);
+            for pp in RESIDUES_DEFAULT.iter(){
+                for cc in 0..(NUM_PSEUDOCB+3){
+                    let ccode = pp.1.clone()+"_"+cc.to_string().as_str();
+                    //その pseudo atom が存在する compound 数
+                    let bsum = exx.iter().fold(0.0,|s,m|s+*m[bb].get(&ccode).unwrap()) as f64;
+                    for aa in 0..NUM_AA_INDEX{
+                        if bsum > 0.0{
+                            ret.exist[aa][bb].insert(ccode.clone(), *exx[aa][bb].get(&ccode).unwrap() as f64 /bsum);
+                        }else{
+                            ret.exist[aa][bb].insert(ccode.clone(), 0.0);
+                        }
+                        if asum -bsum > 0.0{
+                            ret.non_exist[aa][bb].insert(ccode.clone(), *nexx[aa][bb].get(&ccode).unwrap() as f64 /(asum-bsum));
+                        }else{
+                            ret.non_exist[aa][bb].insert(ccode.clone(), 0.0);
+                        }
                     }
                 }
             }
@@ -610,6 +704,7 @@ impl<'a> SideChainCylinder<'a>{
 
 
 
+
 pub fn generate_intermediate_files(
     structure_files:Vec<(String,Option<HashMap<String,f64>>)>//path, weight(chain->weight)
     , cylinder_length:f64
@@ -623,7 +718,11 @@ pub fn generate_intermediate_files(
     //ARNDCQEGHILKMFPSTWYVX
     //pseudoatoms[0]...+ncac の順でインデクスをつける
     prepare_static();
-    
+    let optionline:String = format!("option\tcylinder_length={}\tcylinder_num_sep={}\tatom_radius={}\tcylinder_radius={}\n"
+    , cylinder_length
+    , cylinder_num_sep
+    , atom_radius
+    , cylinder_radius);
     let entries_:Vec<String> = structure_files.iter().map(|m|m.0.clone()).collect();
     
     //COMPNAME_POSITION->COMPNAME_PSEUDOATOMCODE->count
@@ -709,7 +808,7 @@ pub fn generate_intermediate_files(
     let mut skeys:Vec<&String> = space_count.keys().into_iter().collect();
     skeys.sort();
     let mut f = BufWriter::new(fs::File::create(output_filename).unwrap());
-    
+    f.write(optionline.as_bytes()).unwrap();
     let grx =  Regex::new(r"^([^_]+)_").unwrap();
     for ss in skeys.into_iter(){
         
@@ -828,4 +927,161 @@ fn pseudocb_model_test(){
 
     //generate_intermediate_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcbmodel.dat");
     let l = VerySimplePCBModel::load("example_files/example_output/testpcbmodel.dat"); 
+    let files = vec![
+        "D:/dummy/work/CASP14/server_stage2/T1025/3D-JIGSAW-SwarmLoop_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/ACOMPMOD_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/ACOMPMOD_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/AWSEM-Suite_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/AWSEM-Suite_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/AWSEM-Suite_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/AWSEM-Suite_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROBETTA_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROBETTA_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROBETTA_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROBETTA_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROBETTA_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROSETTASERVER_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROSETTASERVER_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROSETTASERVER_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROSETTASERVER_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROSETTASERVER_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/CATHER_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/CATHER_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/CATHER_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-DeepFolder_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-DeepFolder_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-DeepFolder_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-DeepFolder_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-DeepFolder_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-geom_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-geom_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-geom_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-geom_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-geom_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-TBM_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-TBM_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-TBM_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-TBM_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/FEIG-S_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/FEIG-S_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/FEIG-S_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/FEIG-S_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/FEIG-S_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/FoldX_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/FoldX_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/FoldX_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/FoldX_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/FoldX_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/GAPF_LNCC_SERVER_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/GAPF_LNCC_SERVER_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/GAPF_LNCC_SERVER_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/GAPF_LNCC_SERVER_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/IntFOLD6_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/IntFOLD6_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/IntFOLD6_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/IntFOLD6_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/IntFOLD6_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/ishidalab_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/Kiharalab_Z_Server_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/MESHI_server_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/MESHI_server_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/MESHI_server_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/MESHI_server_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/MESHI_server_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD2_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD2_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD2_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD2_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD2_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CLUSTER_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CLUSTER_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CLUSTER_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CLUSTER_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CLUSTER_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CONSTRUCT_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CONSTRUCT_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CONSTRUCT_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CONSTRUCT_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CONSTRUCT_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-DEEP_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-DEEP_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-DEEP_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-DEEP_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-DEEP_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-HYBRID_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-HYBRID_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-HYBRID_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-HYBRID_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-HYBRID_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/QUARK_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/QUARK_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/RaptorX_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/RaptorX_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/RaptorX_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/RaptorX_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/RaptorX_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/RBO-PSP-CP_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/Seok-server_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/Seok-server_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/Seok-server_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/Seok-server_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/Seok-server_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold-CaT_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold-CaT_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold-CaT_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold-CaT_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold-CaT_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold-IDT_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold-IDT_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold-IDT_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold-IDT_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/tFold-IDT_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/TOWER_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/TOWER_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/TOWER_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/TOWER_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/TOWER_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/Yang_FM_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/Yang_FM_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/Yang_FM_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/Yang_FM_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/Yang_FM_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/Yang_TBM_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/Yang-Server_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/Yang-Server_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/Yang-Server_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/Yang-Server_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/Yang-Server_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang_Ab_Initio_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang_Ab_Initio_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang_Ab_Initio_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang_Ab_Initio_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang_Ab_Initio_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-CEthreader_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-CEthreader_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-CEthreader_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-CEthreader_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-CEthreader_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-Server_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-Server_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-Server_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-TBM_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-TBM_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-TBM_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-TBM_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-TBM_TS5"
+    ];
+    for ff in files.iter(){
+        let e = mmcif_process::load_pdb(*ff,false);
+        let sc = l.calc_score(&e);
+        println!("{}\t{}",ff,sc);
+    }
 }
