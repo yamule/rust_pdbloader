@@ -177,6 +177,8 @@ impl VerySimplePCBModel{
         };
     }
     pub fn load(filepath:&str)->VerySimplePCBModel{
+        prepare_static();
+
         let mut ret :VerySimplePCBModel = VerySimplePCBModel::new();
         
         let file = File::open(filepath).unwrap();
@@ -185,17 +187,15 @@ impl VerySimplePCBModel{
         let mut exx:Vec<HashMap<(usize,usize),usize>> = vec![HashMap::new();NUM_AA_INDEX];
         let mut nexx:Vec<HashMap<(usize,usize),usize>> = vec![HashMap::new();NUM_AA_INDEX];
 
-        let rxcode =  Regex::new(r"^([^_])_([0-9]+)$").unwrap();
-        let kv =  Regex::new(r"^([^=])=(.+)$").unwrap();
-        let mut atom_all:HashMap<usize,usize> = HashMap::new();
+        let rxcode =  Regex::new(r"^([^_]+)_([0-9]+)$").unwrap();
+        let kv =  Regex::new(r"^([^=]+)=(.+)$").unwrap();
+        let mut count_compound:HashMap<usize,usize> = HashMap::new();//region でなく comound 数
         for line_ in reader.lines() {
             let line_ = line_.unwrap();
             let line =  (*REGEX_TAILBLANK.replace_all(&line_, "")).to_string();
             let ptt:Vec<String> = line.split_ascii_whitespace().into_iter().map(|m|m.to_owned()).collect();
             let mut selfcode:usize = 0;//円柱のインデクス
             let mut selfaacode:usize = 0;//アミノ酸インデクス
-            let mut selfcount:usize = 0;
-            let mut atomfind:HashMap<usize,usize> = HashMap::new();
 
             for pp in ptt.iter().enumerate(){
                 if pp.0 == 0{
@@ -206,23 +206,23 @@ impl VerySimplePCBModel{
                         selfaacode = *AA_3_TO_INDEX.lock().unwrap().get(name).unwrap_or_else(||panic!("{} is not a valid code.",name)) as usize;
                     }else{
                         if pp.1.len() > 0{
-                            panic!("???");
+                            panic!("??? {} ",pp.1);
                         }
                     }
                 }else{
                     if let Some(x) = kv.captures(pp.1){
                         let k = x.get(1).unwrap().as_str().to_string();
-                        let v = x.get(1).unwrap().as_str().parse::<usize>().unwrap();
+                        let v = x.get(2).unwrap().as_str().parse::<usize>().unwrap();
                         if &k == "all"{
-                            if atom_all.contains_key(&selfaacode){
-                                assert_eq!(*atom_all.get(&selfaacode).unwrap(),v);
+                            if count_compound.contains_key(&selfaacode){
+                                assert_eq!(*count_compound.get(&selfaacode).unwrap(),v);
                             }else{
-                                atom_all.insert(selfaacode,v);
+                                count_compound.insert(selfaacode,v);
                             }
                         }else{
                             if let Some(y) =  rxcode.captures(&k){
-                                let name = x.get(1).unwrap().as_str();
-                                let code = x.get(2).unwrap().as_str().parse::<usize>().unwrap();
+                                let name = y.get(1).unwrap().as_str();
+                                let code = y.get(2).unwrap().as_str().parse::<usize>().unwrap();
                                 let targetcode = (*AA_3_TO_INDEX.lock().unwrap().get(name).unwrap_or_else(||panic!("{} is not a valid code.",name)) as usize)*(NUM_PSEUDOCB+3)+code;
                                 exx[selfaacode].insert((selfcode,targetcode),v);
                             }else{
@@ -245,21 +245,26 @@ impl VerySimplePCBModel{
                     if !exx[aa].contains_key(&(bb,cc)){
                         exx[aa].insert((bb,cc),0);
                     }
-                    nexx[aa].insert((bb,cc),*atom_all.get(&aa).unwrap_or(&0)-*exx[aa].get(&(bb,cc)).unwrap());
+                    nexx[aa].insert((bb,cc),*count_compound.get(&aa).unwrap_or(&0)-*exx[aa].get(&(bb,cc)).unwrap());
                 }
             }
         }
-
-        let asum = atom_all.iter().fold(0,|s,m|s+*m.1) as f64;
+        //全 compound 数
+        let asum = count_compound.iter().fold(0,|s,m|s+*m.1) as f64;
         for bb in 0..NUM_REGION{
             for cc in 0..NUM_DIFF_PARTNER{
+                //その pseudo atom が存在する compound 数
                 let bsum = exx.iter().fold(0,|s,m|s+*m.get(&(bb,cc)).unwrap()) as f64;
                 for aa in 0..NUM_AA_INDEX{
-                    ret.exist[aa].insert((bb,cc), *exx[aa].get(&(bb,cc)).unwrap() as f64 /bsum);
-                    if asum -bsum > 0.0{
-                        ret.exist[aa].insert((bb,cc), *nexx[aa].get(&(bb,cc)).unwrap() as f64 /(asum-bsum));
+                    if bsum > 0.0{
+                        ret.exist[aa].insert((bb,cc), *exx[aa].get(&(bb,cc)).unwrap() as f64 /bsum);
                     }else{
                         ret.exist[aa].insert((bb,cc), 0.0);
+                    }
+                    if asum -bsum > 0.0{
+                        ret.non_exist[aa].insert((bb,cc), *nexx[aa].get(&(bb,cc)).unwrap() as f64 /(asum-bsum));
+                    }else{
+                        ret.non_exist[aa].insert((bb,cc), 0.0);
                     }
                 }
             }
@@ -821,6 +826,6 @@ fn pseudocb_model_test(){
     //println!("{:?}",entries_);
     entries_.sort_by(|a,b|a.0.cmp(&b.0));
 
-    generate_intermediate_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcbmodel.dat");
-    
+    //generate_intermediate_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcbmodel.dat");
+    let l = VerySimplePCBModel::load("example_files/example_output/testpcbmodel.dat"); 
 }
