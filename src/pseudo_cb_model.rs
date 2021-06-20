@@ -2,6 +2,7 @@ use core::f64;
 use std::fs;
 use std::cmp::Ordering;
 use std::fs::File;
+use std::hash::Hash;
 use std::io::{BufWriter,Write,BufReader,BufRead};
 use regex::Regex;
 use std::collections::{HashMap,HashSet};
@@ -13,9 +14,16 @@ use super::geometry;
 use chrono::{Local};
 use std::f64::consts::PI;
 use rand::prelude::*;
+use super::misc_util::*;
 
 use std::sync::Mutex;
 
+
+const NUM_AA_INDEX:usize = 20;
+const NUM_SEP:usize = 3;
+const NUM_PSEUDOCB:usize = 3;
+const NUM_REGION:usize = NUM_SEP*3*2;
+const NUM_DIFF_PARTNER:usize = (NUM_PSEUDOCB+3)*NUM_AA_INDEX;
 
 lazy_static! {
     static ref RESIDUES_DEFAULT:Vec<(i8,String)> =  vec![
@@ -141,6 +149,126 @@ impl PseudoAtom{
         self.radius = r;
     }
 }
+
+
+pub struct VerySimplePCBModel{
+    pub exist:Vec<HashMap<(usize,usize),f64>>,
+    pub non_exist:Vec<HashMap<(usize,usize),f64>>
+}
+impl VerySimplePCBModel{
+    pub fn new()->VerySimplePCBModel{
+        let mut exx:Vec<HashMap<(usize,usize),f64>> = vec![];
+        let mut nexx:Vec<HashMap<(usize,usize),f64>> = vec![];
+        for ai in 0..NUM_AA_INDEX{
+            let mut hmm:HashMap<(usize,usize),f64> = HashMap::new();
+            let mut hmm2:HashMap<(usize,usize),f64> = HashMap::new();
+            for nn in 0..NUM_REGION{
+                for pp in 0..NUM_DIFF_PARTNER{
+                    hmm.insert((nn,pp),0.0);
+                    hmm2.insert((nn,pp),0.0);
+                }
+            }
+            exx.push(hmm);
+            nexx.push(hmm2);
+        }
+        return VerySimplePCBModel{
+            exist:exx,
+            non_exist:nexx
+        };
+    }
+    pub fn load(filepath:&str)->VerySimplePCBModel{
+        let mut ret :VerySimplePCBModel = VerySimplePCBModel::new();
+        
+        let file = File::open(filepath).unwrap();
+        let reader = BufReader::new(file);
+        
+        let mut exx:Vec<HashMap<(usize,usize),usize>> = vec![HashMap::new();NUM_AA_INDEX];
+        let mut nexx:Vec<HashMap<(usize,usize),usize>> = vec![HashMap::new();NUM_AA_INDEX];
+
+        let rxcode =  Regex::new(r"^([^_])_([0-9]+)$").unwrap();
+        let kv =  Regex::new(r"^([^=])=(.+)$").unwrap();
+        let mut atom_all:HashMap<usize,usize> = HashMap::new();
+        for line_ in reader.lines() {
+            let line_ = line_.unwrap();
+            let line =  (*REGEX_TAILBLANK.replace_all(&line_, "")).to_string();
+            let ptt:Vec<String> = line.split_ascii_whitespace().into_iter().map(|m|m.to_owned()).collect();
+            let mut selfcode:usize = 0;//円柱のインデクス
+            let mut selfaacode:usize = 0;//アミノ酸インデクス
+            let mut selfcount:usize = 0;
+            let mut atomfind:HashMap<usize,usize> = HashMap::new();
+
+            for pp in ptt.iter().enumerate(){
+                if pp.0 == 0{
+                    if let Some(x) =  rxcode.captures(pp.1){
+                        let name = x.get(1).unwrap().as_str();
+                        let code = x.get(2).unwrap().as_str().parse::<usize>().unwrap();
+                        selfcode = code;
+                        selfaacode = *AA_3_TO_INDEX.lock().unwrap().get(name).unwrap_or_else(||panic!("{} is not a valid code.",name)) as usize;
+                    }else{
+                        if pp.1.len() > 0{
+                            panic!("???");
+                        }
+                    }
+                }else{
+                    if let Some(x) = kv.captures(pp.1){
+                        let k = x.get(1).unwrap().as_str().to_string();
+                        let v = x.get(1).unwrap().as_str().parse::<usize>().unwrap();
+                        if &k == "all"{
+                            if atom_all.contains_key(&selfaacode){
+                                assert_eq!(*atom_all.get(&selfaacode).unwrap(),v);
+                            }else{
+                                atom_all.insert(selfaacode,v);
+                            }
+                        }else{
+                            if let Some(y) =  rxcode.captures(&k){
+                                let name = x.get(1).unwrap().as_str();
+                                let code = x.get(2).unwrap().as_str().parse::<usize>().unwrap();
+                                let targetcode = (*AA_3_TO_INDEX.lock().unwrap().get(name).unwrap_or_else(||panic!("{} is not a valid code.",name)) as usize)*(NUM_PSEUDOCB+3)+code;
+                                exx[selfaacode].insert((selfcode,targetcode),v);
+                            }else{
+                                if pp.1.len() > 0{
+                                    panic!("???");
+                                }
+                            }
+                        }
+                    }else{
+                        if pp.1.len() > 0{
+                            panic!("{} does not have key value pair.",pp.1);
+                        }
+                    }
+                }
+            }
+        }
+        for aa in 0..NUM_AA_INDEX{
+            for bb in 0..NUM_REGION{
+                for cc in 0..NUM_DIFF_PARTNER{
+                    if !exx[aa].contains_key(&(bb,cc)){
+                        exx[aa].insert((bb,cc),0);
+                    }
+                    nexx[aa].insert((bb,cc),*atom_all.get(&aa).unwrap_or(&0)-*exx[aa].get(&(bb,cc)).unwrap());
+                }
+            }
+        }
+
+        let asum = atom_all.iter().fold(0,|s,m|s+*m.1) as f64;
+        for bb in 0..NUM_REGION{
+            for cc in 0..NUM_DIFF_PARTNER{
+                let bsum = exx.iter().fold(0,|s,m|s+*m.get(&(bb,cc)).unwrap()) as f64;
+                for aa in 0..NUM_AA_INDEX{
+                    ret.exist[aa].insert((bb,cc), *exx[aa].get(&(bb,cc)).unwrap() as f64 /bsum);
+                    if asum -bsum > 0.0{
+                        ret.exist[aa].insert((bb,cc), *nexx[aa].get(&(bb,cc)).unwrap() as f64 /(asum-bsum));
+                    }else{
+                        ret.exist[aa].insert((bb,cc), 0.0);
+                    }
+                }
+            }
+        }
+        
+        return ret;
+    }
+}
+
 pub struct SideChainCylinder<'a>{
     pub n:&'a dyn Vector3D,
     pub ca:&'a dyn Vector3D,
@@ -483,6 +611,7 @@ pub fn generate_intermediate_files(
     , cylinder_num_sep:usize
     , atom_radius:f64
     , cylinder_radius:f64
+    ,output_filename:&str
     ){
     //自分側は 近い方から 012345 6789,10,11 12,13,14,15,16,17
     //相手側は
@@ -494,6 +623,7 @@ pub fn generate_intermediate_files(
     
     //COMPNAME_POSITION->COMPNAME_PSEUDOATOMCODE->count
     let mut space_count:HashMap<String,HashMap<String,usize>> = HashMap::new();
+    let mut type_count:HashMap<String,usize> = HashMap::new();
     let exx =  Regex::new(r"(\.ent|\.pdb|\.cif)(\.gz)?").unwrap();
     for ee in entries_.into_iter(){
         if let Some(x) = exx.captures(&ee){
@@ -518,17 +648,50 @@ pub fn generate_intermediate_files(
                 let mut cylinders:Vec<SideChainCylinder> = vec![];
                 for (jj,aa) in asyms.iter_mut().enumerate(){
                     aa.remove_alt(None);
-                    for (_kk,cc) in aa.iter_comps().enumerate(){
-                        if AA_3_TO_INDEX.lock().unwrap().contains_key(cc.get_name()){
-                            cylinders.push(SideChainCylinder::create_cylinder(cc, cylinder_length, cylinder_num_sep, atom_radius, cylinder_radius));
+                    let cnum = aa.num_comps();
+                    if cnum == 0{
+                        continue;
+                    }
+                    let mut st = 0;
+                    let mut en = cnum-1;
+                    for cc in 0..cnum{
+                        let comp = aa.get_comp_at(cc);
+                        let n = comp.get_N();
+                        let ca = comp.get_CA();
+                        let c = comp.get_C();
+                        if let (Some(_),Some(_),Some(_)) = (n,ca,c){
+                            st = cc;
+                            break;
+                        }
+                    }
+
+                    
+                    for cc_ in 0..cnum{
+                        let cc = cnum - cc_-1;
+                        let comp = aa.get_comp_at(cc);
+                        let n = comp.get_N();
+                        let ca = comp.get_CA();
+                        let c = comp.get_C();
+                        if let (Some(_),Some(_),Some(_)) = (n,ca,c){
+                            en = cc;
+                            break;
+                        }
+                    }
+
+                    //for (_kk,compp) in aa.iter_comps().enumerate(){
+                    for cc in st..=en{    
+                        let compp = aa.get_comp_at(cc);
+                        if AA_3_TO_INDEX.lock().unwrap().contains_key(compp.get_name()){
+                            cylinders.push(SideChainCylinder::create_cylinder(compp, cylinder_length, cylinder_num_sep, atom_radius, cylinder_radius));
                         }else{
-                            if cc.get_name() != "HOH"{
-                                eprintln!("{} is not found in dict!",cc.get_name());
+                            if compp.get_name() != "HOH"{
+                                eprintln!("{} is not found in dict!",compp.get_name());
                             }
                         }
                     } 
                 }
                 for (cii,cc) in cylinders.iter().enumerate(){
+                    type_count.insert(cc.comp_name.clone(),type_count.get(&cc.comp_name).unwrap_or(&0)+1);
                     for (cjj,ccc) in cylinders.iter().enumerate(){
                         if cii != cjj{
                             space_count = cc.count_atoms(ccc,Some(space_count));
@@ -540,15 +703,25 @@ pub fn generate_intermediate_files(
     }
     let mut skeys:Vec<&String> = space_count.keys().into_iter().collect();
     skeys.sort();
+    let mut f = BufWriter::new(fs::File::create(output_filename).unwrap());
+    
+    let grx =  Regex::new(r"^([^_]+)_").unwrap();
     for ss in skeys.into_iter(){
-        print!("{}",ss);
+        
+        f.write_all(format!("{}",ss).as_bytes()).unwrap();
+        
+        if let Some(x) = grx.captures(ss){
+            f.write_all(format!("\tall={}",type_count.get(x.get(1).unwrap().as_str()).unwrap()).as_bytes()).unwrap();
+        }else{
+            panic!("not expected! {}",ss);
+        }
         let hm = space_count.get(ss.to_string().as_str()).unwrap();
         let mut keys:Vec<&String> = hm.keys().into_iter().collect();
         keys.sort();
         for kk in keys.iter(){
-            print!("\t{}={}",kk,hm.get(kk.as_str()).unwrap());
+            f.write_all(format!("\t{}={}",kk,hm.get(kk.as_str()).unwrap()).as_bytes()).unwrap();
         }
-        println!("");
+        f.write_all("\n".as_bytes()).unwrap();
     }
 }
 
@@ -645,9 +818,9 @@ fn pseudocb_model_test(){
             entries_.push((x.get(0).unwrap().as_str().to_string(),None));
         }
     }
-    println!("{:?}",entries_);
+    //println!("{:?}",entries_);
     entries_.sort_by(|a,b|a.0.cmp(&b.0));
 
-    generate_intermediate_files(entries_,10.0,3,8.0,8.0);
+    generate_intermediate_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcbmodel.dat");
     
 }

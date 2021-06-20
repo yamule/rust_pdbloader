@@ -1,3 +1,4 @@
+use std::hash::Hash;
 #[allow(dead_code,unused_imports)]
 use std::io::{Read,BufWriter,Write,BufReader,BufRead};
 use std::fs::File;
@@ -830,7 +831,7 @@ pub fn load_pdb(filename:&str,gzipped:bool) ->PDBEntry{
 
     let _noline = Regex::new(r"^[\r\n]*$").unwrap();
     let mut records:Vec<Vec<Box<String>>> = vec![];
-    let mut terflag:bool = false;
+    let mut terflag:HashSet<String> = HashSet::new();
     let mut possibly_ligand = false;
     let mut current_model_num:String = "".to_owned();
     let keyvec:Vec<String> = (vec![
@@ -863,7 +864,7 @@ pub fn load_pdb(filename:&str,gzipped:bool) ->PDBEntry{
         if start_with(&sstr,"MODEL"){
             let ppt: Vec<&str> = splitter.split(&sstr).collect();
             current_model_num = ppt[1].to_owned();
-            terflag = false;
+            terflag.clear();
         }
         if start_with(&sstr,"ATOM") || start_with(&sstr,"HETATM"){
             let mut arecord:Vec<Box<String>> = MMCIFEntry::parse_atom_line_pdb(&sstr,&current_model_num,&keymap).into_iter().map(|m|Box::new(m)).collect();
@@ -871,18 +872,18 @@ pub fn load_pdb(filename:&str,gzipped:bool) ->PDBEntry{
             
             let mut asite:AtomSiteMut = AtomSiteMut::new(&keymap,&mut arecord);
             asite.set_index(_lcount as i64);
-            if terflag{
+            if terflag.len() > 0{
                 if &(*asite.values[*asite.keymap.get(_ATOM_SITE_LABEL_COMP_ID).unwrap()]) != "HOH"{
-                    possibly_ligand = true;
+                    if terflag.contains(&(*asite.values[*asite.keymap.get(_ATOM_SITE_LABEL_ASYM_ID).unwrap()])){
+                        possibly_ligand = true;
+                    }
                     //println!("{}",asite.values[*asite.keymap.get(_ATOM_SITE_LABEL_COMP_ID).unwrap()]);
                     //println!("{:?}",arecord);
                 }
             }
             records.push(arecord);
         }else if start_with(&sstr,"TER"){
-            ここから
-            CHAIN 判定つける
-            terflag = true;
+            terflag.insert((&sstr[21..22]).to_string());
         }else{
 
         }
