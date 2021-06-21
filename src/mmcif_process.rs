@@ -874,7 +874,8 @@ pub fn load_pdb(filename:&str,gzipped:bool) ->PDBEntry{
             asite.set_index(_lcount as i64);
             if terflag.len() > 0{
                 if &(*asite.values[*asite.keymap.get(_ATOM_SITE_LABEL_COMP_ID).unwrap()]) != "HOH"{
-                    if terflag.contains(&(*asite.values[*asite.keymap.get(_ATOM_SITE_LABEL_ASYM_ID).unwrap()])){
+                    if terflag.contains(&(*asite.values[*asite.keymap.get(_ATOM_SITE_LABEL_ASYM_ID).unwrap()]))
+                     || terflag.contains("ALL"){
                         possibly_ligand = true;
                     }
                     //println!("{}",asite.values[*asite.keymap.get(_ATOM_SITE_LABEL_COMP_ID).unwrap()]);
@@ -883,9 +884,10 @@ pub fn load_pdb(filename:&str,gzipped:bool) ->PDBEntry{
             }
             records.push(arecord);
         }else if start_with(&sstr,"TER"){
-            //ToDo: general な Flag もつける
             if sstr.len() > 21{
                 terflag.insert((&sstr[21..22]).to_string());
+            }else{
+                terflag.insert("ALL".to_owned());
             }
         }else{
 

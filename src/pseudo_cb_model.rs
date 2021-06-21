@@ -152,8 +152,10 @@ impl PseudoAtom{
 
 
 pub struct VerySimplePCBModel{
-    pub exist:Vec<Vec<HashMap<String,f64>>>,
-    pub non_exist:Vec<Vec<HashMap<String,f64>>>,
+    pub exist:Vec<Vec<HashMap<String,f64>>>,//ある場所にある PSEUDOCB が有るときに、その COMP である確率
+    pub non_exist:Vec<Vec<HashMap<String,f64>>>,//ある場所にある PSEUDOCB が無いときに、その COMP である確率
+    pub r_exist:Vec<Vec<HashMap<String,f64>>>,//その COMP であるときにある場所にある PSEUDOCB が有る確率
+    pub r_non_exist:Vec<Vec<HashMap<String,f64>>>,//その COMP であるときにある場所にある PSEUDOCB が無い確率
     pub cylinder_length:f64,
     pub cylinder_num_sep:usize,
     pub atom_radius:f64,
@@ -163,37 +165,40 @@ impl VerySimplePCBModel{
     pub fn new()->VerySimplePCBModel{
         let mut exx:Vec<Vec<HashMap<String,f64>>> = vec![];
         let mut nexx:Vec<Vec<HashMap<String,f64>>> = vec![];
-        for ai in 0..NUM_AA_INDEX{
+        let mut rexx:Vec<Vec<HashMap<String,f64>>> = vec![];
+        let mut rnexx:Vec<Vec<HashMap<String,f64>>> = vec![];
+        for _ in 0..NUM_AA_INDEX{
             let mut vvhmm:Vec<HashMap<String,f64>> = vec![];
-            let mut vvhmm2:Vec<HashMap<String,f64>> = vec![];
-            for nn in 0..NUM_REGION{
+            for _ in 0..NUM_REGION{
                 let mut hmm:HashMap<String,f64> = HashMap::new();
-                let mut hmm2:HashMap<String,f64> = HashMap::new();
                 for aa in RESIDUES_DEFAULT.iter(){
                     for pp in 0..(NUM_PSEUDOCB+3){
                         hmm.insert(aa.1.clone()+"_"+pp.to_string().as_str(),0.0);
-                        hmm2.insert(aa.1.clone()+"_"+pp.to_string().as_str(),0.0);
                     }
                 }
-                vvhmm.push(hmm);
-                vvhmm2.push(hmm2);
+                vvhmm.push(hmm.clone());
             }
-            exx.push(vvhmm);
-            nexx.push(vvhmm2);
+            exx.push(vvhmm.clone());
+            nexx.push(vvhmm.clone());
+            rexx.push(vvhmm.clone());
+            rnexx.push(vvhmm);
         }
         return VerySimplePCBModel{
             exist:exx,
             non_exist:nexx,
+            r_exist:rexx,
+            r_non_exist:rnexx,
             cylinder_length:10.0,
             cylinder_num_sep:3,
             atom_radius:8.0,
             cylinder_radius:8.0
         };
     }
-    pub fn calc_score(&self,entt:&PDBEntry)->f64{
+    pub fn calc_score(&self,entt:&PDBEntry)->(f64,f64){
         let asyms:Vec<&PDBAsym> = entt.get_all_asyms();
         let mut cylinders:Vec<SideChainCylinder> = vec![];
         let mut score:f64 = 0.0;
+        let mut score2:f64 = 0.0;
         for (_jj,aa) in asyms.iter().enumerate(){
             //aa.remove_alt(None);
             let cnum = aa.num_comps();
@@ -248,8 +253,22 @@ impl VerySimplePCBModel{
                     }
                 }
             }
+            for pp in 0..self.r_exist[rcode].len(){
+                for qq in self.r_exist[rcode][pp].iter(){
+                    if counted[pp].contains(qq.0){
+                        score2 += qq.1;
+                    }
+                }
+            }
+            for pp in 0..self.r_non_exist[rcode].len(){
+                for qq in self.r_non_exist[rcode][pp].iter(){
+                    if !counted[pp].contains(qq.0){
+                        score2 += qq.1;
+                    }
+                }
+            }
         }
-        return score;
+        return (score,score2);
     }
     pub fn load(filepath:&str)->VerySimplePCBModel{
         prepare_static();
@@ -333,9 +352,28 @@ impl VerySimplePCBModel{
                     for cc in 0..(NUM_PSEUDOCB+3){
                         let ccode = pp.1.clone()+"_"+cc.to_string().as_str();
                         if !exx[aa][bb].contains_key(&ccode){
+                            //下の nexx で使用するので作成する
                             exx[aa][bb].insert(ccode.clone(),0.0);
                         }
                         nexx[aa][bb].insert(ccode.clone(),*count_compound.get(&aa).unwrap_or(&0.0)-*exx[aa][bb].get(&ccode).unwrap());
+                    }
+                }
+            }
+        }
+        
+        for aa in 0..NUM_AA_INDEX{
+            for bb in 0..NUM_REGION{
+                for pp in RESIDUES_DEFAULT.iter(){
+                    for cc in 0..(NUM_PSEUDOCB+3){
+                        let ccode = pp.1.clone()+"_"+cc.to_string().as_str();
+                        let cnumall = *count_compound.get(&aa).unwrap();
+                        if  cnumall > 0.0{
+                            ret.r_exist[aa][bb].insert(ccode.clone(), exx[aa][bb].get(&ccode).unwrap()/cnumall);
+                            ret.r_non_exist[aa][bb].insert(ccode.clone(), (cnumall -exx[aa][bb].get(&ccode).unwrap())/cnumall);
+                        }else{
+                            ret.r_exist[aa][bb].insert(ccode.clone(),0.0);
+                            ret.r_non_exist[aa][bb].insert(ccode.clone(),0.0);
+                        }
                     }
                 }
             }
@@ -927,161 +965,163 @@ fn pseudocb_model_test(){
 
     //generate_intermediate_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcbmodel.dat");
     let l = VerySimplePCBModel::load("example_files/example_output/testpcbmodel.dat"); 
+    
     let files = vec![
-        "D:/dummy/work/CASP14/server_stage2/T1025/3D-JIGSAW-SwarmLoop_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/ACOMPMOD_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/ACOMPMOD_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/AWSEM-Suite_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/AWSEM-Suite_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/AWSEM-Suite_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/AWSEM-Suite_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROBETTA_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROBETTA_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROBETTA_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROBETTA_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROBETTA_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROSETTASERVER_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROSETTASERVER_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROSETTASERVER_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROSETTASERVER_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/BAKER-ROSETTASERVER_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/CATHER_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/CATHER_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/CATHER_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-DeepFolder_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-DeepFolder_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-DeepFolder_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-DeepFolder_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-DeepFolder_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-geom_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-geom_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-geom_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-geom_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-geom_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-TBM_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-TBM_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-TBM_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/FALCON-TBM_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/FEIG-S_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/FEIG-S_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/FEIG-S_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/FEIG-S_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/FEIG-S_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/FoldX_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/FoldX_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/FoldX_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/FoldX_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/FoldX_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/GAPF_LNCC_SERVER_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/GAPF_LNCC_SERVER_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/GAPF_LNCC_SERVER_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/GAPF_LNCC_SERVER_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/IntFOLD6_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/IntFOLD6_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/IntFOLD6_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/IntFOLD6_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/IntFOLD6_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/ishidalab_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/Kiharalab_Z_Server_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/MESHI_server_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/MESHI_server_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/MESHI_server_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/MESHI_server_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/MESHI_server_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD2_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD2_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD2_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD2_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/MUFOLD2_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CLUSTER_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CLUSTER_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CLUSTER_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CLUSTER_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CLUSTER_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CONSTRUCT_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CONSTRUCT_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CONSTRUCT_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CONSTRUCT_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-CONSTRUCT_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-DEEP_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-DEEP_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-DEEP_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-DEEP_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-DEEP_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-HYBRID_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-HYBRID_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-HYBRID_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-HYBRID_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/MULTICOM-HYBRID_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/QUARK_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/QUARK_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/RaptorX_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/RaptorX_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/RaptorX_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/RaptorX_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/RaptorX_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/RBO-PSP-CP_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/Seok-server_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/Seok-server_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/Seok-server_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/Seok-server_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/Seok-server_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold-CaT_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold-CaT_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold-CaT_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold-CaT_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold-CaT_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold-IDT_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold-IDT_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold-IDT_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold-IDT_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/tFold-IDT_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/TOWER_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/TOWER_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/TOWER_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/TOWER_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/TOWER_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/Yang_FM_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/Yang_FM_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/Yang_FM_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/Yang_FM_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/Yang_FM_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/Yang_TBM_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/Yang-Server_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/Yang-Server_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/Yang-Server_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/Yang-Server_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/Yang-Server_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang_Ab_Initio_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang_Ab_Initio_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang_Ab_Initio_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang_Ab_Initio_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang_Ab_Initio_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-CEthreader_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-CEthreader_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-CEthreader_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-CEthreader_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-CEthreader_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-Server_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-Server_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-Server_TS5",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-TBM_TS1",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-TBM_TS2",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-TBM_TS3",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-TBM_TS4",
-"D:/dummy/work/CASP14/server_stage2/T1025/Zhang-TBM_TS5"
+        "D:/dummy/work/CASP14/server_stage2/T1026/Zhang-TBM_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/AWSEM-CHEN_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/AWSEM-CHEN_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/AWSEM-CHEN_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/AWSEM-CHEN_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/AWSEM-CHEN_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/AWSEM-Suite_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/AWSEM-Suite_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/AWSEM-Suite_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/AWSEM-Suite_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/AWSEM-Suite_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/BAKER-ROBETTA_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/BAKER-ROBETTA_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/BAKER-ROBETTA_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/BAKER-ROSETTASERVER_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/BAKER-ROSETTASERVER_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/BAKER-ROSETTASERVER_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/BAKER-ROSETTASERVER_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/BAKER-ROSETTASERVER_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/CATHER_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/CATHER_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/CATHER_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/CATHER_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/CATHER_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/FALCON-DeepFolder_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/FALCON-DeepFolder_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/FALCON-DeepFolder_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/FALCON-DeepFolder_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/FALCON-DeepFolder_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/FALCON-geom_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/FALCON-TBM_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/FALCON-TBM_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/FALCON-TBM_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/FALCON-TBM_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/FEIG-S_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/FEIG-S_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/FEIG-S_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/FEIG-S_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/FEIG-S_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/FoldX_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/FoldX_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/FoldX_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/FoldX_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/FoldX_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/GAPF_LNCC_SERVER_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/GAPF_LNCC_SERVER_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/GAPF_LNCC_SERVER_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/GAPF_LNCC_SERVER_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/GAPF_LNCC_SERVER_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/IntFOLD6_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/IntFOLD6_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/IntFOLD6_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/Kiharalab_Z_Server_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/Kiharalab_Z_Server_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/Kiharalab_Z_Server_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/Kiharalab_Z_Server_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/Kiharalab_Z_Server_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/LAW_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/LAW_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/MASS_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/MUFOLD_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-CLUSTER_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-CLUSTER_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-CLUSTER_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-CLUSTER_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-CLUSTER_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-CONSTRUCT_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-CONSTRUCT_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-CONSTRUCT_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-CONSTRUCT_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-CONSTRUCT_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-DEEP_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-DEEP_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-DEEP_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-DEEP_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-DEEP_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-DIST_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-DIST_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-DIST_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-DIST_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-DIST_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-HYBRID_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-HYBRID_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-HYBRID_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-HYBRID_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/MULTICOM-HYBRID_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/QUARK_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/QUARK_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/QUARK_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/QUARK_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/QUARK_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/RaptorX_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/RaptorX_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/RaptorX_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/RaptorX_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/RaptorX_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/Seok-server_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/Seok-server_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/Seok-server_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold-CaT_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold-CaT_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold-CaT_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold-CaT_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold-CaT_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold-IDT_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold-IDT_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold-IDT_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold-IDT_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/tFold-IDT_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/TOWER_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/TOWER_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/TOWER_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/TOWER_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/TOWER_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang_FM_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang_FM_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang_FM_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang_FM_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang_FM_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang_TBM_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang_TBM_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang_TBM_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang-Server_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang-Server_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang-Server_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang-Server_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/Yang-Server_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang_Ab_Initio_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang_Ab_Initio_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang_Ab_Initio_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang_Ab_Initio_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang_Ab_Initio_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-CEthreader_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-CEthreader_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-CEthreader_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-CEthreader_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-CEthreader_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-Server_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-Server_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-Server_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-Server_TS4",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-Server_TS5",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-TBM_TS1",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-TBM_TS2",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-TBM_TS3",
+"D:/dummy/work/CASP14/server_stage2/T1026/Zhang-TBM_TS4",
+
     ];
     for ff in files.iter(){
         let e = mmcif_process::load_pdb(*ff,false);
         let sc = l.calc_score(&e);
-        println!("{}\t{}",ff,sc);
+        println!("{}\t{}\t{}",ff,sc.0,sc.1);
     }
 }

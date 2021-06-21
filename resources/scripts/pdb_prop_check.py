@@ -239,6 +239,19 @@ class PDBAtom:
 		return ret;
 
 pdbb = PDBData.load(sys.argv[1]);
+
+hetflag_allchain = "False";
+for cc in list(pdbb.chains):
+	for aa in list(cc.atoms):
+		if "HETATM" in aa.head:
+			hetflag_allchain = aa.residue_name;
+	for aa in list(cc.ligands):
+		if aa.residue_name == "HOH":
+			continue;
+		if "HETATM" in aa.head:
+			hetflag_allchain = aa.residue_name;
+	
+	
 for cc in list(pdbb.chains):
 	alen = len(cc.atoms);
 	multi_chain = False;
@@ -315,7 +328,7 @@ for cc in list(pdbb.chains):
 			break;
 	nonmissing_aa = len(aas);
 	aminoacids = "".join(aas);
-	res = "multi_chain:{}\thetflag:{}\tabnormal_aa:{}\tchain_break:{}\thas_middle_missing_atom:{}\thas_terminal_missing_atom:{}\thas_alt:{}\tnonmissing_aa:{}\talt_aa:{}\talt_flag:{}\taminoacids:{}".format(
-	       multi_chain,    hetflag,    abnormal_aa,    chain_break,    has_middle_missing_atom,    has_terminal_missing_atom,    has_alt,    nonmissing_aa,    alt_aa,    alt_flag     ,aminoacids)
+	res = "multi_chain:{}\thetflag:{}\thetflag_allchain:{}\tabnormal_aa:{}\tchain_break:{}\thas_middle_missing_atom:{}\thas_terminal_missing_atom:{}\thas_alt:{}\tnonmissing_aa:{}\talt_aa:{}\talt_flag:{}\taminoacids:{}".format(
+	       multi_chain,    hetflag,    hetflag_allchain,    abnormal_aa,    chain_break,    has_middle_missing_atom,    has_terminal_missing_atom,    has_alt,    nonmissing_aa,    alt_aa,    alt_flag     ,aminoacids)
 	print(sys.argv[1]+"\t"+cc.name+"\t"+res);
 	
