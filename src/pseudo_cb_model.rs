@@ -947,7 +947,7 @@ fn pseudo_cb_test(){
 
 #[test]
 fn pseudocb_model_test(){
-    let filename = "resources/scripts/samples/target_path.dat";
+    let filename = "resources/scripts/results/target_path.dat";
     let file = File::open(filename).unwrap_or_else(|e|panic!("{} {:?}",filename,e));
     let reader = BufReader::new(file);
 
@@ -963,7 +963,7 @@ fn pseudocb_model_test(){
     //println!("{:?}",entries_);
     entries_.sort_by(|a,b|a.0.cmp(&b.0));
 
-    //generate_intermediate_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcbmodel.dat");
+    generate_intermediate_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcbmodel.dat");
     let l = VerySimplePCBModel::load("example_files/example_output/testpcbmodel.dat"); 
     
     let files = vec![

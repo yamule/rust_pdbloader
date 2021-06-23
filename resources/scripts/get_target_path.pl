@@ -3,7 +3,7 @@ use warnings;
 
 
 my $divdir = "D:/dummy/vbox_share/bioo/database/pdb/";
-my $fasfile = "samples/clustered.dat.fas";
+my $fasfile = "results/clustered.dat.fas";
 
 open(IN,$fasfile);
 my %candidates;

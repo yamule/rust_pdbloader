@@ -211,7 +211,12 @@ foreach my $qfas(@allseqs){
 		}
 		my @s1 = keys %{$covered_q{$kk}};
 		my @s2 = keys %{$covered_res{$kk}};
-		
+		if(!defined $seqlength{$qname}){
+			print STDERR $qname."???";
+		}
+		if(!defined $seqlength{$kk}){
+			print STDERR $kk."???";
+		}
 		if($seqlength{$qname} == $seqlength{$kk}){
 			if(
 			(($#s1)/$seqlength{$qname} >= $cov_long && ($#s2)/$seqlength{$kk} >= $cov_short)

@@ -8,7 +8,7 @@ import os;
 passed = {};
 monomerflag = False;
 resotablefile = "D:\\dummy\\vbox_share\\bioo\\database\\resotable.dat";
-pdbpropfile = "samples/pdb_prop.dat";
+pdbpropfile = "results/pdb_prop.dat";
 with open(resotablefile) as fin:
 	for ll in fin:
 		ptt = re.split("\t",re.sub("[\r\n]","",ll));
@@ -46,6 +46,7 @@ with open(pdbpropfile) as fin:
 			continue;
 			
 		if pt_hs["hetflag"][0] == "False" and \
+		pt_hs["hetflag_allchain"][0] == "False" and \
 		pt_hs["abnormal_aa"][0] == "False" and \
 		pt_hs["chain_break"][0] == "False" and \
 		pt_hs["has_middle_missing_atom"][0] == "False" and \
@@ -80,4 +81,6 @@ with open(pdbpropfile) as fin:
 			mat = re.search("([0-9]...)\.pdb",pt_hs["file"][0]);
 			if mat:
 				pdbid = mat.group(1).upper();
+		if re.search("[a-z]",pt_hs["chain"][0]):
+			pt_hs["chain"][0] = "lower_"+pt_hs["chain"][0];
 		print(">"+pdbid+"_"+pt_hs["chain"][0]+"\n"+pt_hs["aminoacids"][0]+"\n");
