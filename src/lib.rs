@@ -46,3 +46,6 @@ pub mod pseudo_cb_model;
 pub mod rotamer_generator;
 pub mod png_exporter;
 pub mod image2d_process;
+
+pub mod decision_tree;
+pub mod predictor;

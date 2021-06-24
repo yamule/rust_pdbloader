@@ -1,4 +1,5 @@
 use core::f64;
+use core::num;
 use std::fs;
 use std::cmp::Ordering;
 use std::fs::File;
@@ -15,7 +16,7 @@ use chrono::{Local};
 use std::f64::consts::PI;
 use rand::prelude::*;
 use super::misc_util::*;
-
+use super::decision_tree;
 use std::sync::Mutex;
 
 
@@ -225,7 +226,7 @@ impl VerySimplePCBModel{
             let rcode = *AA_3_TO_INDEX.lock().unwrap().get(&cc.comp_name).unwrap() as usize;
             for (cjj,ccc) in cylinders.iter().enumerate(){
                 if cii != cjj{
-                    space_count = cc.count_atoms(ccc,Some(space_count));
+                    space_count = cc.count_atoms_str(ccc,Some(space_count));
                 }
             }
             for pp in space_count.iter(){
@@ -696,9 +697,30 @@ impl<'a> SideChainCylinder<'a>{
         //自分側は 近い方から 012345 6789,10,11 12,13,14,15,16,17
         return Some(pcode*6+direc_code);
     }
-    pub fn is_in(&self,atom:&dyn Vector3D){
-        
+
+
+    //count_atoms_str の結果である HashMap<String,HashMap<String,usize>> を受け取って
+    //return される vec の var_mapping から get した index に atomstate の最終的な usize の値を入れて返す
+    // var_mapping の key は、selfregionid_selfresiduename_selfatomid であることを想定している
+    pub fn create_sample_input(atomstate:HashMap<String,HashMap<String,usize>>,var_mapping:&HashMap<String,usize>)->Vec<f64>{
+        let mut ret:Vec<f64> = vec![0.0;var_mapping.len()];
+        let exx =  Regex::new(r"_(.+)$").unwrap();
+        for aa in atomstate.into_iter(){
+            let k = if let Some(x) = exx.captures(&aa.0){
+                x.get(1).unwrap().as_str().to_string()
+            }else{
+                panic!("Can not find region index from {}.",aa.0);
+            };
+            for pp in aa.1.iter(){
+                let code = k.clone()+"_"+pp.0;
+                ret[*var_mapping.get(&code).unwrap_or_else(||panic!("{} was not found in mapper.",code))] = (*pp.1) as f64;
+            }
+        }
+        return ret;
     }
+
+
+
     pub fn create_cylinder(comp:&PDBComp,llen:f64,ssep:usize,aradi:f64,cradi:f64)->SideChainCylinder{
         let n = comp.get_N();
         let ca = comp.get_CA();
@@ -710,7 +732,7 @@ impl<'a> SideChainCylinder<'a>{
         let ret = SideChainCylinder::new(n.unwrap(),ca.unwrap(),c.unwrap(),comp.get_name(),llen,ssep,aradi,cradi);
         return ret;
     }
-    pub fn count_atoms(&self,target:&SideChainCylinder,ret_:Option<HashMap<String,HashMap<String,usize>>>) -> HashMap<String,HashMap<String,usize>>{
+    pub fn count_atoms_str(&self,target:&SideChainCylinder,ret_:Option<HashMap<String,HashMap<String,usize>>>) -> HashMap<String,HashMap<String,usize>>{
         let mut ret:HashMap<String,HashMap<String,usize>> = match ret_{
             Some(x) =>{x},
             _=>{
@@ -733,17 +755,66 @@ impl<'a> SideChainCylinder<'a>{
                 ret.get_mut(&zcode).unwrap().insert(pcode.clone(),co);
             }
         }
-
-
-        
         return ret;
     }
 }
 
 
+pub fn asyms_to_cylinders<'a>(asyms:Vec<&'a mut PDBAsym>
+    , cylinder_length:f64
+    , cylinder_num_sep:usize
+    , atom_radius:f64
+    , cylinder_radius:f64
+)->Vec<SideChainCylinder<'a>>{
+    let mut cylinders:Vec<SideChainCylinder<'a>> = vec![];
+    for (jj,aa) in asyms.into_iter().enumerate(){
+        aa.remove_alt(None);
+        let cnum = aa.num_comps();
+        if cnum == 0{
+            continue;
+        }
+        let mut st = 0;
+        let mut en = cnum-1;
+        for cc in 0..cnum{
+            let comp = aa.get_comp_at(cc);
+            let n = comp.get_N();
+            let ca = comp.get_CA();
+            let c = comp.get_C();
+            if let (Some(_),Some(_),Some(_)) = (n,ca,c){
+                st = cc;
+                break;
+            }
+        }
+        for cc_ in 0..cnum{
+            let cc = cnum - cc_-1;
+            let comp = aa.get_comp_at(cc);
+            let n = comp.get_N();
+            let ca = comp.get_CA();
+            let c = comp.get_C();
+            if let (Some(_),Some(_),Some(_)) = (n,ca,c){
+                en = cc;
+                break;
+            }
+        }
 
+        //for (_kk,compp) in aa.iter_comps().enumerate(){
+        for cc in st..=en{    
+            let compp:&'a PDBComp = aa.get_comp_at(cc);
+            if AA_3_TO_INDEX.lock().unwrap().contains_key(compp.get_name()){
+                cylinders.push(SideChainCylinder::create_cylinder(compp
+                    , cylinder_length, cylinder_num_sep
+                    , atom_radius, cylinder_radius));
+            }else{
+                if compp.get_name() != "HOH"{
+                    eprintln!("{} is not found in dict!",compp.get_name());
+                }
+            }
+        } 
+    }
+    return cylinders;
+}
 
-pub fn generate_intermediate_files(
+pub fn generate_simplemodel_files(
     structure_files:Vec<(String,Option<HashMap<String,f64>>)>//path, weight(chain->weight)
     , cylinder_length:f64
     , cylinder_num_sep:usize
@@ -786,57 +857,18 @@ pub fn generate_intermediate_files(
                 None
             };
             if let Some(mut entt) = entt_{
-                let mut asyms:Vec<&mut PDBAsym> = entt.get_mut_all_asyms();
-                let mut cylinders:Vec<SideChainCylinder> = vec![];
-                for (jj,aa) in asyms.iter_mut().enumerate(){
-                    aa.remove_alt(None);
-                    let cnum = aa.num_comps();
-                    if cnum == 0{
-                        continue;
-                    }
-                    let mut st = 0;
-                    let mut en = cnum-1;
-                    for cc in 0..cnum{
-                        let comp = aa.get_comp_at(cc);
-                        let n = comp.get_N();
-                        let ca = comp.get_CA();
-                        let c = comp.get_C();
-                        if let (Some(_),Some(_),Some(_)) = (n,ca,c){
-                            st = cc;
-                            break;
-                        }
-                    }
-
-                    
-                    for cc_ in 0..cnum{
-                        let cc = cnum - cc_-1;
-                        let comp = aa.get_comp_at(cc);
-                        let n = comp.get_N();
-                        let ca = comp.get_CA();
-                        let c = comp.get_C();
-                        if let (Some(_),Some(_),Some(_)) = (n,ca,c){
-                            en = cc;
-                            break;
-                        }
-                    }
-
-                    //for (_kk,compp) in aa.iter_comps().enumerate(){
-                    for cc in st..=en{    
-                        let compp = aa.get_comp_at(cc);
-                        if AA_3_TO_INDEX.lock().unwrap().contains_key(compp.get_name()){
-                            cylinders.push(SideChainCylinder::create_cylinder(compp, cylinder_length, cylinder_num_sep, atom_radius, cylinder_radius));
-                        }else{
-                            if compp.get_name() != "HOH"{
-                                eprintln!("{} is not found in dict!",compp.get_name());
-                            }
-                        }
-                    } 
-                }
+                let cylinders:Vec<SideChainCylinder> = asyms_to_cylinders(
+                    entt.get_mut_all_asyms()
+                    , cylinder_length
+                    , cylinder_num_sep
+                    , atom_radius
+                    , cylinder_radius
+                );
                 for (cii,cc) in cylinders.iter().enumerate(){
                     type_count.insert(cc.comp_name.clone(),type_count.get(&cc.comp_name).unwrap_or(&0)+1);
                     for (cjj,ccc) in cylinders.iter().enumerate(){
                         if cii != cjj{
-                            space_count = cc.count_atoms(ccc,Some(space_count));
+                            space_count = cc.count_atoms_str(ccc,Some(space_count));
                         }
                     }
                 }
@@ -866,6 +898,110 @@ pub fn generate_intermediate_files(
         f.write_all("\n".as_bytes()).unwrap();
     }
 }
+
+
+
+pub fn generate_decision_tree_model_files(
+    structure_files:Vec<(String,Option<HashMap<String,f64>>)>//path, weight(chain->weight)
+    , cylinder_length:f64
+    , cylinder_num_sep:usize
+    , atom_radius:f64
+    , cylinder_radius:f64
+    ,output_filename:&str
+    ){
+    //自分側は 近い方から 012345 6789,10,11 12,13,14,15,16,17
+    //相手側は
+    //ARNDCQEGHILKMFPSTWYVX
+    //pseudoatoms[0]...+ncac の順でインデクスをつける
+    prepare_static();
+    let optionline:String = format!("option\tcylinder_length={}\tcylinder_num_sep={}\tatom_radius={}\tcylinder_radius={}\n"
+    , cylinder_length
+    , cylinder_num_sep
+    , atom_radius
+    , cylinder_radius);
+    let entries_:Vec<String> = structure_files.iter().map(|m|m.0.clone()).collect();
+    
+    let mut varmap:HashMap<String,usize> = HashMap::new();
+    let mut varnames:Vec<String> = vec![];
+    for ii in 0..(cylinder_num_sep*3*2){
+        let idd:String = ii.to_string();
+        for rr in RESIDUES_DEFAULT.iter(){
+            let ridd = idd.clone()+"_"+rr.1.as_str();
+            for jj in 0..(NUM_PSEUDOCB+3){
+                let code = ridd.clone()+jj.to_string().as_str();
+                varnames.push(code);
+            }
+        }
+    }
+    for vv in varnames.iter().enumerate(){
+        varmap.insert(vv.1.clone(),vv.0);
+    }
+    let mut samples:Vec<decision_tree::SampleData_usize> = vec![];
+    let exx =  Regex::new(r"(\.ent|\.pdb|\.cif)(\.gz)?").unwrap();
+    for ee in entries_.into_iter(){
+        //COMPNAME_POSITION->COMPNAME_PSEUDOATOMCODE->count
+        if let Some(x) = exx.captures(&ee){
+            let ext1:String = x.get(1).unwrap().as_str().to_string();
+            let is_gzip = 
+            if let Some(_) = x.get(2){
+                true
+            }else{
+                false
+            };
+            println!("Loading {}.",ee);
+            let entt_ = if &ext1 == ".ent" || &ext1 == ".pdb"{
+                Some(mmcif_process::load_pdb(&ee,is_gzip))
+            }else if &ext1 == ".cif"{
+                Some(mmcif_process::MMCIFEntry::load_mmcif(&ee,is_gzip))
+            }else{
+                println!("Skipped {} (unknown extension)",ee);
+                None
+            };
+            if let Some(mut entt) = entt_{
+                let cylinders:Vec<SideChainCylinder> = asyms_to_cylinders(
+                    entt.get_mut_all_asyms()
+                    , cylinder_length
+                    , cylinder_num_sep
+                    , atom_radius
+                    , cylinder_radius
+                );
+                for (cii,cc) in cylinders.iter().enumerate(){
+                    let mut space_count:HashMap<String,HashMap<String,usize>> = HashMap::new();
+                    for (cjj,ccc) in cylinders.iter().enumerate(){
+                        if cii != cjj{
+                            space_count = cc.count_atoms_str(ccc,Some(space_count));
+                        }
+                    }
+                    
+                    let vars = SideChainCylinder::create_sample_input(space_count,&varmap);
+                    let sam = decision_tree::SampleData_usize::new(
+                        "".to_owned(),*AA_3_TO_INDEX.lock().unwrap().get(&cc.comp_name).unwrap() as usize
+                        ,vars
+                    );
+                    samples.push(sam);
+                }
+            }
+        }
+    }
+    let mut boxed:Vec<Box<& decision_tree::SampleData_usize>> = vec![];
+    for ss in samples.iter(){
+        boxed.push(Box::new(ss));
+    }
+    let varnames_:Vec<&str> = varnames.iter().map(|m| m.as_str()).collect();
+    let tree = decision_tree::SimpleDecisionTree::build_classifier(&mut boxed
+        ,decision_tree::DecisionTreeOptions{ 
+	max_depth:Some(10000),
+	max_leaf_nodes:Some(100000),
+	min_samples_split:Some(1),
+	min_samplefraction_split:None,
+	feature_fraction :None,
+	split_function_type:decision_tree::SplitFunctionType::Gini,
+	random_seed:Some(123)
+    },Some(&varnames_) );
+
+}
+
+
 
 #[test]
 fn pseudo_cb_test(){
@@ -944,6 +1080,11 @@ fn pseudo_cb_test(){
     geometry::Geometry::save("test/cylindercheck.obj",&mut vec![geom]);    
 }
 
+#[test]
+fn decision_tree_model_test(){
+
+}
+
 
 #[test]
 fn pseudocb_model_test(){
@@ -963,7 +1104,7 @@ fn pseudocb_model_test(){
     //println!("{:?}",entries_);
     entries_.sort_by(|a,b|a.0.cmp(&b.0));
 
-    generate_intermediate_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcbmodel.dat");
+    generate_simplemodel_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcbmodel.dat");
     let l = VerySimplePCBModel::load("example_files/example_output/testpcbmodel.dat"); 
     
     let files = vec![
