@@ -132,7 +132,7 @@ pub enum SplitFunctionType{
 pub struct DecisionTreeOptions{
 	pub max_depth:Option<usize>,
 	pub max_leaf_nodes:Option<usize>,
-	pub min_samples_split:Option<usize>,//min_samplefraction_split が定義されている場合そちら優先
+	pub min_samples_split:Option<usize>,//min_samplefraction_split が定義誰ている場合そちら優先
 	pub min_samplefraction_split:Option<f64>,
 	pub feature_fraction :Option<f64>,
 	pub split_function_type:SplitFunctionType,

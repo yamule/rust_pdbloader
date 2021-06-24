@@ -152,6 +152,18 @@ impl PseudoAtom{
 }
 
 
+pub struct DecisionTreePCBModel<'a>{
+    pub trees:Vec<decision_tree::SimpleDecisionTree<'a>>,
+    pub cylinder_length:f64,
+    pub cylinder_num_sep:usize,
+    pub atom_radius:f64,
+    pub cylinder_radius:f64
+}
+//ここから
+//Load 関数とか作る
+//最新版に変える
+
+
 pub struct VerySimplePCBModel{
     pub exist:Vec<Vec<HashMap<String,f64>>>,//ある場所にある PSEUDOCB が有るときに、その COMP である確率
     pub non_exist:Vec<Vec<HashMap<String,f64>>>,//ある場所にある PSEUDOCB が無いときに、その COMP である確率
@@ -928,7 +940,7 @@ pub fn generate_decision_tree_model_files(
         for rr in RESIDUES_DEFAULT.iter(){
             let ridd = idd.clone()+"_"+rr.1.as_str();
             for jj in 0..(NUM_PSEUDOCB+3){
-                let code = ridd.clone()+jj.to_string().as_str();
+                let code = ridd.clone()+"_"+jj.to_string().as_str();
                 varnames.push(code);
             }
         }
@@ -998,7 +1010,8 @@ pub fn generate_decision_tree_model_files(
 	split_function_type:decision_tree::SplitFunctionType::Gini,
 	random_seed:Some(123)
     },Some(&varnames_) );
-
+    let sv = tree.to_string();
+    decision_tree::write_to_file(output_filename,vec![sv]);
 }
 
 
@@ -1082,7 +1095,26 @@ fn pseudo_cb_test(){
 
 #[test]
 fn decision_tree_model_test(){
+    let filename = "resources/scripts/results/target_path.dat";
+    let file = File::open(filename).unwrap_or_else(|e|panic!("{} {:?}",filename,e));
+    let reader = BufReader::new(file);
 
+        
+    let exx =  Regex::new(r"^.+(\.ent|\.pdb|\.cif)(\.gz)?").unwrap();
+    let mut entries_:Vec<(String,Option<HashMap<String,f64>>)> = vec![];
+    for (_lcount,line) in reader.lines().enumerate() {
+        let path = line.unwrap();
+        if let Some(x) = exx.captures(path.as_str()){
+            entries_.push((x.get(0).unwrap().as_str().to_string(),None));
+        }
+        if _lcount > 2{
+            break;
+        }
+    }
+    //println!("{:?}",entries_);
+    entries_.sort_by(|a,b|a.0.cmp(&b.0));
+
+    generate_decision_tree_model_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcb_tree_model.dat");
 }
 
 
