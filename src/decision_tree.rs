@@ -144,7 +144,7 @@ pub struct DecisionTreeOptions{
 pub struct SimpleDecisionTree<'a>{
 	num_classes:usize,
 	nodes:Vec<Box<DTNode<'a>>>,
-	var_names:Option<Vec<String>>
+	pub var_names:Option<Vec<String>>
 }
 
 impl<'a> Predictor for SimpleDecisionTree<'a>{
