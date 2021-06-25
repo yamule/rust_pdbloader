@@ -35,7 +35,7 @@ use std::env;
 use std::f64::consts::PI;
 use rust_pdbloader::misc_util::*;
 use rust_pdbloader::mmcif_process;
-
+use rust_pdbloader::pseudo_cb_model;
 #[allow(unused_imports)]
 use std::io::{BufWriter,Write,BufReader,BufRead};
 #[allow(unused_imports)]
@@ -151,10 +151,19 @@ fn main(){
             docking(args);
             return;
         },
+        "pseudocb"=>{
+            run_pseudo_cb_model(args);
+            return;
+        },
         _=>{
             panic!("not supported command. {:?}",subcommand);
         }
     }
+}
+
+
+fn run_pseudo_cb_model(_args:HashMap<String,String>) {
+    pseudo_cb_model::decision_tree_model_test();
 }
 
 fn residue_mapping(args:HashMap<String,String>) {

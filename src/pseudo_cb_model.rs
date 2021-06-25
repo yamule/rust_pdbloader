@@ -1226,8 +1226,7 @@ fn pseudo_cb_test(){
     geometry::Geometry::save("test/cylindercheck.obj",&mut vec![geom]);    
 }
 
-#[test]
-fn decision_tree_model_test(){
+pub fn decision_tree_model_test(){
     let filename = "resources/scripts/results/target_path.dat";
     let file = File::open(filename).unwrap_or_else(|e|panic!("{} {:?}",filename,e));
     let reader = BufReader::new(file);
@@ -1240,14 +1239,14 @@ fn decision_tree_model_test(){
         if let Some(x) = exx.captures(path.as_str()){
             entries_.push((x.get(0).unwrap().as_str().to_string(),None));
         }
-        if _lcount > 2{
-            break;
-        }
+        //if _lcount > 2{
+        //    break;
+        //}
     }
     //println!("{:?}",entries_);
     entries_.sort_by(|a,b|a.0.cmp(&b.0));
 
-    //generate_decision_tree_model_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcb_tree_model.dat");
+    generate_decision_tree_model_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcb_tree_model.dat");
     let treemodel:DecisionTreePCBModel = DecisionTreePCBModel::load("example_files/example_output/testpcb_tree_model.dat");
     
     let files = vec![
