@@ -863,6 +863,12 @@ impl PDBEntry{
         return &self.models[i];
     }
 
+    pub fn retain_first_model(&mut self){
+        while self.num_models() > 1{
+            self.models.pop().unwrap();
+        }
+    }
+
     pub fn get_mut_model_at(&mut self, i:usize)->&mut PDBModel{
         return &mut self.models[i];
     }

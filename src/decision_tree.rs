@@ -143,7 +143,7 @@ pub struct DecisionTreeOptions{
 #[derive(Debug)]
 pub struct SimpleDecisionTree<'a>{
 	num_classes:usize,
-	nodes:Vec<Box<DTNode<'a>>>,
+	pub nodes:Vec<Box<DTNode<'a>>>,
 	pub var_names:Option<Vec<String>>
 }
 
@@ -198,7 +198,6 @@ impl<'a> SimpleDecisionTree<'a>{
 		//枝の深さ
 		let max_depth:usize = opp.max_depth.unwrap_or(samples.len());
 		
-		//後入れ先出し処理なのでまんべんなく分割されるはずだが不明。
 		let max_leaf_nodes:usize = opp.max_leaf_nodes.unwrap_or(samples.len());
 		
 		let mut min_samples_split:usize = opp.min_samples_split.unwrap_or(1);
@@ -268,7 +267,31 @@ impl<'a> SimpleDecisionTree<'a>{
 		node_qued.push(rootnodeid);
 		
 		while node_qued.len() > 0{
-			let cnodeid = node_qued.remove(0);
+			//let cnodeid = node_qued.remove(0);
+            //最多メンバーを持つクラス以外のメンバーが多いノードから分割する
+            let mut targetnodeindex = 0;
+            let mut maxpenal:f64 = 0.0;
+            let mut zcou:Vec<f64> = vec![0.0;ret.num_classes];
+            for (nii,nn) in node_qued.iter().enumerate(){
+                let mut zsum = 0.0;
+                let mut zmax:f64 = 0.0;
+                let mut _zmaxindex:usize = 0;
+                for zz in ret.nodes[*nn].xsamples.iter(){
+                    zcou[(*zz).target_usize] += 1.0;
+                    zsum += 1.0;
+                    if zcou[(*zz).target_usize] > zmax{
+                        zmax = zcou[(*zz).target_usize];
+                        _zmaxindex = (*zz).target_usize;
+                    }
+                }
+                if maxpenal < zsum - zmax{
+                    maxpenal = zsum - zmax;
+                    targetnodeindex = nii;
+                }
+            }
+            let cnodeid = node_qued.remove(targetnodeindex);
+
+
 			let original_loss = match split_function_type{
 				SplitFunctionType::Gini =>{
 					SampleData_usize::calc_gini(classmax,&ret.nodes[cnodeid].xsamples)

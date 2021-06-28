@@ -163,7 +163,8 @@ fn main(){
 
 
 fn run_pseudo_cb_model(_args:HashMap<String,String>) {
-    pseudo_cb_model::decision_tree_model_test();
+    //pseudo_cb_model::decision_tree_model_test();
+    pseudo_cb_model::pseudocb_model_test();
 }
 
 fn residue_mapping(args:HashMap<String,String>) {

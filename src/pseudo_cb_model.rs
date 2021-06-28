@@ -482,6 +482,9 @@ impl VerySimplePCBModel{
                             }
                         }else{
                             exx[selfaacode][selfcode].insert(k,v);
+
+                            //background で割る
+                            //exx[selfaacode][selfcode].insert(k,v/(*count_compound.get(&selfaacode).unwrap_or(&0.0)+0.00001));
                         }
                     }else{
                         if pp.1.len() > 0{
@@ -501,6 +504,9 @@ impl VerySimplePCBModel{
                             exx[aa][bb].insert(ccode.clone(),0.0);
                         }
                         nexx[aa][bb].insert(ccode.clone(),*count_compound.get(&aa).unwrap_or(&0.0)-*exx[aa][bb].get(&ccode).unwrap());
+                        
+                        //background で割る
+                        //nexx[aa][bb].insert(ccode.clone(),1.0 -*exx[aa][bb].get(&ccode).unwrap());
                     }
                 }
             }
@@ -858,6 +864,9 @@ impl<'a> SideChainCylinder<'a>{
             for pp in aa.1.iter(){
                 let code = k.clone()+"_"+pp.0;
                 ret[*var_mapping.get(&code).unwrap_or_else(||panic!("{} was not found in mapper.",code))] = (*pp.1) as f64;
+                //if *pp.1 > 10{
+                //    panic!("The data looks {} {} {}",aa.0,code,pp.0);
+                //}
             }
         }
         return ret;
@@ -1001,6 +1010,10 @@ pub fn generate_simplemodel_files(
                 None
             };
             if let Some(mut entt) = entt_{
+                if entt.num_models() > 1{
+                    println!("{} has multiple models. Only one model is used.",ee);
+                    entt.retain_first_model();
+                }
                 let cylinders:Vec<SideChainCylinder> = asyms_to_cylinders(
                     entt.get_mut_all_asyms()
                     , cylinder_length
@@ -1102,6 +1115,12 @@ pub fn generate_decision_tree_model_files(
                 None
             };
             if let Some(mut entt) = entt_{
+                
+                if entt.num_models() > 1{
+                    println!("{} has multiple models. Only one model is used.",ee);
+                    entt.retain_first_model();
+                }
+
                 let cylinders:Vec<SideChainCylinder> = asyms_to_cylinders(
                     entt.get_mut_all_asyms()
                     , cylinder_length
@@ -1228,11 +1247,13 @@ fn pseudo_cb_test(){
 
 pub fn decision_tree_model_test(){
     let filename = "resources/scripts/results/target_path.dat";
+    //let filename = "resources/scripts/samples/target_path.dat";
     let file = File::open(filename).unwrap_or_else(|e|panic!("{} {:?}",filename,e));
     let reader = BufReader::new(file);
 
         
     let exx =  Regex::new(r"^.+(\.ent|\.pdb|\.cif)(\.gz)?").unwrap();
+    
     let mut entries_:Vec<(String,Option<HashMap<String,f64>>)> = vec![];
     for (_lcount,line) in reader.lines().enumerate() {
         let path = line.unwrap();
@@ -1245,9 +1266,43 @@ pub fn decision_tree_model_test(){
     }
     //println!("{:?}",entries_);
     entries_.sort_by(|a,b|a.0.cmp(&b.0));
+    
+    // /generate_decision_tree_model_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcb_tree_model.dat");
+    
+    //1/10 くらいで作ったらバックグラウンドで割らないと R^2 全然出なかった。
+    //半分で作ったら割っても全然出なかった。
+    let mut treemodel:DecisionTreePCBModel = DecisionTreePCBModel::load("example_files/example_output/testpcb_tree_model.dat");
+    
+    for tt in treemodel.trees.iter_mut(){
+        let mut num_allsamples:Vec<f64> = vec![0.0;20];
+        for nn in tt.nodes.iter(){
+            if nn.is_leaf(){
+                for v in nn.get_answer_f64vec().iter().enumerate(){
+                    num_allsamples[v.0] += *v.1;
+                }
+            }
+        }
+        /*
+        for nn in tt.nodes.iter_mut(){
+            if nn.is_leaf(){
+                
+                let mut nv = nn.get_answer_f64vec().clone();
+                for nn in nv.iter_mut().enumerate(){
+                    *(nn.1) /= num_allsamples[nn.0];
+                }
+                let ssum = nv.iter().fold(0.0,|s,m|s+m);
+                if ssum > 0.0{
+                    for nn in nv.iter_mut().enumerate(){
+                        *(nn.1) /= ssum;
+                    }   
+                }
+                nn.set_answer_f64vec(&nv);
+            }
 
-    generate_decision_tree_model_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcb_tree_model.dat");
-    let treemodel:DecisionTreePCBModel = DecisionTreePCBModel::load("example_files/example_output/testpcb_tree_model.dat");
+        }
+        */
+        
+    }
     
     let files = vec![
         "D:/dummy/work/CASP14/server_stage2/T1026/Zhang-TBM_TS5",
@@ -1410,8 +1465,7 @@ pub fn decision_tree_model_test(){
 }
 
 
-#[test]
-fn pseudocb_model_test(){
+pub fn pseudocb_model_test(){
     let filename = "resources/scripts/results/target_path.dat";
     let file = File::open(filename).unwrap_or_else(|e|panic!("{} {:?}",filename,e));
     let reader = BufReader::new(file);
@@ -1428,7 +1482,11 @@ fn pseudocb_model_test(){
     //println!("{:?}",entries_);
     entries_.sort_by(|a,b|a.0.cmp(&b.0));
 
-    generate_simplemodel_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcbmodel.dat");
+    //generate_simplemodel_files(entries_,10.0,3,8.0,8.0,"example_files/example_output/testpcbmodel.dat");
+    //generate_simplemodel_files(entries_,12.0,3,8.0,12.0,"example_files/example_output/testpcbmodel.dat");
+    //generate_simplemodel_files(entries_,8.0,3,8.0,6.0,"example_files/example_output/testpcbmodel.dat");
+    //generate_simplemodel_files(entries_,10.0,3,8.0,10.0,"example_files/example_output/testpcbmodel.dat");
+    generate_simplemodel_files(entries_,10.0,3,8.0,6.0,"example_files/example_output/testpcbmodel.dat");
     let l = VerySimplePCBModel::load("example_files/example_output/testpcbmodel.dat"); 
     
     let files = vec![
