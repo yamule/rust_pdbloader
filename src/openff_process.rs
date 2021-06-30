@@ -1,6 +1,9 @@
 
 use roxmltree;
+use core::panic;
 use std::collections::HashSet;
+use std::mem;
+use std::os::windows::process;
 use super::debug_env::*;
 use super::openff_energy;
 use super::smirks_data;
@@ -169,17 +172,114 @@ impl Molecule2D{
     }
 
     pub fn create_group(start_atom:usize,candidates:&HashSet<usize>,connected:&HashMap<usize,Vec<usize>>)->(Vec<usize>,Vec<Vec<usize>>){
-        let mut ssin:Vec<usize> = vec![];
+        let mut ssin:Vec<usize> = vec![start_atom];
         let mut ggro:Vec<Vec<usize>> = vec![];
-//ここから
-//二つ以上に分かれた際は一つずつ GGRO に入れていく
-//Circler は後でつなげる
+
+        let mut current_atom:i64 = start_atom as i64;
+        let mut processed:HashSet<usize> = HashSet::new();
+        processed.insert(start_atom);
+        loop{
+            let catom:usize = current_atom as usize;
+            if !connected.contains_key(&catom){
+                break;
+            }
+            let mut zvec:Vec<usize> =  connected.get(&catom).unwrap().iter().filter(|m| candidates.contains(m)).map(|m| *m).collect();
+            if zvec.len() == 0{
+                break;
+            }
+            if zvec.len() == 1{
+                let nex = zvec[0];
+                if processed.contains(&nex){
+                    break;
+                }
+                current_atom = nex as i64;
+                
+                ssin.push(nex);
+                processed.insert(nex);
+            }else{
+                while zvec.len() > 0{
+                    let mut updated:Vec<usize> = vec![zvec.pop().unwrap()];
+                    let mut members:Vec<usize> = vec![];
+                    while updated.len() > 0{
+                        let uu = updated.pop().unwrap();
+                        if !candidates.contains(&uu){
+                            continue;
+                        }
+                        if processed.contains(&uu){
+                            continue;
+                        }
+                        processed.insert(uu);
+                        members.push(uu);
+                        if !connected.contains_key(&uu){
+                            continue;
+                        }
+                        for pp in connected.get(&uu).unwrap().iter(){
+                            updated.push(*pp);
+                        }
+                    }
+                    if members.len() > 0{
+                        ggro.push(members);
+                    }
+                }
+                break;
+            }
+        }
         return (ssin,ggro);
     }
-    pub fn to_smirks(&self)->String{
-        let mut ret:String = "".to_owned();
 
+    pub fn print_members(&self,targetid:usize,members:&Vec<Vec<usize>>,children:&Vec<Vec<usize>>)->String{
+        let mut ret:String = members[targetid].iter().map(|m|&self.atoms[*m].atom_type).fold("".to_owned()
+        ,|s,m|{s+m});
+        for ll in 0..children[targetid].len(){
+            ret = ret+"("+&self.print_members(children[targetid][ll],members,children)+")";
+        }
         return ret;
+    }
+    pub fn to_smirks(&self)->String{
+//キラリティ入ってない
+//Circler 入ってない
+        let mut members:Vec<Vec<usize>> = vec![];
+        let mut children:Vec<Vec<usize>> = vec![];
+
+        let mut bondss:HashMap<usize,Vec<usize>> = HashMap::new();
+        for bb in self.bonds.iter(){
+            let a1:usize = bb.atom1 as usize;
+            let a2:usize = bb.atom2 as usize;
+            if !bondss.contains_key(&a1){
+                bondss.insert(a1, vec![]);
+            }
+            if !bondss.contains_key(&a2){
+                bondss.insert(a2, vec![]);
+            }
+            bondss.get_mut(&a1).unwrap().push(a2);
+            bondss.get_mut(&a2).unwrap().push(a1);
+        }
+        let mut start:usize;
+        let mut target_groups:Vec<(i64,Vec<usize>)> = vec![(-1,(0..self.atoms.len()).into_iter().collect())];
+        while target_groups.len() > 0{
+            let tg = target_groups.pop().unwrap();
+            //println!("\n{:?}",tg);
+            if tg.1.len() == 0{
+                continue;
+            }
+            start = tg.1[0];
+            let candidates:HashSet<usize> = tg.1.iter().map(|m| *m).collect();
+            let (singlebond,groups) = Molecule2D::create_group(start,&candidates,&bondss);
+            //println!("{:?}\n{:?}",singlebond,groups);
+            let nodeid:usize = members.len();
+            if tg.0 > -1{
+                children[tg.0 as usize].push(nodeid);
+            }
+            members.push(singlebond);
+            children.push(vec![]);
+            if groups.len() > 0{
+                for gg in groups.into_iter(){
+                    target_groups.push((nodeid as i64,gg));
+                }
+            }
+        }
+        return self.print_members(0,&members,&children);
+
     }
 
 }
@@ -607,7 +707,11 @@ fn openff_loadtest(){
 #[test]
 fn smirkstest(){
     let mol = smirks_to_molecule("C[C@@H](C(=O)O)N");
-    println!("\n{:?}",mol);
+    ここから
+    色々間違ってそう
+    println!("\n+++++++{}+++++",mol.to_smirks());
+    //println!("\n{:?}",mol);
     smirks_to_molecule("C[C@H](C(=O)O)N");
-    println!("");
+    //println!("");
+
 }
