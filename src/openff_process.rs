@@ -254,11 +254,12 @@ impl Molecule2D{
             bondss.get_mut(&a1).unwrap().push(a2);
             bondss.get_mut(&a2).unwrap().push(a1);
         }
+        println!("\n{:?}",self.bonds);
         let mut start:usize;
         let mut target_groups:Vec<(i64,Vec<usize>)> = vec![(-1,(0..self.atoms.len()).into_iter().collect())];
         while target_groups.len() > 0{
             let tg = target_groups.pop().unwrap();
-            //println!("\n{:?}",tg);
+            println!("\n{:?}",tg);
             if tg.1.len() == 0{
                 continue;
             }
@@ -278,6 +279,7 @@ impl Molecule2D{
                 }
             }
         }
+        println!("{:?}\n{:?}",members,children);
         return self.print_members(0,&members,&children);
 
     }
@@ -308,15 +310,14 @@ impl Atom2D{
 pub fn get_string_range(v:&Vec<String>,start:usize)->usize{
     assert_eq!(v[start],"(");
     let mut xcount:usize = 0;
-    for s in (start+1)..v.len(){
+    for s in start..v.len(){
         if v[s] == "("{
             xcount += 1;
         }
         if v[s] == ")"{
+            xcount -= 1;
             if xcount == 0{
                 return s;
-            }else{
-                xcount -= 1;
             }
         }
     }
@@ -346,7 +347,6 @@ pub fn smirks_to_molecule(smirks:&str)->Molecule2D{
     cvec.reverse();
 
     let mut token:Vec<String> = vec![];
-    let ii:usize = 0;
     loop{
         let lcc:String = cvec.pop().unwrap();
         let mut vcc:Vec<String> = vec![];
@@ -369,7 +369,6 @@ pub fn smirks_to_molecule(smirks:&str)->Molecule2D{
             break;
         }
     }
-    let numtoken:usize = token.len();
     let mut tmp_atomstring:Vec<StringAtomConnector> = vec![];
     let regex_nonatom:Regex = Regex::new(r"^(-|=|#|$|\(|\)|/|\\|@|[0-9])$").unwrap();
     let regex_special:Regex = Regex::new(r"^(-|=|#|$|/|\\|@)$").unwrap();
@@ -448,6 +447,8 @@ pub fn smirks_to_molecule(smirks:&str)->Molecule2D{
         }
     }
 
+    ここから
+    to smirk みたいに親ーGroup のタプルに入れていった方が安心っぽい
     let mut connected_atoms:Vec<(usize,usize,Vec<String>)> = vec![];
     let tlen = tmp_atomstring.len();
     for kk in 0..tlen{
@@ -521,7 +522,7 @@ pub fn smirks_to_molecule(smirks:&str)->Molecule2D{
 
 
 
-    tree_print(&tmp_atomstring,0,0);
+    //tree_print(&tmp_atomstring,0,0);
     
 
     return StringAtomConnector::to_molecule2d(&tmp_atomstring);
@@ -706,9 +707,11 @@ fn openff_loadtest(){
 
 #[test]
 fn smirkstest(){
-    let mol = smirks_to_molecule("C[C@@H](C(=O)O)N");
-    ここから
-    色々間違ってそう
+    let smirkstring = "C[C@@H](C(=O)O)N";
+    println!("{}",smirkstring);
+    let mol = smirks_to_molecule(smirkstring);
+    //ここから
+    //色々間違ってそう
     println!("\n+++++++{}+++++",mol.to_smirks());
     //println!("\n{:?}",mol);
     smirks_to_molecule("C[C@H](C(=O)O)N");
