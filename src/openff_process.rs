@@ -11,6 +11,8 @@ use super::ff_env::*;
 use regex::Regex;
 use std::collections::HashMap;
 
+const LEFT_PARENTHESIS:i64 = -1;
+const RIGHT_PARENTHESIS:i64 = -2;
 
 //https://www.daylight.com/dayhtml/doc/theory/theory.smarts.html
 
@@ -84,21 +86,21 @@ impl StringAtomConnector{
     }
 
     pub fn create_group(start_pos:usize,end_pos:usize,tokens:&Vec<String>)->(Vec<usize>,Vec<Vec<usize>>){
-        let mut ssin:Vec<usize> = vec![start_pos];
+        let mut ssin:Vec<usize> = vec![];
         let mut ggro:Vec<Vec<usize>> = vec![];
 
-        let mut current_atom:i64 = start_pos as i64;
         let mut processed:HashSet<usize> = HashSet::new();
         processed.insert(start_pos);
-        let mut multi_start:usize = start_pos;
+        let mut multi_start:i64 = -1;
         for ii in start_pos..=end_pos{
-            multi_start = ii;
             if tokens[ii] == "("{
+                multi_start = ii as i64;
                 break;
             }
             ssin.push(ii);
         }
-        if multi_start <= end_pos{
+        if multi_start > -1{
+            let mut multi_start :usize = multi_start as usize;
             loop{
                 if tokens[multi_start] != "("{
                     let mut pgro:Vec<usize> = vec![];
@@ -116,7 +118,7 @@ impl StringAtomConnector{
                 }
                 ggro.push(pgro);
                 if inex < end_pos{
-                    multi_start += 1;
+                    multi_start = inex+1;
                 }else{
                     break;
                 }
@@ -177,11 +179,16 @@ impl StringAtomConnector{
         let mut updated_groups:Vec<(i64,(usize,usize))> = vec![(-1,(0,token.len()-1))];
         while updated_groups.len() > 0{
             let tt = updated_groups.pop().unwrap();
+            let mut parentid = tt.0;
             let start_pos = (tt.1).0;
             let end_pos = (tt.1).1;
+            if start_pos == end_pos{
+                connection_normal_.push((parentid as usize,start_pos));
+                continue;
+            }
             let (singles,multis) = StringAtomConnector::create_group(start_pos, end_pos, &token);
-            let mut parentid = tt.0;
             assert!(singles.len() > 0);
+            
             if parentid > -1{
                 connection_normal_.push((parentid as usize,singles[0]));
             }
@@ -311,7 +318,6 @@ impl StringAtomConnector{
         }
     
         
-        let mut connected_atoms:Vec<(usize,usize,Vec<String>)> = vec![];
         let tlen = tmp_atomstring.len();
         for kk in 0..tlen{
             let nxx = &ex_next[tmp_atomstring[kk].index_tokenlist];
@@ -324,14 +330,18 @@ impl StringAtomConnector{
 
         for cc in connection_normal.into_iter(){
             tmp_atomstring[token_to_atom[cc.0] as usize].connected_next.push(token_to_atom[cc.1] as usize);
-            for pp in ex_prev[cc.1].iter(){
-                tmp_atomstring[token_to_atom[cc.0] as usize].bonds_next.push(pp.clone());
+            let bondstring:String = ex_prev[cc.1].iter().fold("".to_owned(),|s,m|s+m);
+            if bondstring.len() == 0{
+                tmp_atomstring[token_to_atom[cc.0] as usize].bonds_next.push("-".to_owned());
+            }else{
+                tmp_atomstring[token_to_atom[cc.0] as usize].bonds_next.push(bondstring);
             }
         }
     
-        for (cc,ss,mut strr) in distant_connections.into_iter(){
-            tmp_atomstring[cc].connected_next.push(ss);
-            tmp_atomstring[cc].bonds_next.append(&mut strr);
+        for (cc,ss,strr) in distant_connections.into_iter(){
+            tmp_atomstring[token_to_atom[cc] as usize].connected_next.push(token_to_atom[ss] as usize);
+            let bondstring:String = strr.iter().fold("".to_owned(),|s,m|s+m);
+            tmp_atomstring[token_to_atom[cc] as usize].bonds_next.push(bondstring);
         }
     
     
@@ -371,7 +381,7 @@ impl StringAtomConnector{
                 }
             }
         }
-        
+
         //atomindex1,atomindex2,bondindex の双方向のマップ
         //面倒なので大小は考えない
         let mut atom_to_bonds:HashMap<(usize,usize),usize> = HashMap::new();
@@ -510,17 +520,29 @@ impl Molecule2D{
         return (ssin,ggro);
     }
 
-    pub fn print_members(&self,targetid:usize,members:&Vec<Vec<usize>>,children:&Vec<Vec<usize>>)->String{
-        let mut ret:String = members[targetid].iter().map(|m|&self.atoms[*m].atom_type).fold("".to_owned()
-        ,|s,m|{s+m});
+    pub fn array_of_members(&self,targetid:usize,members:&Vec<Vec<usize>>,children:&Vec<Vec<usize>>)->Vec<i64>{
+        let mut ret:Vec<i64> = vec![];
+        for ii in 0..members[targetid].len(){
+            let m = members[targetid][ii];
+            ret.push(m as i64);
+        }
         for ll in 0..children[targetid].len(){
-            ret = ret+"("+&self.print_members(children[targetid][ll],members,children)+")";
+            if ll != children[targetid].len()-1{
+                ret.push(LEFT_PARENTHESIS);
+                ret.append(&mut self.array_of_members(children[targetid][ll],members,children));
+                ret.push(RIGHT_PARENTHESIS);
+            }else{
+                ret.append(&mut self.array_of_members(children[targetid][ll],members,children));
+            }
         }
         return ret;
     }
     pub fn to_smirks(&self)->String{
 //キラリティ入ってない
 //Circler 入ってない
+
+        //members には Single bond でつながった塊が入っている
+        //children は Multi で別れた際にどの members に繋がっているかが入っている
         let mut members:Vec<Vec<usize>> = vec![];
         let mut children:Vec<Vec<usize>> = vec![];
 
@@ -537,19 +559,18 @@ impl Molecule2D{
             bondss.get_mut(&a1).unwrap().push(a2);
             bondss.get_mut(&a2).unwrap().push(a1);
         }
-        println!("\n{:?}",self.bonds);
         let mut start:usize;
         let mut target_groups:Vec<(i64,Vec<usize>)> = vec![(-1,(0..self.atoms.len()).into_iter().collect())];
         while target_groups.len() > 0{
             let tg = target_groups.pop().unwrap();
-            println!("\n{:?}",tg);
+
             if tg.1.len() == 0{
                 continue;
             }
             start = tg.1[0];
             let candidates:HashSet<usize> = tg.1.iter().map(|m| *m).collect();
             let (singlebond,groups) = Molecule2D::create_group(start,&candidates,&bondss);
-            //println!("{:?}\n{:?}",singlebond,groups);
+            //println!("{} {:?}\n{:?}",tg.0,singlebond,groups);
             let nodeid:usize = members.len();
             if tg.0 > -1{
                 children[tg.0 as usize].push(nodeid);
@@ -562,9 +583,16 @@ impl Molecule2D{
                 }
             }
         }
-        println!("{:?}\n{:?}",members,children);
-        return self.print_members(0,&members,&children);
-
+        //println!("{:?}\n{:?}",members,children);
+        //return self.print_members(0,&members,&children);
+        let arr =self.array_of_members(0, &members, &children);
+        let mut bondmap:HashMap<usize,Vec<usize>> = HashMap::new();
+        for bb in self.bonds.iter(){
+            let a1 = bb.atom1.min(bb.atom2);
+            let a2 = bb.atom1.max(bb.atom2);
+            
+        }
+        return "".to_owned();
     }
 
 }
