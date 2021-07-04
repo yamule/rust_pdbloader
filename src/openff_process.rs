@@ -586,13 +586,52 @@ impl Molecule2D{
         //println!("{:?}\n{:?}",members,children);
         //return self.print_members(0,&members,&children);
         let arr =self.array_of_members(0, &members, &children);
-        let mut bondmap:HashMap<usize,Vec<usize>> = HashMap::new();
+        let mut bondmap:HashMap<usize,Vec<(usize,String)>> = HashMap::new();
+        let mut bondmap_rev:HashMap<usize,Vec<(usize,String)>> = HashMap::new();
         for bb in self.bonds.iter(){
-            let a1 = bb.atom1.min(bb.atom2);
-            let a2 = bb.atom1.max(bb.atom2);
-            
+            let a1 = bb.atom1.min(bb.atom2) as usize;
+            let a2 = bb.atom1.max(bb.atom2) as usize;
+            if !bondmap.contains_key(&a1){
+                bondmap.insert(a1,vec![]);
+            }
+            if !bondmap_rev.contains_key(&a2){
+                bondmap_rev.insert(a2,vec![]);
+            }
+            bondmap.get_mut(&a1).unwrap().push((a2,bb.bond_type.iter().fold("".to_owned(),|s,m|s+m)));
+            bondmap_rev.get_mut(&a2).unwrap().push((a1,bb.bond_type.iter().fold("".to_owned(),|s,m|s+m)));
         }
-        return "".to_owned();
+        let mut res:Vec<String> = vec![];
+        let mut atom_vecmap:Vec<i64> = vec![-1;self.atoms.len()];
+        for aa in arr.into_iter(){
+            if aa == LEFT_PARENTHESIS{
+                res.push("(".to_owned());
+            }else if aa == RIGHT_PARENTHESIS{
+                res.push(")".to_owned());
+            }else{
+                assert!(aa > -1);
+                let aa:usize = aa as usize;
+                atom_vecmap[aa] = res.len() as i64;
+                res.push(self.atoms[aa].atom_type.clone());
+            }
+        }
+        let mut distbond_index = 1;
+        for ii in 0..self.atoms.len(){
+            if bondmap_rev.contains_key(&ii){
+                let bb = bondmap_rev.get(&ii).unwrap();
+                //直接結合の INDEX をちゃんととる
+                //バグあり
+                if bb.len() > 1{
+                    for kk in 1..bb.len(){
+                        res[atom_vecmap[bb[kk].0] as usize] += distbond_index.to_string().as_str();
+                        res[atom_vecmap[ii] as usize] += &(bb[kk].1.clone() + distbond_index.to_string().as_str());
+                        distbond_index += 1;
+                    }
+                }
+                res[atom_vecmap[ii] as usize] = bb[0].1.clone()+&res[atom_vecmap[ii] as usize];
+                        
+            }
+        }
+        return res.into_iter().fold("".to_owned(),|s,m|s+&m);
     }
 
 }
