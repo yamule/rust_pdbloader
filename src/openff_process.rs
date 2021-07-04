@@ -59,6 +59,290 @@ impl StringAtomConnector{
             
         };
     }
+    
+
+    //start の括弧に対応する閉じ括弧のインデクスを返す
+    pub fn get_string_range(start:usize,v:&Vec<String>)->usize{
+        assert_eq!(v[start],"(");
+        let mut xcount:usize = 0;
+        for s in start..v.len(){
+            if v[s] == "("{
+                xcount += 1;
+            }
+            if v[s] == ")"{
+                xcount -= 1;
+                if xcount == 0{
+                    return s;
+                }
+            }
+        }
+        let mut zret:Vec<&str> = vec![];
+        for s in start..v.len(){
+            zret.push(&v[s]);
+        }
+        panic!("Couldn't find closing parenthesis! {:?}",zret);
+    }
+
+    pub fn create_group(start_pos:usize,end_pos:usize,tokens:&Vec<String>)->(Vec<usize>,Vec<Vec<usize>>){
+        let mut ssin:Vec<usize> = vec![start_pos];
+        let mut ggro:Vec<Vec<usize>> = vec![];
+
+        let mut current_atom:i64 = start_pos as i64;
+        let mut processed:HashSet<usize> = HashSet::new();
+        processed.insert(start_pos);
+        let mut multi_start:usize = start_pos;
+        for ii in start_pos..=end_pos{
+            multi_start = ii;
+            if tokens[ii] == "("{
+                break;
+            }
+            ssin.push(ii);
+        }
+        if multi_start <= end_pos{
+            loop{
+                if tokens[multi_start] != "("{
+                    let mut pgro:Vec<usize> = vec![];
+                    for ii in multi_start..=end_pos{
+                        pgro.push(ii);
+                    }
+                    ggro.push(pgro);
+                    break;
+                }
+                let inex = StringAtomConnector::get_string_range(multi_start, &tokens);
+                assert_eq!(tokens[inex],")");
+                let mut pgro:Vec<usize> = vec![];
+                for ii in (multi_start+1)..=(inex-1){
+                    pgro.push(ii);
+                }
+                ggro.push(pgro);
+                if inex < end_pos{
+                    multi_start += 1;
+                }else{
+                    break;
+                }
+            }
+        }
+        return (ssin,ggro);
+    }
+
+    pub fn smirks_to_molecule(smirks:&str)->Molecule2D{
+
+        let mut cvec:Vec<String> = smirks.chars().map(|m|m.to_string()).collect();
+        cvec.reverse();
+    
+        let mut token:Vec<String> = vec![];
+        loop{
+            let lcc:String = cvec.pop().unwrap();
+            let mut vcc:Vec<String> = vec![];
+            if lcc == "["{
+                let mut pcc:String = cvec.pop().unwrap();
+                loop{
+                    let pcc_:String = cvec.pop().unwrap();
+                    if pcc_ == "]"{
+                        break;
+                    }
+                    
+                    pcc += pcc_.as_str();
+                }
+                vcc.push("[".to_owned()+&pcc+"]");
+            }else{
+                vcc.push(lcc);
+            }
+            token.push(vcc.into_iter().fold("".to_owned(),|s,m|s+&m));
+            if cvec.len() == 0{
+                break;
+            }
+        }
+        let mut tmp_atomstring:Vec<StringAtomConnector> = vec![];
+        let regex_nonatom:Regex = Regex::new(r"^(-|=|#|$|\(|\)|/|\\|@|[0-9])$").unwrap();
+        let regex_special:Regex = Regex::new(r"^(-|=|#|$|/|\\|@)$").unwrap();
+        let regex_distant_connection_index:Regex = Regex::new(r"^([0-9])$").unwrap();
+        
+        let mut token_to_atom:Vec<i64> = vec![-1;token.len()];
+        
+        for (ii,tt) in token.iter().enumerate(){
+            match regex_nonatom.captures(tt){
+                Some(_x)=>{
+                },
+                _=>{
+                    let tii = tmp_atomstring.len();
+                    tmp_atomstring.push(StringAtomConnector::new(tt,ii,tii));
+                    token_to_atom[ii] = tii as i64;
+                }
+            }
+        }
+
+        
+        let mut connection_normal_:Vec<(usize,usize)> = vec![];
+        let mut updated_groups:Vec<(i64,(usize,usize))> = vec![(-1,(0,token.len()-1))];
+        while updated_groups.len() > 0{
+            let tt = updated_groups.pop().unwrap();
+            let start_pos = (tt.1).0;
+            let end_pos = (tt.1).1;
+            let (singles,multis) = StringAtomConnector::create_group(start_pos, end_pos, &token);
+            let mut parentid = tt.0;
+            assert!(singles.len() > 0);
+            if parentid > -1{
+                connection_normal_.push((parentid as usize,singles[0]));
+            }
+            parentid = singles[0] as i64;
+            for ss in 1..(singles.len()){
+                connection_normal_.push((parentid as usize,singles[ss]));
+                parentid = singles[ss] as i64;
+            }
+            if multis.len() > 0{
+                for mm in multis.into_iter(){
+                    updated_groups.push((parentid,(mm[0],mm[mm.len()-1])));
+                }
+            }
+        }
+        //atom 以外の記号が結合パートナーとして入っている可能性があるので注意
+        let mut connection_normal_hs:HashSet<(usize,usize)> = HashSet::new();
+        for cc in connection_normal_.into_iter(){
+            let mut st = cc.0 as i64;
+            let mut en = cc.1;
+            while st >= 0{
+                if token_to_atom[st as usize] > -1{
+                    break;
+                }
+                if st == 0{
+                    panic!("??");
+                }
+                st -= 1;
+            }
+            while en < token.len(){
+                if token_to_atom[en] > -1{
+                    break;
+                }
+                if en == token.len()-1{
+                    panic!("????");
+                }
+                en += 1;
+            }
+            connection_normal_hs.insert((st as usize,en));
+        }
+        
+        let mut connection_normal:Vec<(usize,usize)> = connection_normal_hs.into_iter().collect();
+        connection_normal.sort();
+
+        //例として
+        //http://www.chemspider.com/Chemical-Structure.65325987.html
+
+        let mut ex_prev:Vec<Vec<String>> = vec![vec![];token.len()];
+        let mut ex_next:Vec<Vec<String>> = vec![vec![];token.len()];
+        //どちらに入っているか理解してないので後でテストすること
+        //特に離れた原子に対する結合で特殊な結合の場合どちらに入っているのか・・・
+        let regex_prev:Regex = Regex::new(r"^(-|=|#|$|/|\\)$").unwrap();
+        let regex_next:Regex = Regex::new(r"^(@|[0-9]|-|=|#|$|/|\\)$").unwrap();
+        for ii in 0..token.len(){
+            if token_to_atom[ii] > -1{
+                let mut prev = ii as i64 -1;
+                while prev > -1{
+                    match regex_prev.captures(&token[prev as usize]){
+                        Some(_x)=>{
+                            ex_prev[ii].push(token[prev as usize].clone());
+                        }
+                        ,
+                        _=>{break;}
+                    }
+                    prev -= 1;
+                }
+                let mut nex:usize = ii +1;
+                while nex < token.len(){
+                    match regex_next.captures(&token[nex]){
+                        Some(_x)=>{
+                            ex_next[ii].push(token[nex].clone());
+                        }
+                        ,
+                        _=>{break;}
+                    }
+                    nex += 1;
+                }
+            }
+        }
+
+
+        //インデックスで結合パートナーを指定する Bond の処理
+        //現在 Connection index （atom の後ろにある数値）を持っている Atom の atom List 上の Index と bondorder を示す文字列
+        //数字より前方にある記号を bond string として入れているが・・・
+        let mut connectionindex_to_tokenindex:HashMap<usize,(i64,Vec<String>)> = HashMap::new();
+        let mut distant_connections:Vec<(usize,usize,Vec<String>)> = vec![];
+        let mut bond_string:Vec<String> = vec![];
+        for ss in 0..token.len(){
+            if ex_next[ss].len() == 0{
+                continue;
+            }
+            for pp in 0..ex_next[ss].len(){
+                if let None =  regex_distant_connection_index.find(&ex_next[ss][pp]){
+                    bond_string.push(ex_next[ss][pp].clone());
+                    continue;
+                }
+                let cindex:usize = ex_next[ss][pp].parse::<usize>().unwrap();
+                let defval:(i64,Vec<String>) = (-1,vec![]);//その Connection Index が空の場合は -1 
+                let cc = connectionindex_to_tokenindex.get(&cindex).unwrap_or(&defval);
+                if cc.0 == -1{
+                    //二桁のインデクスを持つものはないようだ。
+                    //二桁ある場合、それは一桁＋一桁
+                    //よって同じ数字が何度も出てくることがある
+                    //文法としては一番最後に出現した同じ数字のインデクスを持つ Atom ということでよいのだろうか。
+                    
+                    connectionindex_to_tokenindex.insert(cindex,(ss as i64,bond_string));
+                    bond_string = vec![];
+                }else{
+                    //既にペアになる原子が出現している
+                    if cc.1.len() > 0 && bond_string.len() > 0{
+                        if cc.1 != bond_string{
+                            panic!("different bond parameter! {:?} , {:?} ",cc.1,bond_string);
+                        }
+                    }
+                    //ペアとして登録する
+                    if bond_string.len() > 0{
+                        distant_connections.push((cc.0 as usize,ss,bond_string));
+                    }else{
+                        distant_connections.push((cc.0 as usize,ss,cc.1.clone()));
+                    }
+
+
+                    //使用された原子の登録は初期化する
+                    connectionindex_to_tokenindex.insert(cindex,(-1,vec![]));
+                    bond_string = vec![];
+                }
+            }
+        }
+    
+        
+        let mut connected_atoms:Vec<(usize,usize,Vec<String>)> = vec![];
+        let tlen = tmp_atomstring.len();
+        for kk in 0..tlen{
+            let nxx = &ex_next[tmp_atomstring[kk].index_tokenlist];
+            for n in nxx.iter(){
+                if n == "@"{
+                    tmp_atomstring[kk].stereo_center += n;
+                }
+            }
+        }
+
+        for cc in connection_normal.into_iter(){
+            tmp_atomstring[token_to_atom[cc.0] as usize].connected_next.push(token_to_atom[cc.1] as usize);
+            for pp in ex_prev[cc.1].iter(){
+                tmp_atomstring[token_to_atom[cc.0] as usize].bonds_next.push(pp.clone());
+            }
+        }
+    
+        for (cc,ss,mut strr) in distant_connections.into_iter(){
+            tmp_atomstring[cc].connected_next.push(ss);
+            tmp_atomstring[cc].bonds_next.append(&mut strr);
+        }
+    
+    
+    
+    
+        //tree_print(&tmp_atomstring,0,0);
+        
+    
+        return StringAtomConnector::to_molecule2d(&tmp_atomstring);
+    }
+    
     pub fn add_next_atom(&mut self,atomindex:usize,ss:String){
         self.connected_next.push(atomindex);
         self.bonds_next.push(ss);
@@ -127,7 +411,6 @@ impl StringAtomConnector{
                 atom
             );
         }
-
         return ret;
     }
 }
@@ -305,28 +588,6 @@ impl Atom2D{
         };
     }
 }
-
-//start の括弧に対応する閉じ括弧のインデクスを返す
-pub fn get_string_range(v:&Vec<String>,start:usize)->usize{
-    assert_eq!(v[start],"(");
-    let mut xcount:usize = 0;
-    for s in start..v.len(){
-        if v[s] == "("{
-            xcount += 1;
-        }
-        if v[s] == ")"{
-            xcount -= 1;
-            if xcount == 0{
-                return s;
-            }
-        }
-    }
-    let mut zret:Vec<&str> = vec![];
-    for s in start..v.len(){
-        zret.push(&v[s]);
-    }
-    panic!("Couldn't find closing parenthesis! {:?}",zret);
-}
 pub fn tree_print(tmp_atomstring:&Vec<StringAtomConnector>,ppos:usize,parent_length:usize){
     print!("-{}",tmp_atomstring[ppos].atom);
     let nexx:&Vec<usize> = &tmp_atomstring[ppos].connected_next;
@@ -341,192 +602,7 @@ pub fn tree_print(tmp_atomstring:&Vec<StringAtomConnector>,ppos:usize,parent_len
         }
     }
 }
-pub fn smirks_to_molecule(smirks:&str)->Molecule2D{
 
-    let mut cvec:Vec<String> = smirks.chars().map(|m|m.to_string()).collect();
-    cvec.reverse();
-
-    let mut token:Vec<String> = vec![];
-    loop{
-        let lcc:String = cvec.pop().unwrap();
-        let mut vcc:Vec<String> = vec![];
-        if lcc == "["{
-            let mut pcc:String = cvec.pop().unwrap();
-            loop{
-                let pcc_:String = cvec.pop().unwrap();
-                if pcc_ == "]"{
-                    break;
-                }
-                
-                pcc += pcc_.as_str();
-            }
-            vcc.push("[".to_owned()+&pcc+"]");
-        }else{
-            vcc.push(lcc);
-        }
-        token.push(vcc.into_iter().fold("".to_owned(),|s,m|s+&m));
-        if cvec.len() == 0{
-            break;
-        }
-    }
-    let mut tmp_atomstring:Vec<StringAtomConnector> = vec![];
-    let regex_nonatom:Regex = Regex::new(r"^(-|=|#|$|\(|\)|/|\\|@|[0-9])$").unwrap();
-    let regex_special:Regex = Regex::new(r"^(-|=|#|$|/|\\|@)$").unwrap();
-    let regex_distant_connection_index:Regex = Regex::new(r"^[0-9]$").unwrap();
-    
-    let slen = token.len();
-    let mut token_to_atom:Vec<i64> = vec![-1;slen];
-    
-    for (ii,tt) in token.iter().enumerate(){
-        match regex_nonatom.captures(tt){
-            Some(_x)=>{
-            },
-            _=>{
-                let tii = tmp_atomstring.len();
-                tmp_atomstring.push(StringAtomConnector::new(tt,ii,tii));
-                token_to_atom[ii] = tii as i64;
-            }
-        }
-    }
-    
-    //現在 Connection index （atom の後ろにある数値）を持っている Atom の atom List 上の Index と bondorder を示す文字列
-    //数字より前方にある記号を bond string として入れているが・・・
-    let mut connectionindex_to_atomindex:HashMap<usize,(i64,Vec<String>)> = HashMap::new();
-    let mut distant_connections:Vec<(usize,usize,Vec<String>)> = vec![];
-    for ss in 0..slen{
-        match regex_distant_connection_index.captures(&token[ss]){
-            Some(x)=>{
-                let mut st:i64 = ss as i64-1;
-                let mut bond_string:Vec<String> = vec![];
-                while st >= 0{//0 は atom であるはずだが一応
-                    match regex_nonatom.captures(&token[ss]){
-                        Some(_x) => {//前方にある Atom でないものをとる
-                            match regex_special.captures(&token[ss]){
-                                Some(_y) => {//前方にある bond をとる 
-                                        bond_string.push(token[ss].clone());
-                                },
-                                _ => {}
-                            }
-                        },
-                        _ =>{
-                            break;
-                        }
-                    }
-                    st -= 1;
-                }
-
-                let mut st:i64 = ss as i64-1;
-                while st > 0{
-                    if token_to_atom[st as usize] > -1{
-                        let cindex = x.get(1).map(|m| m.as_str()).unwrap().parse::<usize>().unwrap();
-                        let defval:(i64,Vec<String>) = (-1,vec![]);//その Connection Index が空の場合は -1 
-                        let cc = connectionindex_to_atomindex.get(&cindex).unwrap_or(&defval);
-                        if cc.0 == -1{
-                            //二桁のインデクスを持つものはないようだ。
-                            //二桁ある場合、それは一桁＋一桁
-                            //よって同じ数字が何度も出てくることがある
-                            //文法としては一番最後に出現した同じ数字のインデクスを持つ Atom ということでよいのだろうか。
-                            
-                            connectionindex_to_atomindex.insert(cindex,(token_to_atom[st as usize],bond_string));
-                        }else{
-                            if cc.1.len() > 0 && bond_string.len() > 0{
-                                if cc.1 != bond_string{
-                                    panic!("different bond parameter! {:?} , {:?} ",cc.1,bond_string);
-                                }
-                            }
-                            distant_connections.push((cc.0 as usize,ss,bond_string));
-                            connectionindex_to_atomindex.insert(cindex,(-1,vec![]));
-                        }
-                        break;
-                    }
-                    st -= 1;
-                }
-            },
-            _=>{
-            }
-        }
-    }
-
-    ここから
-    to smirk みたいに親ーGroup のタプルに入れていった方が安心っぽい
-    let mut connected_atoms:Vec<(usize,usize,Vec<String>)> = vec![];
-    let tlen = tmp_atomstring.len();
-    for kk in 0..tlen{
-        let mut start:usize = tmp_atomstring[kk].index_tokenlist+1;
-        if start >= slen{
-            break;
-        }
-        let mut bondvec:Vec<String> = vec![];
-        let mut next_start:i64 = -1;
-        while start < slen{
-            if token_to_atom[start] > -1{
-                let mut stereocount:usize = 0;
-                let mut bbvec:Vec<String> = vec![];
-                for bb in bondvec.iter(){
-                    if bb == "@"{
-                        stereocount += 1;
-                    }else{
-                        bbvec.push(bb.clone());
-                    }
-                }
-                if stereocount > 0{
-                    if stereocount == 1{
-                        tmp_atomstring[kk].stereo_center = "@".to_owned();
-                    }else if stereocount == 2{
-                        tmp_atomstring[kk].stereo_center = "@@".to_owned();
-                    }else{
-                        panic!("??? @ more than two.");
-                    }
-                }
-                if bbvec.len() == 0{
-                    bbvec.push("-".to_owned());
-                }
-                connected_atoms.push((kk,token_to_atom[start] as usize,bbvec));
-                bondvec.clear();
-                if next_start > -1{
-                    start = next_start as usize;
-                    next_start = -1;
-                    continue;
-                }else{
-                    break;
-                }
-            }
-            if  token[start] == "("{
-                if next_start == -1{
-                    next_start = get_string_range(&token,start) as i64;
-                }
-            }else{
-                match regex_special.captures(&token[start]){
-                    Some(x)=>{
-                        bondvec.push(token[start].clone());
-                    },
-                    _=>{
-                    }
-                }
-            }
-            start += 1;
-        }
-    }
-
-
-    for (cc,ss,mut strr) in connected_atoms.into_iter(){
-        tmp_atomstring[cc].connected_next.push(ss);
-        tmp_atomstring[cc].bonds_next.append(&mut strr);
-    }
-
-    for (cc,ss,mut strr) in distant_connections.into_iter(){
-        tmp_atomstring[cc].connected_next.push(ss);
-        tmp_atomstring[cc].bonds_next.append(&mut strr);
-    }
-
-
-
-
-    //tree_print(&tmp_atomstring,0,0);
-    
-
-    return StringAtomConnector::to_molecule2d(&tmp_atomstring);
-}
 
 
 pub struct SMIRKBond{
@@ -709,12 +785,12 @@ fn openff_loadtest(){
 fn smirkstest(){
     let smirkstring = "C[C@@H](C(=O)O)N";
     println!("{}",smirkstring);
-    let mol = smirks_to_molecule(smirkstring);
+    let mol = StringAtomConnector::smirks_to_molecule(smirkstring);
     //ここから
     //色々間違ってそう
     println!("\n+++++++{}+++++",mol.to_smirks());
     //println!("\n{:?}",mol);
-    smirks_to_molecule("C[C@H](C(=O)O)N");
+    StringAtomConnector::smirks_to_molecule("C[C@H](C(=O)O)N");
     //println!("");
 
 }
