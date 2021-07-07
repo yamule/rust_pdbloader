@@ -463,7 +463,13 @@ impl Molecule2D{
     pub fn new()->Molecule2D{
         return Molecule2D{atoms:vec![],bonds:vec![]};
     }
+ここから
+どこかで Hash をそのまま使っているのか
+Test を何回かしたら順番が変わってしまう。assert_eq!()
 
+    //startatom から初めて、connected を参考に Atom を追加していく
+    //結合が二つ以上に分かれた場合、ggro にそれぞれ別れた道の先にある Atom を入れて返す
+    //Circler 担っている場合についてきちんとまだ確認していない
     pub fn create_group(start_atom:usize,candidates:&HashSet<usize>,connected:&HashMap<usize,Vec<usize>>)->(Vec<usize>,Vec<Vec<usize>>){
         let mut ssin:Vec<usize> = vec![start_atom];
         let mut ggro:Vec<Vec<usize>> = vec![];
@@ -520,22 +526,35 @@ impl Molecule2D{
         return (ssin,ggro);
     }
 
-    pub fn array_of_members(&self,targetid:usize,members:&Vec<Vec<usize>>,children:&Vec<Vec<usize>>)->Vec<i64>{
+    //members には Atom が分岐なくつながったグループが入っており、これは Molecule 全てを網羅する
+    //children には Members の最後の Atom から分岐した場合の分岐先の members のインデクスが入っている
+    //これらを SMIRKS 形式に類似した形式で Vec に atoms のインデクスを入れて返す。
+    //二番目の要素は、暗黙的に示されるため結合を作成するときに必要でない結合のペアのタプル
+    //括弧はそれぞれ LEFT_PARENTHESIS, RIGHT_PARENTHESIS という定数
+
+    pub fn array_of_members(&self,targetid:usize,members:&Vec<Vec<usize>>,children:&Vec<Vec<usize>>)
+    ->(Vec<i64>,Vec<(usize,usize)>){
         let mut ret:Vec<i64> = vec![];
+        let mut implied:Vec<(usize,usize)> = vec![];
         for ii in 0..members[targetid].len(){
             let m = members[targetid][ii];
             ret.push(m as i64);
         }
         for ll in 0..children[targetid].len(){
+            implied.push((members[targetid][members[targetid].len()-1],members[children[targetid][ll]][0]));
             if ll != children[targetid].len()-1{
                 ret.push(LEFT_PARENTHESIS);
-                ret.append(&mut self.array_of_members(children[targetid][ll],members,children));
+                let (mut arr,mut bb) =  self.array_of_members(children[targetid][ll],members,children);
+                ret.append(&mut arr);
+                implied.append(&mut bb);
                 ret.push(RIGHT_PARENTHESIS);
             }else{
-                ret.append(&mut self.array_of_members(children[targetid][ll],members,children));
+                let (mut arr,mut bb) =  self.array_of_members(children[targetid][ll],members,children);
+                ret.append(&mut arr);
+                implied.append(&mut bb);
             }
         }
-        return ret;
+        return (ret,implied);
     }
     pub fn to_smirks(&self)->String{
 //キラリティ入ってない
@@ -569,6 +588,7 @@ impl Molecule2D{
             }
             start = tg.1[0];
             let candidates:HashSet<usize> = tg.1.iter().map(|m| *m).collect();
+
             let (singlebond,groups) = Molecule2D::create_group(start,&candidates,&bondss);
             //println!("{} {:?}\n{:?}",tg.0,singlebond,groups);
             let nodeid:usize = members.len();
@@ -602,7 +622,8 @@ impl Molecule2D{
         }
         let mut res:Vec<String> = vec![];
         let mut atom_vecmap:Vec<i64> = vec![-1;self.atoms.len()];
-        for aa in arr.into_iter(){
+        let implied_bonds:HashSet<(usize,usize)> = arr.1.iter().fold(HashSet::new(),|mut s,m|{s.insert((m.0,m.1)); s.insert((m.1,m.0));s});
+        for aa in arr.0.into_iter(){
             if aa == LEFT_PARENTHESIS{
                 res.push("(".to_owned());
             }else if aa == RIGHT_PARENTHESIS{
@@ -614,20 +635,51 @@ impl Molecule2D{
                 res.push(self.atoms[aa].atom_type.clone());
             }
         }
-        let mut distbond_index = 1;
+        
+        let mut distbond_used:Vec<i64> = vec![-1;res.len()];
         for ii in 0..self.atoms.len(){
             if bondmap_rev.contains_key(&ii){
                 let bb = bondmap_rev.get(&ii).unwrap();
-                //直接結合の INDEX をちゃんととる
-                //バグあり
+                
                 if bb.len() > 1{
-                    for kk in 1..bb.len(){
-                        res[atom_vecmap[bb[kk].0] as usize] += distbond_index.to_string().as_str();
-                        res[atom_vecmap[ii] as usize] += &(bb[kk].1.clone() + distbond_index.to_string().as_str());
-                        distbond_index += 1;
+                    for kk in 0..bb.len(){
+                        if implied_bonds.contains(&(ii,bb[kk].0)){
+                            if bb[kk].1 == "-"{
+                                res[atom_vecmap[ii] as usize] = bb[kk].1.clone()+&res[atom_vecmap[ii] as usize];
+                            }
+                        }else{
+                            let mut distbond_check:HashSet<i64> = HashSet::new();
+                            for pp in (atom_vecmap[bb[kk].0] as usize)..=(atom_vecmap[ii] as usize){
+                                distbond_check.insert(distbond_used[pp]);
+                            }
+
+                            //二つの結合した原子の間にある原子で使われていないインデクスを探す
+                            let mut distbond_index = -1;
+                            for pp in 1..=9{
+                                if !distbond_check.contains(&pp){
+                                    distbond_index = pp;
+                                    break;
+                                }
+                            }
+                            if distbond_index < 1{
+                                panic!("This molecule cannot express as smirks???");
+                            }
+
+                            distbond_used[atom_vecmap[bb[kk].0] as usize] = distbond_index;
+                            distbond_used[atom_vecmap[ii] as usize] = distbond_index;
+                            res[atom_vecmap[bb[kk].0] as usize] += distbond_index.to_string().as_str();
+                            if bb[kk].1 == "-"{
+                                res[atom_vecmap[ii] as usize] += distbond_index.to_string().as_str();
+                            }else{
+                                res[atom_vecmap[ii] as usize] += &(bb[kk].1.clone() + distbond_index.to_string().as_str());
+                            }
+                        }
+                    }
+                }else{
+                    if bb[0].1 != "-"{
+                        res[atom_vecmap[ii] as usize] = bb[0].1.clone()+&res[atom_vecmap[ii] as usize];
                     }
                 }
-                res[atom_vecmap[ii] as usize] = bb[0].1.clone()+&res[atom_vecmap[ii] as usize];
                         
             }
         }
