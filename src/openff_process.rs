@@ -89,8 +89,8 @@ impl StringAtomConnector{
         let mut ssin:Vec<usize> = vec![];
         let mut ggro:Vec<Vec<usize>> = vec![];
 
-        let mut processed:HashSet<usize> = HashSet::new();
-        processed.insert(start_pos);
+        //let mut processed:HashSet<usize> = HashSet::new();//いらんかな
+        //processed.insert(start_pos);
         let mut multi_start:i64 = -1;
         for ii in start_pos..=end_pos{
             if tokens[ii] == "("{
@@ -157,7 +157,7 @@ impl StringAtomConnector{
         }
         let mut tmp_atomstring:Vec<StringAtomConnector> = vec![];
         let regex_nonatom:Regex = Regex::new(r"^(-|=|#|$|\(|\)|/|\\|@|[0-9])$").unwrap();
-        let regex_special:Regex = Regex::new(r"^(-|=|#|$|/|\\|@)$").unwrap();
+        let _regex_special:Regex = Regex::new(r"^(-|=|#|$|/|\\|@)$").unwrap();
         let regex_distant_connection_index:Regex = Regex::new(r"^([0-9])$").unwrap();
         
         let mut token_to_atom:Vec<i64> = vec![-1;token.len()];
@@ -327,6 +327,7 @@ impl StringAtomConnector{
                 }
             }
         }
+        println!("{:?}",connection_normal);
 
         for cc in connection_normal.into_iter(){
             tmp_atomstring[token_to_atom[cc.0] as usize].connected_next.push(token_to_atom[cc.1] as usize);
@@ -385,10 +386,16 @@ impl StringAtomConnector{
         //atomindex1,atomindex2,bondindex の双方向のマップ
         //面倒なので大小は考えない
         let mut atom_to_bonds:HashMap<(usize,usize),usize> = HashMap::new();
-        for uu  in bonds_hs.iter(){
-            for hh in uu.1.iter(){
+        let mut bonds_v:Vec<(usize,HashSet<(usize,String)>)> = bonds_hs.into_iter().map(|m|(m.0,m.1)).collect();
+        bonds_v.sort_by(|a,b|a.0.cmp(&b.0));
+
+        for uu  in bonds_v.into_iter(){
+            let target = uu.0;
+            let mut partner:Vec<(usize,String)> = uu.1.into_iter().collect();
+            partner.sort();
+            for hh in partner.iter(){
                 let mut b = Bond2D::new();
-                b.atom1 = *uu.0 as i64;
+                b.atom1 = target as i64;
                 b.atom2 = hh.0 as i64;
                 b.bond_type.push(hh.1.clone());
                 
@@ -463,9 +470,6 @@ impl Molecule2D{
     pub fn new()->Molecule2D{
         return Molecule2D{atoms:vec![],bonds:vec![]};
     }
-ここから
-どこかで Hash をそのまま使っているのか
-Test を何回かしたら順番が変わってしまう。assert_eq!()
 
     //startatom から初めて、connected を参考に Atom を追加していく
     //結合が二つ以上に分かれた場合、ggro にそれぞれ別れた道の先にある Atom を入れて返す
@@ -515,6 +519,7 @@ Test を何回かしたら順番が変わってしまう。assert_eq!()
                         for pp in connected.get(&uu).unwrap().iter(){
                             updated.push(*pp);
                         }
+                        updated.sort();
                     }
                     if members.len() > 0{
                         ggro.push(members);
@@ -846,7 +851,8 @@ pub fn autogenerate_connection(bonds:&Vec<&FFBond>,num_nodes:usize)->Vec<Vec<usi
         edges.get_mut(&bb.atoms.0).unwrap().push(bb.atoms.1.clone());
         edges.get_mut(&bb.atoms.1).unwrap().push(bb.atoms.0.clone());
     }
-    let allstart:Vec<usize> = edges.iter().map(|m|*m.0).collect();
+    let mut allstart:Vec<usize> = edges.iter().map(|m|*m.0).collect();
+    allstart.sort();
     let mut res:Vec<Vec<usize>> = vec![];
     for a in allstart.iter(){
         let rr = get_all_path(&edges,&vec![*a],num_nodes);
@@ -902,14 +908,16 @@ fn openff_loadtest(){
 
 #[test]
 fn smirkstest(){
-    let smirkstring = "C[C@@H](C(=O)O)N";
-    println!("{}",smirkstring);
-    let mol = StringAtomConnector::smirks_to_molecule(smirkstring);
-    //ここから
-    //色々間違ってそう
-    println!("\n+++++++{}+++++",mol.to_smirks());
-    //println!("\n{:?}",mol);
-    StringAtomConnector::smirks_to_molecule("C[C@H](C(=O)O)N");
-    //println!("");
+    for _ in 0..100{
+        let smirkstring = "C[C@@H](C(=O)O)N";
+        println!("{}",smirkstring);
+        let mol = StringAtomConnector::smirks_to_molecule(smirkstring);
+        //ここから
+        //色々間違ってそう
+        println!("\n+++++++{}+++++",mol.to_smirks());
+        //println!("\n{:?}",mol);
+        StringAtomConnector::smirks_to_molecule("C[C@H](C(=O)O)N");
+        //println!("");
+    }
 
 }
