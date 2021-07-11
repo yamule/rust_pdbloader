@@ -136,7 +136,9 @@ impl StringAtomConnector{
         loop{
             let lcc:String = cvec.pop().unwrap();
             let mut vcc:Vec<String> = vec![];
-            if lcc == "["{
+            if lcc == "%"{//二桁ラベル
+                vcc.push(lcc+&cvec.pop().unwrap()+&cvec.pop().unwrap());
+            }else if lcc == "["{
                 let mut pcc:String = cvec.pop().unwrap();
                 loop{
                     let pcc_:String = cvec.pop().unwrap();
@@ -158,7 +160,7 @@ impl StringAtomConnector{
         let mut tmp_atomstring:Vec<StringAtomConnector> = vec![];
         let regex_nonatom:Regex = Regex::new(r"^(-|=|#|$|\(|\)|/|\\|@|[0-9])$").unwrap();
         let _regex_special:Regex = Regex::new(r"^(-|=|#|$|/|\\|@)$").unwrap();
-        let regex_distant_connection_index:Regex = Regex::new(r"^([0-9])$").unwrap();
+        let regex_distant_connection_index:Regex = Regex::new(r"^([0-9]|%[0-9][0-9])$").unwrap();
         
         let mut token_to_atom:Vec<i64> = vec![-1;token.len()];
         
@@ -188,6 +190,7 @@ impl StringAtomConnector{
             }
             let (singles,multis) = StringAtomConnector::create_group(start_pos, end_pos, &token);
             assert!(singles.len() > 0);
+            println!("{:?} {:?}",singles,multis);
             
             if parentid > -1{
                 connection_normal_.push((parentid as usize,singles[0]));
@@ -203,7 +206,7 @@ impl StringAtomConnector{
                 }
             }
         }
-        //atom 以外の記号が結合パートナーとして入っている可能性があるので注意
+        //connection_normal_ には atom 以外の記号が結合パートナーとして入っているので後方前方を探して原子同士にする
         let mut connection_normal_hs:HashSet<(usize,usize)> = HashSet::new();
         for cc in connection_normal_.into_iter(){
             let mut st = cc.0 as i64;
@@ -221,33 +224,34 @@ impl StringAtomConnector{
                 if token_to_atom[en] > -1{
                     break;
                 }
-                if en == token.len()-1{
-                    panic!("????");
-                }
                 en += 1;
+                if en == token.len(){
+                    break;
+                }
+            }
+
+            if en == token.len(){//Distant connection に対する記号が入っているだけのはず
+                continue;
             }
             connection_normal_hs.insert((st as usize,en));
         }
         
         let mut connection_normal:Vec<(usize,usize)> = connection_normal_hs.into_iter().collect();
         connection_normal.sort();
-
-        //例として
-        //http://www.chemspider.com/Chemical-Structure.65325987.html
-
+        
         let mut ex_prev:Vec<Vec<String>> = vec![vec![];token.len()];
         let mut ex_next:Vec<Vec<String>> = vec![vec![];token.len()];
         //どちらに入っているか理解してないので後でテストすること
         //特に離れた原子に対する結合で特殊な結合の場合どちらに入っているのか・・・
         let regex_prev:Regex = Regex::new(r"^(-|=|#|$|/|\\)$").unwrap();
-        let regex_next:Regex = Regex::new(r"^(@|[0-9]|-|=|#|$|/|\\)$").unwrap();
+        let regex_next:Regex = Regex::new(r"^(@|[0-9]|-|=|#|$|/|\\|%[0-9][0-9])$").unwrap();
         for ii in 0..token.len(){
             if token_to_atom[ii] > -1{
                 let mut prev = ii as i64 -1;
                 while prev > -1{
                     match regex_prev.captures(&token[prev as usize]){
                         Some(_x)=>{
-                            ex_prev[ii].push(token[prev as usize].clone());
+                            ex_prev[ii].push(token[prev as usize].clone());                            
                         }
                         ,
                         _=>{break;}
@@ -259,6 +263,7 @@ impl StringAtomConnector{
                     match regex_next.captures(&token[nex]){
                         Some(_x)=>{
                             ex_next[ii].push(token[nex].clone());
+                            
                         }
                         ,
                         _=>{break;}
@@ -268,27 +273,36 @@ impl StringAtomConnector{
             }
         }
 
-
+        println!("{:?}",ex_next);
         //インデックスで結合パートナーを指定する Bond の処理
         //現在 Connection index （atom の後ろにある数値）を持っている Atom の atom List 上の Index と bondorder を示す文字列
         //数字より前方にある記号を bond string として入れているが・・・
         let mut connectionindex_to_tokenindex:HashMap<usize,(i64,Vec<String>)> = HashMap::new();
         let mut distant_connections:Vec<(usize,usize,Vec<String>)> = vec![];
-        let mut bond_string:Vec<String> = vec![];
         for ss in 0..token.len(){
             if ex_next[ss].len() == 0{
                 continue;
             }
+
+            let mut bond_string:Vec<String> = vec![];
             for pp in 0..ex_next[ss].len(){
                 if let None =  regex_distant_connection_index.find(&ex_next[ss][pp]){
+                    //原子インデクス以外の記号
                     bond_string.push(ex_next[ss][pp].clone());
                     continue;
                 }
-                let cindex:usize = ex_next[ss][pp].parse::<usize>().unwrap();
+                let cindex_ = if ex_next[ss][pp].len() == 1{
+                    ex_next[ss][pp].clone()
+                }else{
+                    //二桁の場合
+                    let cz:Vec<char> = ex_next[ss][pp].chars().into_iter().collect();
+                    cz[1].to_string()+&cz[2].to_string()
+                };
+                let cindex:usize = cindex_.parse::<usize>().unwrap();
                 let defval:(i64,Vec<String>) = (-1,vec![]);//その Connection Index が空の場合は -1 
                 let cc = connectionindex_to_tokenindex.get(&cindex).unwrap_or(&defval);
                 if cc.0 == -1{
-                    //二桁のインデクスを持つものはないようだ。
+                    //二桁のインデクスを持つものは % が接頭辞として付く。
                     //二桁ある場合、それは一桁＋一桁
                     //よって同じ数字が何度も出てくることがある
                     //文法としては一番最後に出現した同じ数字のインデクスを持つ Atom ということでよいのだろうか。
@@ -308,8 +322,6 @@ impl StringAtomConnector{
                     }else{
                         distant_connections.push((cc.0 as usize,ss,cc.1.clone()));
                     }
-
-
                     //使用された原子の登録は初期化する
                     connectionindex_to_tokenindex.insert(cindex,(-1,vec![]));
                     bond_string = vec![];
@@ -327,7 +339,6 @@ impl StringAtomConnector{
                 }
             }
         }
-        println!("{:?}",connection_normal);
 
         for cc in connection_normal.into_iter(){
             tmp_atomstring[token_to_atom[cc.0] as usize].connected_next.push(token_to_atom[cc.1] as usize);
@@ -345,8 +356,7 @@ impl StringAtomConnector{
             tmp_atomstring[token_to_atom[cc] as usize].bonds_next.push(bondstring);
         }
     
-    
-    
+        println!("{:?} {:?} {:?} ",&token,token_to_atom,tmp_atomstring[3]);
     
         //tree_print(&tmp_atomstring,0,0);
         
@@ -410,7 +420,6 @@ impl StringAtomConnector{
             }
         }
         
-
         for (ii,aa) in atoms.iter().enumerate(){
             let mut atom:Atom2D =Atom2D::new();
             atom.atom_type = aa.atom.clone();
@@ -423,7 +432,6 @@ impl StringAtomConnector{
                 }
                 atom.bonds.push(*atom_to_bonds.get(&code).unwrap());
             }
-
             ret.atoms.push(
                 atom
             );
@@ -519,6 +527,7 @@ impl Molecule2D{
                         for pp in connected.get(&uu).unwrap().iter(){
                             updated.push(*pp);
                         }
+                        //面倒だからこうしたが、遅いだろうか
                         updated.sort();
                     }
                     if members.len() > 0{
@@ -535,14 +544,16 @@ impl Molecule2D{
     //children には Members の最後の Atom から分岐した場合の分岐先の members のインデクスが入っている
     //これらを SMIRKS 形式に類似した形式で Vec に atoms のインデクスを入れて返す。
     //二番目の要素は、暗黙的に示されるため結合を作成するときに必要でない結合のペアのタプル
-    //括弧はそれぞれ LEFT_PARENTHESIS, RIGHT_PARENTHESIS という定数
-
+    //括弧はそれぞれ LEFT_PARENTHESIS, RIGHT_PARENTHESIS という負の定数
     pub fn array_of_members(&self,targetid:usize,members:&Vec<Vec<usize>>,children:&Vec<Vec<usize>>)
     ->(Vec<i64>,Vec<(usize,usize)>){
         let mut ret:Vec<i64> = vec![];
         let mut implied:Vec<(usize,usize)> = vec![];
         for ii in 0..members[targetid].len(){
             let m = members[targetid][ii];
+            if ii < members[targetid].len() -1{
+                implied.push((members[targetid][ii],members[targetid][ii+1]));
+            }
             ret.push(m as i64);
         }
         for ll in 0..children[targetid].len(){
@@ -562,9 +573,6 @@ impl Molecule2D{
         return (ret,implied);
     }
     pub fn to_smirks(&self)->String{
-//キラリティ入ってない
-//Circler 入ってない
-
         //members には Single bond でつながった塊が入っている
         //children は Multi で別れた際にどの members に繋がっているかが入っている
         let mut members:Vec<Vec<usize>> = vec![];
@@ -625,6 +633,8 @@ impl Molecule2D{
             bondmap.get_mut(&a1).unwrap().push((a2,bb.bond_type.iter().fold("".to_owned(),|s,m|s+m)));
             bondmap_rev.get_mut(&a2).unwrap().push((a1,bb.bond_type.iter().fold("".to_owned(),|s,m|s+m)));
         }
+        println!("{:?}",self.bonds);
+        println!("{:?} {:?}",bondmap_rev,arr);
         let mut res:Vec<String> = vec![];
         let mut atom_vecmap:Vec<i64> = vec![-1;self.atoms.len()];
         let implied_bonds:HashSet<(usize,usize)> = arr.1.iter().fold(HashSet::new(),|mut s,m|{s.insert((m.0,m.1)); s.insert((m.1,m.0));s});
@@ -643,51 +653,54 @@ impl Molecule2D{
         
         let mut distbond_used:Vec<i64> = vec![-1;res.len()];
         for ii in 0..self.atoms.len(){
-            if bondmap_rev.contains_key(&ii){
-                let bb = bondmap_rev.get(&ii).unwrap();
-                
-                if bb.len() > 1{
-                    for kk in 0..bb.len(){
-                        if implied_bonds.contains(&(ii,bb[kk].0)){
-                            if bb[kk].1 == "-"{
-                                res[atom_vecmap[ii] as usize] = bb[kk].1.clone()+&res[atom_vecmap[ii] as usize];
-                            }
-                        }else{
-                            let mut distbond_check:HashSet<i64> = HashSet::new();
-                            for pp in (atom_vecmap[bb[kk].0] as usize)..=(atom_vecmap[ii] as usize){
-                                distbond_check.insert(distbond_used[pp]);
-                            }
-
-                            //二つの結合した原子の間にある原子で使われていないインデクスを探す
-                            let mut distbond_index = -1;
-                            for pp in 1..=9{
-                                if !distbond_check.contains(&pp){
-                                    distbond_index = pp;
-                                    break;
-                                }
-                            }
-                            if distbond_index < 1{
-                                panic!("This molecule cannot express as smirks???");
-                            }
-
-                            distbond_used[atom_vecmap[bb[kk].0] as usize] = distbond_index;
-                            distbond_used[atom_vecmap[ii] as usize] = distbond_index;
-                            res[atom_vecmap[bb[kk].0] as usize] += distbond_index.to_string().as_str();
-                            if bb[kk].1 == "-"{
-                                res[atom_vecmap[ii] as usize] += distbond_index.to_string().as_str();
-                            }else{
-                                res[atom_vecmap[ii] as usize] += &(bb[kk].1.clone() + distbond_index.to_string().as_str());
+            //if bondmap_rev.contains_key(&ii){
+            //    let bb = bondmap_rev.get(&ii).unwrap();
+            if bondmap.contains_key(&ii){
+                let bb = bondmap.get(&ii).unwrap();
+                for kk in 0..bb.len(){
+                    if implied_bonds.contains(&(ii,bb[kk].0)){
+                        if bb[kk].1 != "-"{
+                            res[atom_vecmap[ii] as usize] = bb[kk].1.clone()+&res[atom_vecmap[ii] as usize];
+                        }
+                    }else{
+                        let mut distbond_check:HashSet<i64> = HashSet::new();
+                        for pp in (atom_vecmap[bb[kk].0] as usize)..=(atom_vecmap[ii] as usize){
+                            distbond_check.insert(distbond_used[pp]);
+                        }
+                        //二つの結合した原子の間にある原子で使われていないインデクスを探す
+                        let mut distbond_index = -1;
+                        for pp in 1..=99{
+                            if !distbond_check.contains(&pp){
+                                distbond_index = pp;
+                                break;
                             }
                         }
-                    }
-                }else{
-                    if bb[0].1 != "-"{
-                        res[atom_vecmap[ii] as usize] = bb[0].1.clone()+&res[atom_vecmap[ii] as usize];
+                        if distbond_index < 1{
+                            panic!("This molecule cannot express as smirks???");
+                        }
+
+                        distbond_used[atom_vecmap[bb[kk].0] as usize] = distbond_index;
+                        distbond_used[atom_vecmap[ii] as usize] = distbond_index;
+
+                        let pprefix = if distbond_index >= 10{
+                            "%"
+                        } else{
+                            ""
+                        };
+                        res[atom_vecmap[bb[kk].0] as usize] += &(pprefix.to_owned()+distbond_index.to_string().as_str());
+                        println!("{} {} {} {:?} {:?} ",ii,atom_vecmap[ii],bb[kk].0,atom_vecmap[bb[kk].0],res[atom_vecmap[bb[kk].0] as usize]);
+                        if bb[kk].1 == "-"{
+                            res[atom_vecmap[ii] as usize] += &(pprefix.to_owned()+distbond_index.to_string().as_str());
+                        }else{
+                            res[atom_vecmap[ii] as usize] += &(bb[kk].1.clone() + pprefix + distbond_index.to_string().as_str());
+                        }
                     }
                 }
+                
                         
             }
         }
+        println!("{:?}",distbond_used);
         return res.into_iter().fold("".to_owned(),|s,m|s+&m);
     }
 
@@ -908,16 +921,25 @@ fn openff_loadtest(){
 
 #[test]
 fn smirkstest(){
-    for _ in 0..100{
-        let smirkstring = "C[C@@H](C(=O)O)N";
+    /*
+    https://pubs.acs.org/doi/abs/10.1021/acs.jcim.8b00785
+    Predictive Multitask Deep Neural Network Models for ADME-Tox Properties: Learning from Large Data Sets
+        Jan Wenzel*Hans MatterFriedemann Schmidt
+    の Supporting Info
+    */
+    let examples = vec![
+        "CCOc1ccccc1",
+        "CCOc1ccc(Nc2c(C)c(N[C@H]3CCCNC3)nc4ccnn24)cc1"
+    ];
+
+    for ee in examples.into_iter(){
+        let smirkstring = ee;
         println!("{}",smirkstring);
         let mol = StringAtomConnector::smirks_to_molecule(smirkstring);
-        //ここから
-        //色々間違ってそう
-        println!("\n+++++++{}+++++",mol.to_smirks());
-        //println!("\n{:?}",mol);
-        StringAtomConnector::smirks_to_molecule("C[C@H](C(=O)O)N");
-        //println!("");
+        println!("\"{}\",",mol.to_smirks());
     }
 
+
 }
+//例として
+//http://www.chemspider.com/Chemical-Structure.65325987.html
