@@ -185,20 +185,31 @@ impl StringAtomConnector{
             let start_pos = (tt.1).0;
             let end_pos = (tt.1).1;
             if start_pos == end_pos{
-                connection_normal_.push((parentid as usize,start_pos));
+                if parentid > -1{
+                    connection_normal_.push((parentid as usize,start_pos));
+                }
                 continue;
             }
             let (singles,multis) = StringAtomConnector::create_group(start_pos, end_pos, &token);
             assert!(singles.len() > 0);
-            println!("{:?} {:?}",singles,multis);
             
-            if parentid > -1{
-                connection_normal_.push((parentid as usize,singles[0]));
+            let mut filtered:Vec<usize> = vec![];
+            for ss in 0..singles.len(){
+                if token_to_atom[singles[ss]] > -1{
+                    filtered.push(singles[ss]);
+                }
             }
-            parentid = singles[0] as i64;
-            for ss in 1..(singles.len()){
-                connection_normal_.push((parentid as usize,singles[ss]));
-                parentid = singles[ss] as i64;
+            if parentid > -1{
+                connection_normal_.push((parentid as usize,filtered[0]));
+            }
+            if filtered.len() == 0{
+                panic!("????");
+            }
+            parentid = filtered[0] as i64;
+
+            for ss in 1..filtered.len(){
+                connection_normal_.push((parentid as usize,filtered[ss]));
+                parentid = filtered[ss] as i64;
             }
             if multis.len() > 0{
                 for mm in multis.into_iter(){
@@ -273,7 +284,6 @@ impl StringAtomConnector{
             }
         }
 
-        println!("{:?}",ex_next);
         //インデックスで結合パートナーを指定する Bond の処理
         //現在 Connection index （atom の後ろにある数値）を持っている Atom の atom List 上の Index と bondorder を示す文字列
         //数字より前方にある記号を bond string として入れているが・・・
@@ -355,8 +365,6 @@ impl StringAtomConnector{
             let bondstring:String = strr.iter().fold("".to_owned(),|s,m|s+m);
             tmp_atomstring[token_to_atom[cc] as usize].bonds_next.push(bondstring);
         }
-    
-        println!("{:?} {:?} {:?} ",&token,token_to_atom,tmp_atomstring[3]);
     
         //tree_print(&tmp_atomstring,0,0);
         
@@ -603,7 +611,6 @@ impl Molecule2D{
             let candidates:HashSet<usize> = tg.1.iter().map(|m| *m).collect();
 
             let (singlebond,groups) = Molecule2D::create_group(start,&candidates,&bondss);
-            //println!("{} {:?}\n{:?}",tg.0,singlebond,groups);
             let nodeid:usize = members.len();
             if tg.0 > -1{
                 children[tg.0 as usize].push(nodeid);
@@ -616,7 +623,6 @@ impl Molecule2D{
                 }
             }
         }
-        //println!("{:?}\n{:?}",members,children);
         //return self.print_members(0,&members,&children);
         let arr =self.array_of_members(0, &members, &children);
         let mut bondmap:HashMap<usize,Vec<(usize,String)>> = HashMap::new();
@@ -633,9 +639,6 @@ impl Molecule2D{
             bondmap.get_mut(&a1).unwrap().push((a2,bb.bond_type.iter().fold("".to_owned(),|s,m|s+m)));
             bondmap_rev.get_mut(&a2).unwrap().push((a1,bb.bond_type.iter().fold("".to_owned(),|s,m|s+m)));
         }
-        println!("{:?}",self.atoms);
-        println!("{:?}",self.bonds);
-        println!("{:?} {:?}",bondmap_rev,arr);
         let mut res:Vec<String> = vec![];
         let mut atom_vecmap:Vec<i64> = vec![-1;self.atoms.len()];
         let implied_bonds:HashSet<(usize,usize)> = arr.1.iter().fold(HashSet::new(),|mut s,m|{s.insert((m.0,m.1)); s.insert((m.1,m.0));s});
@@ -704,7 +707,6 @@ impl Molecule2D{
                             ""
                         };
                         res[atom_vecmap[bb[kk].0] as usize] += &(pprefix.to_owned()+distbond_index.to_string().as_str());
-                        println!("{} {} {} {:?} {:?} ",ii,atom_vecmap[ii],bb[kk].0,atom_vecmap[bb[kk].0],res[atom_vecmap[bb[kk].0] as usize]);
                         if bb[kk].1 == "-"{
                             res[atom_vecmap[ii] as usize] += &(pprefix.to_owned()+distbond_index.to_string().as_str());
                         }else{
@@ -712,11 +714,8 @@ impl Molecule2D{
                         }
                     }
                 }
-                
-                        
             }
         }
-        println!("{:?}",distbond_used);
         return res.into_iter().fold("".to_owned(),|s,m|s+&m);
     }
 
