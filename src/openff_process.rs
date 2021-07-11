@@ -633,6 +633,7 @@ impl Molecule2D{
             bondmap.get_mut(&a1).unwrap().push((a2,bb.bond_type.iter().fold("".to_owned(),|s,m|s+m)));
             bondmap_rev.get_mut(&a2).unwrap().push((a1,bb.bond_type.iter().fold("".to_owned(),|s,m|s+m)));
         }
+        println!("{:?}",self.atoms);
         println!("{:?}",self.bonds);
         println!("{:?} {:?}",bondmap_rev,arr);
         let mut res:Vec<String> = vec![];
@@ -943,6 +944,7 @@ fn smirkstest(){
     の Supporting Info
     */
     let examples = vec![
+        "C1C(C2CCO2)NC1",
         "CCOc1ccc(Nc2c(C)c(N[C@H]3CCCNC3)nc4ccnn24)cc1"
     ];
 
