@@ -391,7 +391,7 @@ impl StringAtomConnector{
             水素を加える
             get_clockwise_atoms(axis//こちら側にくる原子)
             みたいな関数を作って、stereocenter の処理をする
-            N@ と言うのはないのか・・・？
+            N@ もあるっぽい。ダミーの H を入れるか。
 
 
         }
