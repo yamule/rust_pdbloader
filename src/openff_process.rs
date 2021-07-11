@@ -662,15 +662,15 @@ impl Molecule2D{
             if bondmap.contains_key(&ii){
                 let bb = bondmap.get(&ii).unwrap();
                 for kk in 0..bb.len(){
+                    let ast = (atom_vecmap[bb[kk].0] as usize).min(atom_vecmap[ii] as usize);
+                    let aen = (atom_vecmap[bb[kk].0] as usize).max(atom_vecmap[ii] as usize);
                     if implied_bonds.contains(&(ii,bb[kk].0)){
                         if bb[kk].1 != "-"{
-                            res[atom_vecmap[ii] as usize] = bb[kk].1.clone()+&res[atom_vecmap[ii] as usize];
+                            res[aen] = bb[kk].1.clone()+&res[aen];
                         }
                     }else{
                         let mut distbond_check:HashSet<i64> = HashSet::new();
                         let mut distbond_check_:Vec<i64> = vec![0;100];
-                        let ast = (atom_vecmap[bb[kk].0] as usize).min(atom_vecmap[ii] as usize);
-                        let aen = (atom_vecmap[bb[kk].0] as usize).max(atom_vecmap[ii] as usize);
                         for pp in 0..ast{
                             if distbond_used[pp] > 0{
                                 distbond_check_[distbond_used[pp] as usize] += 1;
@@ -706,11 +706,11 @@ impl Molecule2D{
                         } else{
                             ""
                         };
-                        res[atom_vecmap[bb[kk].0] as usize] += &(pprefix.to_owned()+distbond_index.to_string().as_str());
+                        res[ast] += &(pprefix.to_owned()+distbond_index.to_string().as_str());
                         if bb[kk].1 == "-"{
-                            res[atom_vecmap[ii] as usize] += &(pprefix.to_owned()+distbond_index.to_string().as_str());
+                            res[aen] += &(pprefix.to_owned()+distbond_index.to_string().as_str());
                         }else{
-                            res[atom_vecmap[ii] as usize] += &(bb[kk].1.clone() + pprefix + distbond_index.to_string().as_str());
+                            res[aen] += &(bb[kk].1.clone() + pprefix + distbond_index.to_string().as_str());
                         }
                     }
                 }
@@ -942,14 +942,112 @@ fn smirkstest(){
         Jan Wenzel*Hans MatterFriedemann Schmidt
     の Supporting Info
     */
+    ここから
+    stereocenter の処理
     let examples = vec![
-        "C1C(C2CCO2)NC1",
-        "CCOc1ccc(Nc2c(C)c(N[C@H]3CCCNC3)nc4ccnn24)cc1"
+        "CCOc1ccc(Nc2c(C)c(N[C@H]3CCCNC3)nc4ccnn24)cc1",
+        "N[C@@H]1CC[C@H](CC1)Nc2cc(Nc3ccc(F)c(Cl)c3)n4nccc4n2",
+        "COc1ccc(CC(=O)\\N=C(/N)\\N[C@H](CC2CCCCC2)C(=O)NCc3ccc(cc3)c4nn[nH]n4)cc1OC",
+        "COc1ccccc1C(=O)\\C=C\\c2ccccc2C(F)(F)F",
+        "COc1cc2ncnc(Nc3c(C)c(O)ccc3F)c2cc1OC",
+        "Cn1ncc2cc(Cc3[nH]nc4ccc(cc34)C(=O)N5CC[C@H](O)C5)ccc12",
+        "Cn1cc(cn1)c2ccc(Cc3[nH]nc4ccc(cc34)C(=O)N5CCCC5)cc2",
+        "COC1CN(C1)C(=O)c2ccc3[nH]nc(Cc4ccc(cc4)c5cnn(C)c5)c3c2",
+        "Cn1cc(cn1)c2ccc(Cc3[nH]nc4ccc(cc34)C(=O)N5CCOCC5)cc2",
+        "CNC(=O)c1ccc2[nH]nc(Cc3ccc(cc3)c4cnn(C)c4)c2c1",
+        "Cn1cc(cn1)c2ccc(Cc3[nH]nc4ccc(cc34)C(=O)N5CC[C@@H](O)C5)cc2",
+        "Cn1cc(cn1)c2ccc(Cc3[nH]nc4ccc(cc34)C(=O)N5CC(O)C5)cc2",
+        "CNC(=O)c1ccc2[nH]nc(Cc3ccc4c(cnn4C)c3)c2c1",
+        "Cn1cc(cn1)c2ccc(Cc3[nH]nc4ccc(cc34)C(=O)N5CC[C@H](O)C5)cc2",
+        "Cn1cc(cn1)c2ccc(Cc3[nH]nc4ccc(cc34)C(=O)N5CCNCC5)cc2",
+        "Cn1ncc2cc(Cc3[nH]nc4ccc(cc34)C(=O)N5CC(O)C5)ccc12",
+        "Cn1cc(cn1)c2ccc(Cc3[nH]nc4ccc(cc34)C(=O)N5CC(F)(F)C5)cc2",
+        "Cn1ncc2cc(Cc3[nH]nc4ccc(cc34)C(=O)N5CCC(F)(F)C5)ccc12",
+        "COC1CN(C1)C(=O)c2ccc3[nH]nc(Cc4ccc5c(cnn5C)c4)c3c2",
+        "Cn1cc(cn1)c2ccc(Cc3[nH]nc4ccc(cc34)C(=O)N5CCC(F)(F)C5)cc2",
+        "CCc1cc(nc(N)n1)c2c[nH]c3ncc(cc23)c4cnn(c4)C5CCNCC5",
+        "CCc1cc(nc(N)n1)c2c[nH]c3ncc(cc23)c4cnn(CCN(C)C)c4",
+        "CCCCc1cc(nc(N)n1)c2c[nH]c3ncc(cc23)c4cnn(c4)C5CCNCC5",
+        "C[C@H](CCC(=O)Nc1ccccc1)[C@H]2CC[C@H]3[C@@H]4[C@@H](C[C@@H]5CC6(CC[C@]5(C)[C@H]4C[C@H](OC(=O)C)[C@]23C)OOC7(CCC(CC7)C(=O)Nc8ccccc8)OO6)OC(=O)C",
+        "C[C@H](CCC(=O)NCCN(C)C)[C@H]1CC[C@H]2[C@@H]3[C@@H](C[C@@H]4CC5(CC[C@]4(C)[C@H]3C[C@H](OC(=O)C)[C@]12C)OOC6(CCC(CC6)C(=O)NCCN(C)C)OO5)OC(=O)C",
+        "C[C@H](CCC(=O)N)[C@H]1CC[C@H]2[C@@H]3[C@@H](C[C@@H]4CC5(CC[C@]4(C)[C@H]3C[C@H](OC(=O)C)[C@]12C)OOC6(CCC(CC6)C(=O)N)OO5)OC(=O)C",
+        "O=C(NC1CCN(C\\C\\2=C\\CCCCCC2)CC1)Nc3ccc4ccccc4c3",
+        "COc1ccc2c(Oc3ccc(NC(=O)C4=C(C)N(CC(C)(C)O)N(C4=O)c5ccccc5)nc3)ccnc2c1",
+        "OC(=O)c1cccc(Cc2cc(Cl)ccc2OCc3ccc(Cl)cc3F)n1",
+        "CNS(=O)(=O)c1cc(c2c3C(=O)N(C)C(=O)N(CC4CC4)c3nn2Cc5ccnc6ccc(Cl)cc56)n(C)c1",
+        "CNS(=O)(=O)c1cc(c2c3C(=O)N(C)C(=O)N(CC4CC4)c3nn2Cc5c[nH]c6ccc(Cl)cc56)n(C)c1",
+        "CN1C(=O)N(CC2CC2)c3nn(Cc4ccnc5ccc(Cl)cc45)c(c6oc(cc6)S(=O)(=O)C)c3C1=O",
+        "CN1C(=O)N(CC2CC2)c3nn(Cc4cn(C)c5ccc(Cl)cc45)c(c3C1=O)c6cc(cn6C)S(=O)(=O)C",
+        "CN1C(=O)N(CC2CC2)c3nn(Cc4c[nH]c5ccc(Cl)cc45)c(c3C1=O)c6cc(cn6C)S(=O)(=O)C",
+        "CN1C(=O)N(CC2CC2)c3nn(Cc4ccnc5ccc(Cl)cc45)c(c6oc(cc6Cl)S(=O)(=O)C)c3C1=O",
+        "CN1C(=O)N(CC2CC2)c3nn(Cc4ccnc5ccc(Cl)cc45)c(c3C1=O)c6nc(cn6C)S(=O)(=O)C",
+        "CN1C(=O)N(CC2CC2)c3nn(Cc4c[nH]c5ccc(Cl)cc45)c(c3C1=O)c6nc(cn6C)S(=O)(=O)C",
+        "CN1C(=O)N(CC2CC2)c3nn(Cc4cn(C)c5ccc(Cl)cc45)c(c6cc(oc6C)S(=O)(=O)C)c3C1=O",
+        "CN1C(=O)N(CC2CC2)c3nn(Cc4c[nH]c5ccc(Cl)cc45)c(c3C1=O)c6nc(cn6C)S(=O)(=O)N",
+        "CN1C(=O)N(CC2CC2)c3nn(Cc4ccnc5ccc(Cl)cc45)c(c6cc(oc6C)S(=O)(=O)C)c3C1=O",
+        "CN1C(=O)N(CC2CC2)c3nn(Cc4c[nH]c5ccc(Cl)cc45)c(c6cc(cn6C)S(=O)C)c3C1=O",
+        "CN1C(=O)N(CC2CC2)c3nn(Cc4ccnc5ccc(Cl)cc45)c(c3C1=O)c6cc(cn6C)S(=O)C",
+        "Clc1ccc(cc1)C(NC(=O)CNC(=O)CCc2ccccc2)c3ccccc3",
+        "CC(C)COc1ccc(Cl)cc1c2ccccc2c3cccc(n3)C(=O)O",
+        "CCNc1cc(N2CCCCS2(=O)=O)c(F)c(c1)C(=O)N[C@@H](Cc3ccccc3)[C@H](O)CNCc4cccc(c4)C(F)(F)F",
+        "CCNc1cc(N2CCCC2=O)c(F)c(c1)C(=O)N[C@@H](Cc3ccccc3)[C@H](O)CNCc4cccc(c4)C(F)(F)F",
+        "CCNc1cc(cc(c1)C(=O)N[C@@H](Cc2ccccc2)[C@H](O)CNCc3cnn(CC)c3)N4CCCCS4(=O)=O",
+        "CC(C)(C)NCc1cc(Nc2ccnc3cc(Cl)ccc23)ccc1F",
+        "CCNCc1cc(Nc2ccnc3cc(Cl)ccc23)ccc1O",
+        "CCc1c(nn(c2ccc(Cl)cc2Cl)c1c3ccc(cc3)C4CC4)C(=O)NN5CCCC5",
+        "Cc1c(nn(c2ccc(F)cc2F)c1c3ccc(cc3)C4CC4)C(=O)NN5CCCCC5",
+        "COc1c(nn(c1c2ccc(cc2)C3CC3)c4ccc(Cl)cc4Cl)C(=O)NN5CCCCC5",
+        "CCc1c(nn(c1c2ccc(cc2)C3CC3)c4ccc(Cl)cc4Cl)C(=O)NN5CCCCC5",
+        "Cc1c(nn(c2ccc(Cl)cc2Cl)c1c3ccc(cc3)C4CC4)C(=O)NN5CCCCC5",
+        "Cc1c(nn(c2ccccc2)c1c3ccc(cc3)C4CC4)C(=O)NN5CCCCC5",
+        "Cc1c(nn(c2ccccc2Cl)c1c3ccc(cc3)C4CC4)C(=O)NN5CCCCC5",
+        "Cc1c(nn(c2ccc(Cl)cc2F)c1c3ccc(cc3)C4CC4)C(=O)NN5CCCCC5",
+        "Cc1c(nn(c2ccc(Cl)cc2Cl)c1c3ccc(cc3)C4CCCC4)C(=O)NN5CCCCC5",
+        "Cc1c(nn(c1c2ccc(cc2)C3CCC3)c4ccc(Cl)cc4Cl)C(=O)NN5CCCCC5",
+        "Cc1c(nn(c2ccc(F)cc2Cl)c1c3ccc(cc3)C4CC4)C(=O)NN5CCCCC5",
+        "Clc1ccc(c(Cl)c1)n2nc(cc2c3ccc(cc3)C4CC4)C(=O)NN5CCCCC5",
+        "Cc1c(nn(c2ccccc2F)c1c3ccc(cc3)C4CC4)C(=O)NN5CCCCC5",
+        "COc1cnc2c(NCc3nnc4ccc(nn34)c5cc(C)ns5)ccnc2c1",
+        "COc1cnc2c(NCc3nnc4ccc(nn34)c5cc(F)cc(F)c5)ccnc2c1",
+        "NC(=O)c1cccc2cn(nc12)c3ccc4CCNCc4c3",
+        "NC(=O)c1cccc2cn(nc12)c3ccc4CNCCc4c3",
+        "NC(=O)c1cccc2cn(nc12)c3ccc(CN4CCCCC4)cc3",
+        "CN1CCN(Cc2ccc(cc2)n3cc4cccc(C(=O)N)c4n3)CC1",
+        "NC(=O)c1cccc2cn(nc12)c3ccc(cc3)C4CCCN4",
+        "NC(=O)c1cccc2cn(nc12)c3ccccc3",
+        "NC(=O)c1cccc2cn(nc12)c3ccc(cc3)C4CCCNC4",
+        "CNC(C)c1ccc(cc1)n2cc3cccc(C(=O)N)c3n2",
+        "NC(=O)c1cccc2cn(nc12)c3ccc(cc3)C4CCNCC4",
+        "CNCc1cccc(c1)n2cc3cccc(C(=O)N)c3n2",
+        "NC(=O)c1cccc2cn(nc12)c3ccc(cc3)[C@H]4CCCNC4",
+        "CNC(C)(C)c1ccc(cc1)n2cc3cccc(C(=O)N)c3n2",
+        "CNCc1ccc(cc1)n2cc3cccc(C(=O)N)c3n2",
+        "NC(=O)c1cccc2cn(nc12)c3ccc(cc3)[C@@H]4CCCNC4",
+        "CC(C)NCc1ccc(cc1)n2cc3cccc(C(=O)N)c3n2",
+        "CN(C)Cc1ccc(cc1)n2cc3cccc(C(=O)N)c3n2",
+        "C[C@H](Oc1ccc(cc1C(=O)N2Cc3ccc(Cl)cc3C2)S(=O)(=O)C)C(F)(F)F",
+        "Oc1ccc(cc1)c2sc3cc(O)ccc3c2C(=O)c4ccc(OCCN5CCCCC5)cc4",
+        "COc1ccc(OC(F)(F)F)cc1Cn2c(cc3cc(ccc23)C#N)C(=O)NCC(C)(C)CO",
+        "Cc1ccc(cc1Cn2c(cc3cc(ccc23)C#N)C(=O)NCCC(C)(C)O)C(F)(F)F",
+        "CC(C)N(CCO)Cc1csc(n1)c2cn(CC3CCOCC3)c4c(Cl)cccc24",
+        "CC(=O)NCCOc1ccc2C(=O)c3c([nH]c4cc(ccc34)C#N)C(C)(C)c2c1",
+        "CC1(C)c2cc(ccc2C(=O)c3c1[nH]c4cc(ccc34)C#N)N5CCN(CC5)C6COC6",
+        "CC1(C)c2cc(ccc2C(=O)c3c1[nH]c4cc(ccc34)C#N)N5CCN(CC5)S(=O)(=O)C",
+        "CC1(C)c2cc(OCCN3CCS(=O)(=O)CC3)ccc2C(=O)c4c1[nH]c5cc(ccc45)C#N",
+        "CCN(CC)CCOc1ccc2C(=O)c3c([nH]c4cc(ccc34)C#N)C(C)(C)c2c1",
+        "CC1(C)c2cc(ccc2C(=O)c3c1[nH]c4cc(ccc34)C#N)C5CCN(CC5)C6COC6",
+        "CC1(C)c2cc(ccc2C(=O)c3c1[nH]c4cc(ccc34)C#N)N5CCCCC5",
+        "CC1(C)c2cc(ccc2C(=O)c3c1[nH]c4cc(ccc34)C#N)N5CCC(O)CC5",
+        "CC(C)N1CCN(CC1)c2ccc3C(=O)c4c([nH]c5cc(ccc45)C#N)C(C)(C)c3c2",
+        "CC1(C)c2cc(OCCNC(=O)N)ccc2C(=O)c3c1[nH]c4cc(ccc34)C#N",
+        "CC1(C)c2cc(ccc2C(=O)c3c1[nH]c4cc(ccc34)C#N)N5CCOCC5",
+        "Cc1cc(Nc2ccc(cc2)C#C)n3ncnc3n1",
+        "CN(C)c1ccc(Nc2cc(C)nc3ncnn23)cc1",
+        "Cc1cc(Nc2ccc(cc2)C3CC3)n4ncnc4n1",
     ];
-
     for ee in examples.into_iter(){
         let smirkstring = ee;
-        println!("{}",smirkstring);
+        println!("\"{}\",",smirkstring);
         let mol = StringAtomConnector::smirks_to_molecule(smirkstring);
         println!("\"{}\",",mol.to_smirks());
     }
