@@ -664,9 +664,24 @@ impl Molecule2D{
                         }
                     }else{
                         let mut distbond_check:HashSet<i64> = HashSet::new();
-                        for pp in (atom_vecmap[bb[kk].0] as usize)..=(atom_vecmap[ii] as usize){
+                        let mut distbond_check_:Vec<i64> = vec![0;100];
+                        let ast = (atom_vecmap[bb[kk].0] as usize).min(atom_vecmap[ii] as usize);
+                        let aen = (atom_vecmap[bb[kk].0] as usize).max(atom_vecmap[ii] as usize);
+                        for pp in 0..ast{
+                            if distbond_used[pp] > 0{
+                                distbond_check_[distbond_used[pp] as usize] += 1;
+                            }
+                        }
+                        for ii in 0..100{
+                            if distbond_check_[ii] %2 == 1{
+                                distbond_check.insert(ii as i64);
+                            }
+                        }
+
+                        for pp in ast..=aen{
                             distbond_check.insert(distbond_used[pp]);
                         }
+
                         //二つの結合した原子の間にある原子で使われていないインデクスを探す
                         let mut distbond_index = -1;
                         for pp in 1..=99{
@@ -928,7 +943,6 @@ fn smirkstest(){
     の Supporting Info
     */
     let examples = vec![
-        "CCOc1ccccc1",
         "CCOc1ccc(Nc2c(C)c(N[C@H]3CCCNC3)nc4ccnn24)cc1"
     ];
 
