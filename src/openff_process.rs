@@ -374,10 +374,12 @@ impl StringAtomConnector{
                     }else{
                         //二桁の場合
                         let cz:Vec<char> = s.chars().into_iter().collect();
+                        assert!(cz.len()==3,"Index must be made from 2 letters. {} ",s);
                         cz[1].to_string()+&cz[2].to_string()
                     };
                     let cindex = cindex_.parse::<usize>().unwrap();
-                    bonder.push(*distant_connections_atomid_index_nextatomid[kk].get(&cindex).unwrap());
+                    bonder.push(*distant_connections_atomid_index_nextatomid[tmp_atomstring[kk].index_tokenlist].get(&cindex).unwrap_or_else(
+                        ||panic!("position: {} id: {} is not found. {:?}",kk,cindex,distant_connections_atomid_index_nextatomid)));
                 }
                 if n == "@"{
                     tmp_atomstring[kk].stereo_center += n;
@@ -387,12 +389,13 @@ impl StringAtomConnector{
                 bonder.append(&mut bond_listorder[kk]);
                 bond_listorder[kk].append(&mut bonder);//前に詰める
             }
+            /*
             ここから
             水素を加える
             get_clockwise_atoms(axis//こちら側にくる原子)
             みたいな関数を作って、stereocenter の処理をする
             N@ もあるっぽい。ダミーの H を入れるか。-> canonical smiles では取れているようだ
-
+            */
 
         }
 
