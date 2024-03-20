@@ -171,7 +171,7 @@ pub fn get_newick_string(branches_:&Vec<(i64,i64,f32)>,node_name_map_:&HashMap<u
         node_name_map = h;
     }
 
-    return "(".to_string()+node_name_map.get(&0).unwrap_or_else(||panic!("0 is not a node."))+":"+branches[0].2.to_string().as_str()+","+get_internal_node_string(0,&branches,&node_name_map).as_str()+");";
+    return "(".to_string()+node_name_map.get(&0).unwrap_or_else(||panic!("0 is not a node."))+":0.0,"+get_internal_node_string(0,&branches,&node_name_map).as_str()+");";
 }
 
 pub fn get_internal_node_string(idx:usize,branches:&Vec<(i64,i64,f32)>,node_name_map:&HashMap<usize,String>)->String{
