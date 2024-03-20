@@ -151,6 +151,8 @@ pub fn get_newick_string(branches_:&Vec<(i64,i64,f32)>,node_name_map_:&HashMap<u
         }
     }
 
+    assert!(branches.len() > 2);// 3 つ以上枝があることを前提とする
+
     if centers.len() == 3{
         let mut first_node:i64 = -1;
         for (ii,bb) in branches.iter().enumerate(){
@@ -169,10 +171,15 @@ pub fn get_newick_string(branches_:&Vec<(i64,i64,f32)>,node_name_map_:&HashMap<u
         let (b,h) = set_outgroup(first_node as usize,&branches, &node_name_map);
         branches = b;
         node_name_map = h;
+    }else{
+        assert!(parent_branch[0] == -1);//root は 0 にあることを前提とする
     }
 
-    return "(".to_string()+node_name_map.get(&0).unwrap_or_else(||panic!("0 is not a node."))+":0.0,"+get_internal_node_string(0,&branches,&node_name_map).as_str()+");";
+    let na = get_internal_node_string(branches[0].0 as usize,&branches,&node_name_map);
+    let nb = get_internal_node_string(branches[0].1 as usize,&branches,&node_name_map);
+    return "(".to_owned()+node_name_map.get(&0).unwrap_or_else(||panic!("0 is not a node."))+":"+branches[0].2.to_string().as_str()+","+na.as_str()+","+nb.as_str()+")";
 }
+
 
 pub fn get_internal_node_string(idx:usize,branches:&Vec<(i64,i64,f32)>,node_name_map:&HashMap<usize,String>)->String{
     if branches[idx].0 > -1 && branches[idx].1 > -1{
